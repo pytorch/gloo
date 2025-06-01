@@ -5,6 +5,7 @@
 #pragma once
 
 #include <iostream>
+#include <cstdint>
 
 #ifdef __CUDA_ARCH__
 #include <cuda.h>
