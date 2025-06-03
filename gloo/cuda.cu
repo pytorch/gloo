@@ -283,7 +283,7 @@ static inline int cudaGetBlocks(const int N) {
 #define DELEGATE_SIMPLE_CUDA_BINARY_OPERATOR(T, Funcname, op)       \
   __global__ void _Kernel_##T##_##Funcname(                         \
       T* dst, const T* src, const int n) {                          \
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < (n);    \
+    for (auto i = blockIdx.x * blockDim.x + threadIdx.x; i < (n);   \
          i += blockDim.x * gridDim.x) {                             \
       dst[i] = dst[i] op src[i];                                    \
     }                                                               \
@@ -301,7 +301,7 @@ static inline int cudaGetBlocks(const int N) {
 #define DELEGATE_HALF_PRECISION_CUDA_BINARY_OPERATOR(Funcname, op)             \
   __global__ void _Kernel_half_##Funcname(                                     \
       half* dst, const half* src, const int n) {                               \
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < (n);               \
+    for (auto i = blockIdx.x * blockDim.x + threadIdx.x; i < (n);              \
          i += blockDim.x * gridDim.x) {                                        \
       float r = __half2float(dst[i]) op __half2float(src[i]);                  \
       dst[i] = __float2half(r);                                                \
@@ -337,7 +337,7 @@ DELEGATE_HALF_PRECISION_CUDA_BINARY_OPERATOR(cudaProduct, *);
 #define DELEGATE_SIMPLE_CUDA_BINARY_COMPARE(T, Funcname, op)        \
   __global__ void _Kernel_##T##_##Funcname(                         \
       T* dst, const T* src, const int n) {                          \
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < (n);    \
+    for (auto i = blockIdx.x * blockDim.x + threadIdx.x; i < (n);   \
          i += blockDim.x * gridDim.x) {                             \
       if (src[i] op dst[i]) {                                       \
         dst[i] = src[i];                                            \
@@ -357,7 +357,7 @@ DELEGATE_HALF_PRECISION_CUDA_BINARY_OPERATOR(cudaProduct, *);
 #define DELEGATE_HALF_PRECISION_CUDA_BINARY_COMPARE(Funcname, op)              \
   __global__ void _Kernel_half_##Funcname(                                     \
       half* dst, const half* src, const int n) {                               \
-    for (int i = blockIdx.x * blockDim.x + threadIdx.x; i < (n);               \
+    for (auto i = blockIdx.x * blockDim.x + threadIdx.x; i < (n);              \
          i += blockDim.x * gridDim.x) {                                        \
       if (__half2float(src[i]) op __half2float(dst[i])) {                      \
         dst[i] = src[i];                                                       \
@@ -398,6 +398,12 @@ DELEGATE_SIMPLE_CUDA_BINARY_OPERATOR(BFloat16, cudaSum, +);
 DELEGATE_SIMPLE_CUDA_BINARY_OPERATOR(BFloat16, cudaProduct, *);
 DELEGATE_SIMPLE_CUDA_BINARY_COMPARE(BFloat16, cudaMin, <);
 DELEGATE_SIMPLE_CUDA_BINARY_COMPARE(BFloat16, cudaMax, >);
+using Half = c10::Half;
+INSTANTIATE_COPY_ASYNC(Half);
+DELEGATE_SIMPLE_CUDA_BINARY_OPERATOR(Half, cudaSum, +);
+DELEGATE_SIMPLE_CUDA_BINARY_OPERATOR(Half, cudaProduct, *);
+DELEGATE_SIMPLE_CUDA_BINARY_COMPARE(Half, cudaMin, <);
+DELEGATE_SIMPLE_CUDA_BINARY_COMPARE(Half, cudaMax, >);
 #endif
 
 } // namespace gloo
