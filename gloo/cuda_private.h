@@ -22,6 +22,7 @@
 
 #if GLOO_USE_TORCH_DTYPES
 #include <c10/util/BFloat16.h>
+#include <c10/util/Half.h>
 #endif
 
 namespace gloo {
