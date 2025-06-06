@@ -13,6 +13,7 @@ set(GLOO_TRANSPORT_HDRS
   "${CMAKE_CURRENT_SOURCE_DIR}/context.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/device.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/pair.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/remote_key.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/unbound_buffer.h"
   )
 

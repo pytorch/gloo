@@ -38,7 +38,9 @@ UnboundBuffer::UnboundBuffer(
       size == 0 ? static_cast<void*>(&emptyBuf_) : ptr,
       size == 0 ? sizeof(emptyBuf_) : size,
       IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
-          IBV_ACCESS_REMOTE_WRITE);
+          IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_ATOMIC);
+
+  remoteKey_.emplace(context_->rank, mr->addr, size, mr->lkey);
 
   // Provide hint if the error is EFAULT and nv_peer_mem is not loaded
   if (mr == nullptr && errno == EFAULT) {
@@ -96,7 +98,8 @@ void UnboundBuffer::handleCompletion(int rank, struct ibv_wc* wc) {
     std::unique_lock<std::mutex> lock(m_);
     recvCompletions_.emplace_back(rank);
     recvCv_.notify_one();
-  } else if (wc->opcode == IBV_WC_RDMA_WRITE) {
+  } else if (
+      wc->opcode == IBV_WC_RDMA_WRITE || wc->opcode == IBV_WC_RDMA_READ) {
     std::unique_lock<std::mutex> lock(m_);
     sendCompletions_++;
     sendPending_--;
@@ -209,6 +212,28 @@ void UnboundBuffer::send(
   context_->getPair(dstRank)->send(this, slot, offset, nbytes);
 }
 
+void UnboundBuffer::put(
+    const transport::RemoteKey& remoteKey,
+    uint64_t slot,
+    size_t offset,
+    size_t roffset,
+    size_t nbytes) {
+  sendPending_++;
+  context_->getPair(remoteKey.rank)
+      ->put(this, remoteKey, slot, offset, roffset, nbytes);
+}
+
+void UnboundBuffer::get(
+    const transport::RemoteKey& remoteKey,
+    uint64_t slot,
+    size_t offset,
+    size_t roffset,
+    size_t nbytes) {
+  sendPending_++;
+  context_->getPair(remoteKey.rank)
+      ->get(this, remoteKey, slot, offset, roffset, nbytes);
+}
+
 void UnboundBuffer::recv(
     int srcRank,
     uint64_t slot,
@@ -253,6 +278,11 @@ void UnboundBuffer::throwIfException() {
   if (ex_ != nullptr) {
     std::rethrow_exception(ex_);
   }
+}
+
+std::unique_ptr<::gloo::transport::RemoteKey> UnboundBuffer::getRemoteKey()
+    const {
+  return std::make_unique<RemoteKey>(remoteKey_.value());
 }
 
 } // namespace ibverbs

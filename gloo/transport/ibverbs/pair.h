@@ -101,6 +101,22 @@ class Pair : public ::gloo::transport::Pair {
       size_t offset,
       size_t nbytes) override;
 
+  void put(
+      transport::UnboundBuffer* tbuf,
+      const transport::RemoteKey& key,
+      uint64_t slot,
+      size_t offset,
+      size_t roffset,
+      size_t nbytes) override;
+
+  void get(
+      transport::UnboundBuffer* tbuf,
+      const transport::RemoteKey& key,
+      uint64_t slot,
+      size_t offset,
+      size_t roffset,
+      size_t nbytes) override;
+
   void handleCompletionEvent();
 
   void pollCompletions();

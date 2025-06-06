@@ -26,6 +26,12 @@ const std::vector<Transport> kTransportsForClassAlgorithms = {
 #endif
 };
 
+const std::vector<Transport> kTransportsForRDMA = {
+#if GLOO_HAVE_TRANSPORT_IBVERBS
+    Transport::IBVERBS,
+#endif
+};
+
 // Transports that function algorithms can be tested against.
 // This is the new style of calling collectives and must be
 // preferred over the instantiated style.
