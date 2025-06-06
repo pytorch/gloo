@@ -14,6 +14,7 @@ set(GLOO_TEST_SRCS
   "${CMAKE_CURRENT_SOURCE_DIR}/main.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/memory_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/reduce_test.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/remote_key_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/send_recv_test.cc"
   )
 set(GLOO_TEST_LIBRARIES)

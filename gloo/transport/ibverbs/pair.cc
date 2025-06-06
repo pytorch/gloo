@@ -54,8 +54,7 @@ Pair::Pair(
 
   // Create queue pair
   {
-    struct ibv_qp_init_attr attr;
-    memset(&attr, 0, sizeof(struct ibv_qp_init_attr));
+    struct ibv_qp_init_attr attr{};
     attr.send_cq = cq_;
     attr.recv_cq = cq_;
     attr.cap.max_send_wr = Pair::kSendCompletionQueueCapacity;
@@ -69,12 +68,12 @@ Pair::Pair(
 
   // Init queue pair
   {
-    struct ibv_qp_attr attr;
-    memset(&attr, 0, sizeof(struct ibv_qp_attr));
+    struct ibv_qp_attr attr{};
     attr.qp_state = IBV_QPS_INIT;
     attr.pkey_index = 0;
     attr.port_num = dev_->attr_.port;
-    attr.qp_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE;
+    attr.qp_access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE |
+        IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_ATOMIC;
     rv = ibv_modify_qp(
         qp_,
         &attr,
@@ -87,8 +86,7 @@ Pair::Pair(
   // the remote end of this pair needs to have the contents of the
   // full address struct in order to connect, and vice versa.
   {
-    struct ibv_port_attr attr;
-    memset(&attr, 0, sizeof(struct ibv_port_attr));
+    struct ibv_port_attr attr{};
     rv = ibv_query_port(dev_->context_, dev_->attr_.port, &attr);
     GLOO_ENFORCE_EQ(rv, 0);
     rv = ibv_query_gid(
@@ -145,13 +143,12 @@ const Address& Pair::address() const {
 }
 
 void Pair::connect(const std::vector<char>& bytes) {
-  struct ibv_qp_attr attr;
+  struct ibv_qp_attr attr{};
   int rv;
   checkErrorState();
 
   peer_ = Address(bytes);
 
-  memset(&attr, 0, sizeof(attr));
   attr.qp_state = IBV_QPS_RTR;
   attr.path_mtu = IBV_MTU_1024;
   attr.dest_qp_num = peer_.addr_.qpn;
@@ -176,7 +173,7 @@ void Pair::connect(const std::vector<char>& bytes) {
           IBV_QP_AV | IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER);
   GLOO_ENFORCE_EQ(rv, 0);
 
-  memset(&attr, 0, sizeof(attr));
+  attr = (struct ibv_qp_attr){};
   attr.qp_state = IBV_QPS_RTS;
   attr.sq_psn = self_.addr_.psn;
   attr.ah_attr.is_global = 1;
@@ -225,8 +222,7 @@ void Pair::setSync(bool sync, bool busyPoll) {
 void Pair::sendMemoryRegion(struct ibv_mr* src, int slot) {
   auto mr = make_unique<MemoryRegion>(dev_->pd_, src);
   struct ibv_sge list = mr->sge();
-  struct ibv_send_wr wr;
-  memset(&wr, 0, sizeof(wr));
+  struct ibv_send_wr wr{};
   wr.wr_id = slot;
   wr.sg_list = &list;
   wr.num_sge = 1;
@@ -287,8 +283,7 @@ void Pair::recvMemoryRegion(
 void Pair::postReceive() {
   const auto& mr = mappedRecvRegions_[recvPosted_++ % kMaxBuffers];
   struct ibv_sge list = mr->sge();
-  struct ibv_recv_wr wr;
-  memset(&wr, 0, sizeof(wr));
+  struct ibv_recv_wr wr{};
   wr.sg_list = &list;
   wr.num_sge = 1;
 
@@ -352,13 +347,12 @@ void Pair::send(
       slot,
       [this, mr, slot, ptr = buf->ptr, offset, nbytes](
           struct ibv_mr peer) mutable {
-        struct ibv_sge list;
+        struct ibv_sge list{};
         list.addr = (uint64_t)ptr + offset;
         list.length = nbytes;
         list.lkey = mr->lkey;
 
-        struct ibv_send_wr wr;
-        memset(&wr, 0, sizeof(wr));
+        struct ibv_send_wr wr{};
         wr.wr_id = slot;
         wr.sg_list = &list;
         wr.num_sge = 1;
@@ -409,6 +403,130 @@ void Pair::recv(
   struct ibv_mr mr = *buf->mr_;
   mr.addr = (void*)((uintptr_t)(mr.addr) + offset);
   sendMemoryRegion(&mr, tag);
+}
+
+void Pair::put(
+    transport::UnboundBuffer* tbuf,
+    const transport::RemoteKey& tkey,
+    uint64_t slot,
+    size_t offset,
+    size_t roffset,
+    size_t nbytes) {
+  GLOO_ENFORCE(!sync_, "Cannot put in sync mode");
+
+  auto* buf = dynamic_cast<UnboundBuffer*>(tbuf);
+  GLOO_ENFORCE_NE(buf, nullptr);
+
+  auto* key = dynamic_cast<const RemoteKey*>(&tkey);
+  GLOO_ENFORCE_NE(key, nullptr);
+
+  GLOO_ENFORCE_LE(offset + nbytes, buf->size);
+  GLOO_ENFORCE_LE(roffset + nbytes, key->size);
+
+  {
+    std::lock_guard<std::mutex> lock(m_);
+    sendCompletionHandlers_[slot].emplace_back(buf);
+  }
+
+  struct ibv_sge list{};
+  list.addr = (uint64_t)buf->ptr + offset;
+  list.length = nbytes;
+  list.lkey = buf->mr_->lkey;
+
+  struct ibv_send_wr wr{};
+  wr.wr_id = slot;
+  wr.sg_list = &list;
+  wr.num_sge = 1;
+  wr.opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
+  wr.send_flags = IBV_SEND_SIGNALED;
+  wr.imm_data = slot;
+
+  wr.wr.rdma.remote_addr = (uint64_t)key->addr_ + roffset;
+  wr.wr.rdma.rkey = key->rkey_;
+
+  GLOO_DEBUG(
+      self_.str(),
+      "->",
+      peer_.str(),
+      ": ",
+      "put UnboundBuffer async slot=",
+      wr.wr_id,
+      " peer_addr=",
+      key->addr_,
+      " remote_addr=",
+      std::hex,
+      wr.wr.rdma.remote_addr,
+      std::dec,
+      " rkey=",
+      wr.wr.rdma.rkey);
+
+  struct ibv_send_wr* bad_wr;
+  auto rv = ibv_post_send(qp_, &wr, &bad_wr);
+  if (rv != 0) {
+    signalIoFailure(GLOO_ERROR_MSG("ibv_post_send: ", rv));
+  }
+}
+
+void Pair::get(
+    transport::UnboundBuffer* tbuf,
+    const transport::RemoteKey& tkey,
+    uint64_t slot,
+    size_t offset,
+    size_t roffset,
+    size_t nbytes) {
+  GLOO_ENFORCE(!sync_, "Cannot get in sync mode");
+
+  auto* buf = dynamic_cast<UnboundBuffer*>(tbuf);
+  GLOO_ENFORCE_NE(buf, nullptr);
+
+  auto* key = dynamic_cast<const RemoteKey*>(&tkey);
+  GLOO_ENFORCE_NE(key, nullptr);
+
+  GLOO_ENFORCE_LE(offset + nbytes, buf->size);
+  GLOO_ENFORCE_LE(roffset + nbytes, key->size);
+
+  {
+    std::lock_guard<std::mutex> lock(m_);
+    sendCompletionHandlers_[slot].emplace_back(buf);
+  }
+
+  struct ibv_sge list{};
+  list.addr = (uint64_t)buf->ptr + offset;
+  list.length = nbytes;
+  list.lkey = buf->mr_->lkey;
+
+  struct ibv_send_wr wr{};
+  wr.wr_id = slot;
+  wr.sg_list = &list;
+  wr.num_sge = 1;
+  wr.opcode = IBV_WR_RDMA_READ;
+  wr.send_flags = IBV_SEND_SIGNALED;
+  wr.imm_data = slot;
+
+  wr.wr.rdma.remote_addr = (uint64_t)key->addr_ + roffset;
+  wr.wr.rdma.rkey = key->rkey_;
+
+  GLOO_DEBUG(
+      self_.str(),
+      "->",
+      peer_.str(),
+      ": ",
+      "get UnboundBuffer async slot=",
+      wr.wr_id,
+      " peer_addr=",
+      key->addr_,
+      " remote_addr=",
+      std::hex,
+      wr.wr.rdma.remote_addr,
+      std::dec,
+      " rkey=",
+      wr.wr.rdma.rkey);
+
+  struct ibv_send_wr* bad_wr;
+  auto rv = ibv_post_send(qp_, &wr, &bad_wr);
+  if (rv != 0) {
+    signalIoFailure(GLOO_ERROR_MSG("ibv_post_send: ", rv));
+  }
 }
 
 // place holder for future use
@@ -466,7 +584,13 @@ void Pair::pollCompletions() {
       try {
         handleCompletion(&wc[i]);
       } catch (const std::exception& ex) {
-        GLOO_ERROR("Exception in handleCompletion: ", ex.what());
+        GLOO_ERROR(
+            self_.str(),
+            "->",
+            peer_.str(),
+            ": ",
+            "Exception in handleCompletion: ",
+            ex.what());
         throw;
       }
     }
@@ -502,15 +626,18 @@ void Pair::handleCompletion(struct ibv_wc* wc) {
         ibv_wc_status_str(wc->status));
 
     auto& q = recvCompletionHandlers_[slot];
-    q.front()->handleCompletion(rank_, wc);
-    if (!q.front()->isPeristentHandler()) {
-      q.pop_front();
+    if (!q.empty()) {
+      q.front()->handleCompletion(rank_, wc);
+      if (!q.front()->isPeristentHandler()) {
+        q.pop_front();
+      }
     }
 
     // Backfill receive work requests.
     postReceive();
-  } else if (wc->opcode == IBV_WC_RDMA_WRITE) {
-    // Outbound RDMA write completed.
+  } else if (
+      wc->opcode == IBV_WC_RDMA_WRITE || wc->opcode == IBV_WC_RDMA_READ) {
+    // Outbound RDMA read/write completed.
     // Slot is encoded in wr_id fields on send work request. Unlike
     // the receive work completions, the immediate data field on send
     // work requests are not pass to the respective work completion.
@@ -606,13 +733,12 @@ void Pair::send(Buffer* buffer, size_t offset, size_t length, size_t roffset) {
 
   auto send =
       [this, buffer, offset, length, roffset](struct ibv_mr peer) mutable {
-        struct ibv_sge list;
+        struct ibv_sge list{};
         list.addr = (uint64_t)buffer->ptr_ + offset;
         list.length = length;
         list.lkey = buffer->mr_->lkey;
 
-        struct ibv_send_wr wr;
-        memset(&wr, 0, sizeof(wr));
+        struct ibv_send_wr wr{};
         wr.wr_id = buffer->slot_;
         wr.sg_list = &list;
         wr.num_sge = 1;

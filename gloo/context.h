@@ -12,6 +12,7 @@
 #include <memory>
 #include <vector>
 
+#include <gloo/transport/context.h>
 #include <gloo/transport/pair.h>
 
 namespace gloo {
@@ -50,6 +51,11 @@ class Context {
   void setTimeout(std::chrono::milliseconds timeout);
 
   std::chrono::milliseconds getTimeout() const;
+
+  std::unique_ptr<transport::RemoteKey> deserializeRemoteKey(
+      const std::string& serialized) {
+    return transportContext_->deserializeRemoteKey(serialized);
+  }
 
  protected:
   std::shared_ptr<transport::Device> device_;

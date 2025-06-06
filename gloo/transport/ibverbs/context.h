@@ -38,6 +38,9 @@ class Context : public ::gloo::transport::Context,
   // out. All pairs should be signaled and closed in that event.
   void signalException(const std::string& msg);
 
+  std::unique_ptr<::gloo::transport::RemoteKey> deserializeRemoteKey(
+      const std::string& serialized) override;
+
  protected:
   std::shared_ptr<Device> device_;
 
