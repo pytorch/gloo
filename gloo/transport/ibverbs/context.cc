@@ -11,6 +11,7 @@
 #include "gloo/common/error.h"
 #include "gloo/transport/ibverbs/device.h"
 #include "gloo/transport/ibverbs/pair.h"
+#include "gloo/transport/ibverbs/remote_key.h"
 #include "gloo/transport/ibverbs/unbound_buffer.h"
 
 namespace gloo {
@@ -44,6 +45,11 @@ void Context::signalException(const std::string& msg) {
       reinterpret_cast<ibverbs::Pair*>(pair.get())->signalIoFailure(msg);
     }
   }
+}
+
+std::unique_ptr<::gloo::transport::RemoteKey> Context::deserializeRemoteKey(
+    const std::string& serialized) {
+  return RemoteKey::deserialize(serialized);
 }
 
 } // namespace ibverbs

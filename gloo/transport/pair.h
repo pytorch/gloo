@@ -56,6 +56,26 @@ class Pair {
       size_t offset = 0,
       size_t nbytes = 0) = 0;
 
+  virtual void put(
+      transport::UnboundBuffer* tbuf,
+      const transport::RemoteKey& key,
+      uint64_t slot,
+      size_t offset,
+      size_t roffset,
+      size_t nbytes) {
+    throw std::runtime_error("put() not implemented");
+  }
+
+  virtual void get(
+      transport::UnboundBuffer* tbuf,
+      const transport::RemoteKey& key,
+      uint64_t slot,
+      size_t offset,
+      size_t roffset,
+      size_t nbytes) {
+    throw std::runtime_error("get() not implemented");
+  }
+
   // Sets the local rank of the process to be localRank
   // (See below for description of local rank)
   void setLocalRank(int localRank) {
