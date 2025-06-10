@@ -73,6 +73,7 @@ enum Transport {
 
 extern const std::vector<Transport> kTransportsForClassAlgorithms;
 extern const std::vector<Transport> kTransportsForFunctionAlgorithms;
+extern const std::vector<Transport> kTransportsForRDMA;
 
 std::shared_ptr<::gloo::transport::Device> createDevice(Transport transport);
 
