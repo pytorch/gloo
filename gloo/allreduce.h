@@ -11,9 +11,13 @@
 #include <functional>
 #include <memory>
 #include <vector>
+#include <type_traits>
 
 #include "gloo/context.h"
 #include "gloo/transport/unbound_buffer.h"
+#include "gloo/types.h"
+//#include "gloo/allreduce_shm.h"
+
 
 namespace gloo {
 
@@ -41,6 +45,12 @@ struct AllreduceOptionsImpl {
     BCUBE = 2,
   };
 
+  enum ScalarType {
+    BFLOAT16,
+    HALF,
+    FLOAT,
+  };
+
   explicit AllreduceOptionsImpl(const std::shared_ptr<Context>& context)
       : context(context),
         timeout(context->getTimeout()),
@@ -53,6 +63,9 @@ struct AllreduceOptionsImpl {
 
   // Algorithm selection.
   Algorithm algorithm;
+
+  // Scalar type
+  ScalarType scalarType;
 
   // Input and output buffers.
   // The output is used as input if input is not specified.
@@ -90,6 +103,7 @@ class AllreduceOptions {
  public:
   using Func = detail::AllreduceOptionsImpl::Func;
   using Algorithm = detail::AllreduceOptionsImpl::Algorithm;
+  using ScalarType = detail::AllreduceOptionsImpl::ScalarType;
 
   explicit AllreduceOptions(const std::shared_ptr<Context>& context)
       : impl_(context) {}
@@ -154,6 +168,16 @@ class AllreduceOptions {
 
   template <typename T>
   void setOutputs(std::vector<T*> ptrs, size_t elements) {
+    //printf("set outputs\n");
+    if (std::is_same_v<T, float>) {
+        printf("output type is float\n");
+        impl_.scalarType = ScalarType::FLOAT;
+    } else if (std::is_same_v<T, float16>) {
+        printf("output type is float16\n");
+        impl_.scalarType = ScalarType::HALF;
+    } else {
+        printf("Unknown datatype\n");
+    }
     setOutputs(ptrs.data(), ptrs.size(), elements);
   }
 

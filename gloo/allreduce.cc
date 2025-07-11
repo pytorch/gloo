@@ -15,6 +15,7 @@
 #include "gloo/common/logging.h"
 #include "gloo/math.h"
 #include "gloo/types.h"
+#include "gloo/allreduce_shm.h"
 
 namespace gloo {
 
@@ -95,6 +96,7 @@ BroadcastRangeFunction genLocalBroadcastFunction(const BufferVector& out) {
 }
 
 void allreduce(const detail::AllreduceOptionsImpl& opts) {
+  //printf("In gloo::allreduce\n");
   if (opts.elements == 0) {
     return;
   }
@@ -152,6 +154,15 @@ void ring(
   const std::vector<std::unique_ptr<transport::UnboundBuffer>>& out = opts.out;
   const auto slot = Slot::build(kAllreduceSlotPrefix, opts.tag);
   const size_t totalBytes = opts.elements * opts.elementSize;
+
+  
+  if (is_intra_node(context->size)) {
+    shm(opts);
+    return;
+  }
+    
+   //shm(opts);
+   //return;
 
   // Note: context->size > 1
   const auto recvRank = (context->size + context->rank + 1) % context->size;
