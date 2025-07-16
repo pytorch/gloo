@@ -453,7 +453,10 @@ ssize_t Pair::prepareRead(
     iov.iov_len = op.preamble.length - offset;
 
     // Bytes read must be in bounds for target buffer
-    GLOO_ENFORCE_LE(op.preamble.length, op.nbytes);
+    GLOO_ENFORCE_LE(
+        op.preamble.length,
+        op.nbytes,
+        "Received data size doesn't match expected size. Is there a distributed collective mismatch in your code?");
     return iov.iov_len;
   }
 
