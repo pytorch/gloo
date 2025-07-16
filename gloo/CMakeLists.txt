@@ -188,6 +188,11 @@ if(USE_ROCM)
   endif()
 endif()
 
+message(STATUS "GLOO_USE_TORCH_DTYPES : ${GLOO_USE_TORCH_DTYPES} ${GLOO_TORCH_DIR}")
+if(GLOO_USE_TORCH_DTYPES)
+target_include_directories(gloo PRIVATE ${GLOO_TORCH_DIR})
+endif()
+
 # Install if necessary.
 # If the Gloo build is included from another project's build, it may
 # want to statically link with Gloo and not install any artifacts.

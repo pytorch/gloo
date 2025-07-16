@@ -18,6 +18,11 @@
 #include "gloo/types.h"
 //#include "gloo/allreduce_shm.h"
 
+#define GPF_PRINT(...) do {\
+    printf("GPF_DEBUG:");\
+    printf(__VA_ARGS__);\
+    printf("\n");\
+}while(0)
 
 namespace gloo {
 
@@ -39,6 +44,11 @@ struct AllreduceOptionsImpl {
   //
   using Func = std::function<void(void*, const void*, const void*, size_t)>;
 
+#if GLOO_USE_TORCH_DTYPES
+using BFloat16 = c10::BFloat16;
+using Half = c10::Half;
+#endif
+
   enum Algorithm {
     UNSPECIFIED = 0,
     RING = 1,
@@ -49,6 +59,7 @@ struct AllreduceOptionsImpl {
     BFLOAT16,
     HALF,
     FLOAT,
+    UNKNOWN,
   };
 
   explicit AllreduceOptionsImpl(const std::shared_ptr<Context>& context)
@@ -169,17 +180,22 @@ class AllreduceOptions {
   template <typename T>
   void setOutputs(std::vector<T*> ptrs, size_t elements) {
     //printf("set outputs\n");
-    if (std::is_same_v<T, float>) {
-        printf("output type is float\n");
-        impl_.scalarType = ScalarType::FLOAT;
-    } else if (std::is_same_v<T, float16>) {
-        printf("output type is float16\n");
-        impl_.scalarType = ScalarType::HALF;
-    } else {
-        printf("Unknown datatype\n");
-    }
+    // default is float
+    impl_.scalarType = ScalarType::FLOAT;
+    
+#if GLOO_USE_TORCH_DTYPES
+if (std::is_same_v<T, c10::Half>) {
+    //GPF_PRINT("output type is half");
+    impl_.scalarType = ScalarType::HALF;
+} else if (std::is_same_v<T, c10::BFloat16>) {
+    impl_.scalarType = ScalarType::BFLOAT16;
+    //GPF_PRINT("output type is bfloat16");
+}
+#endif
     setOutputs(ptrs.data(), ptrs.size(), elements);
   }
+
+  
 
   template <typename T>
   void setOutputs(T** ptrs, size_t len, size_t elements) {
