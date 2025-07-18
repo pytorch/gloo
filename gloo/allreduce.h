@@ -16,7 +16,6 @@
 #include "gloo/context.h"
 #include "gloo/transport/unbound_buffer.h"
 #include "gloo/types.h"
-//#include "gloo/allreduce_shm.h"
 
 #define GPF_PRINT(...) do {\
     printf("GPF_DEBUG:");\
@@ -43,11 +42,6 @@ struct AllreduceOptionsImpl {
   // value for the increase in compilation time and code size.
   //
   using Func = std::function<void(void*, const void*, const void*, size_t)>;
-
-#if GLOO_USE_TORCH_DTYPES
-using BFloat16 = c10::BFloat16;
-using Half = c10::Half;
-#endif
 
   enum Algorithm {
     UNSPECIFIED = 0,
@@ -179,23 +173,8 @@ class AllreduceOptions {
 
   template <typename T>
   void setOutputs(std::vector<T*> ptrs, size_t elements) {
-    //printf("set outputs\n");
-    // default is float
-    impl_.scalarType = ScalarType::FLOAT;
-    
-#if GLOO_USE_TORCH_DTYPES
-if (std::is_same_v<T, c10::Half>) {
-    //GPF_PRINT("output type is half");
-    impl_.scalarType = ScalarType::HALF;
-} else if (std::is_same_v<T, c10::BFloat16>) {
-    impl_.scalarType = ScalarType::BFLOAT16;
-    //GPF_PRINT("output type is bfloat16");
-}
-#endif
     setOutputs(ptrs.data(), ptrs.size(), elements);
   }
-
-  
 
   template <typename T>
   void setOutputs(T** ptrs, size_t len, size_t elements) {
@@ -229,6 +208,26 @@ if (std::is_same_v<T, c10::Half>) {
 
   friend void allreduce(const AllreduceOptions&);
 };
+
+#if GLOO_USE_TORCH_DTYPES
+  template <>
+  void AllreduceOptions::setOutputs<c10::Half>(std::vector<c10::Half*> ptrs, size_t elements)  {
+    impl_.scalarType = ScalarType::HALF;
+    setOutputs(ptrs.data(), ptrs.size(), elements);
+  }
+
+  template <>
+  void AllreduceOptions::setOutputs<c10::BFloat16>(std::vector<c10::BFloat16*> ptrs, size_t elements)  {
+    impl_.scalarType = ScalarType::BFLOAT16;
+    setOutputs(ptrs.data(), ptrs.size(), elements);
+  }
+
+  template <>
+  void AllreduceOptions::setOutputs<float>(std::vector<float*> ptrs, size_t elements)  {
+    impl_.scalarType = ScalarType::FLOAT;
+    setOutputs(ptrs.data(), ptrs.size(), elements);
+  }
+#endif
 
 void allreduce(const AllreduceOptions& opts);
 

@@ -179,7 +179,7 @@ void reduce_all_buffers(
     char** buffers) {
   switch (scalar_type) {
     case AllreduceOptions::ScalarType::BFLOAT16:
-      assert(!"BFloat16 not supported in gloo yet.");
+      GLOO_ENFORCE(false, "Bfloat16 for shm_allreduce is not supported yet.");
       reduce_bf16_buffers(start_elements, num_elements, to_buffer, buffers);
       break;
     case AllreduceOptions::ScalarType::HALF:
@@ -273,9 +273,9 @@ void reduce_bf16_buffers(
   while (remain_elements > 0) {
     float val = 0.0f;
     for (int j = 0; j < world_size; j++) {
-      val += *(at::BFloat16*)(buffers[j] + i);
+      val += *(c10::BFloat16*)(buffers[j] + i);
     }
-    *(at::BFloat16*)(to_buffer + i) = val;
+    *(BFloat16*)(to_buffer + i) = val;
     remain_elements--;
     i += element_size;
   }
@@ -688,7 +688,6 @@ bool is_intra_node(const int size) {
 
 void shm(const detail::AllreduceOptionsImpl& opts) {
 
-    //printf("In shm allreduce\n");
     const auto& context = opts.context;
   if (!is_initialized) {
 
@@ -715,6 +714,7 @@ void shm(const detail::AllreduceOptionsImpl& opts) {
     // std::cout << "addr_string: " << addr_string << std::endl;
     // std::cout << "port_string: " << port_string << std::endl;
     shm_initialize(size, rank, addr_string, port_string);
+    GPF_PRINT("SHM reduce has been initialized");
   }
 
   const size_t data_size = opts.elements * opts.elementSize;
