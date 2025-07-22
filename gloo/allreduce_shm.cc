@@ -6,6 +6,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <assert.h>
@@ -14,6 +15,9 @@
 namespace gloo {
 
 namespace {
+
+using ReductionFunction = AllreduceOptions::Func;
+
 #define VECTOR_LENGTH_IN_BYTES 32
 // states for collectives
 enum coll_state {
@@ -156,19 +160,47 @@ void reduce_bf16_buffers(
     int start_elements,
     int num_elements,
     char* to_buffer,
-    char** buffers) __attribute__((target("avx512bw")));
+    char** buffers,
+    ReductionFunction fn) __attribute__((target("avx512bw")));
 
 void reduce_fp16_buffers(
     int start_elements,
     int num_elements,
     char* to_buffer,
-    char** buffers) __attribute__((target("avx512bw")));
+    char** buffers,
+    ReductionFunction fn) __attribute__((target("avx512bw")));
 
 void reduce_fp32_buffers(
     int start_elements,
     int num_elements,
     char* to_buffer,
-    char** buffers) __attribute__((target("avx512bw")));
+    char** buffers,
+    ReductionFunction fn) __attribute__((target("avx512bw")));
+
+void reduce_remaining_part(
+    int start_elements,
+    int num_elements,
+    int remain_elements,
+    int main_elements,
+    int element_size,
+    char *to_buffer,
+    char **buffers,
+    ReductionFunction fn){
+  size_t offset = (start_elements + main_elements) * element_size;
+  while (remain_elements > 0) {
+    memcpy(to_buffer + offset, buffers[0] + offset, element_size);
+    for (int j = 1; j < world_size; j++) {
+      
+      fn(to_buffer + offset,
+        to_buffer + offset,
+        buffers[j] + offset,
+        1);
+      
+    }
+    remain_elements--;
+    offset += element_size;
+  }
+}
 
 void reduce_all_buffers(
     int start_elements,
@@ -176,17 +208,18 @@ void reduce_all_buffers(
     AllreduceOptions::ScalarType scalar_type,
     int to_buffer_idx,
     char* to_buffer,
-    char** buffers) {
+    char** buffers,
+    ReductionFunction fn) {
   switch (scalar_type) {
     case AllreduceOptions::ScalarType::BFLOAT16:
-      GLOO_ENFORCE(false, "Bfloat16 for shm_allreduce is not supported yet.");
-      reduce_bf16_buffers(start_elements, num_elements, to_buffer, buffers);
+      //GLOO_ENFORCE(false, "Bfloat16 for shm_allreduce is not supported yet.");
+      reduce_bf16_buffers(start_elements, num_elements, to_buffer, buffers, fn);
       break;
     case AllreduceOptions::ScalarType::HALF:
-      reduce_fp16_buffers(start_elements, num_elements, to_buffer, buffers);
+      reduce_fp16_buffers(start_elements, num_elements, to_buffer, buffers, fn);
       break;
     case AllreduceOptions::ScalarType::FLOAT:
-      reduce_fp32_buffers(start_elements, num_elements, to_buffer, buffers);
+      reduce_fp32_buffers(start_elements, num_elements, to_buffer, buffers, fn);
       break;
     default:
       assert(!"Should not get here");
@@ -210,7 +243,8 @@ void reduce_bf16_buffers(
     int start_elements,
     int num_elements,
     char* to_buffer,
-    char** buffers) {
+    char** buffers,
+    ReductionFunction fn) {
   const int element_size = 2;
   const int vector_length = VECTOR_LENGTH_IN_BYTES / element_size;
   int main_elements = num_elements - (num_elements % vector_length);
@@ -267,19 +301,7 @@ void reduce_bf16_buffers(
   }
 
   // process remaining part
-  // todo: support bfloat16
-  /*
-  int i = (start_elements + main_elements) * element_size;
-  while (remain_elements > 0) {
-    float val = 0.0f;
-    for (int j = 0; j < world_size; j++) {
-      val += *(c10::BFloat16*)(buffers[j] + i);
-    }
-    *(BFloat16*)(to_buffer + i) = val;
-    remain_elements--;
-    i += element_size;
-  }
-    */
+  reduce_remaining_part(start_elements, num_elements, remain_elements, main_elements, element_size, to_buffer, buffers, fn);
 }
 
 #define CVT_ADD_FP16(x)                                                   \
@@ -293,7 +315,8 @@ void reduce_fp16_buffers(
     int start_elements,
     int num_elements,
     char* to_buffer,
-    char** buffers) {
+    char** buffers,
+    ReductionFunction fn) {
   const int element_size = 2;
   const int vector_length = VECTOR_LENGTH_IN_BYTES / element_size;
   int main_elements = num_elements - (num_elements % vector_length);
@@ -352,16 +375,7 @@ void reduce_fp16_buffers(
   
 
   // process remaining part
-  int i = (start_elements + main_elements) * element_size;
-  while (remain_elements > 0) {
-    float16 val =float16(0.0f);
-    for (int j = 0; j < world_size; j++) {
-      val += *(float16*)(buffers[j] + i);
-    }
-    *(float16*)(to_buffer + i) = val;
-    remain_elements--;
-    i += element_size;
-  }
+  reduce_remaining_part(start_elements, num_elements, remain_elements, main_elements, element_size, to_buffer, buffers, fn);
 }
 
 #define CVT_ADD_F32(x)                                            \
@@ -374,7 +388,8 @@ void reduce_fp32_buffers(
     int start_elements,
     int num_elements,
     char* to_buffer,
-    char** buffers) {
+    char** buffers,
+    ReductionFunction fn) {
   const int element_size = 4;
   const int vector_length = VECTOR_LENGTH_IN_BYTES / element_size;
   int main_elements = num_elements - (num_elements % vector_length);
@@ -429,16 +444,7 @@ void reduce_fp32_buffers(
   }
 
   // process remaining part
-  int i = (start_elements + main_elements) * element_size;
-  while (remain_elements > 0) {
-    float val = 0.0f;
-    for (int j = 0; j < world_size; j++) {
-      val += *(float*)(buffers[j] + i);
-    }
-    *(float*)(to_buffer + i) = val;
-    remain_elements--;
-    i += element_size;
-  }
+  reduce_remaining_part(start_elements, num_elements, remain_elements, main_elements, element_size, to_buffer, buffers, fn);
 }
 
 void shm_initialize(int size, int rank, char* addr_string, char* port_string) {
@@ -547,7 +553,8 @@ void symmetric_naive_all_reduce(
     char* data_ptr,
     AllreduceOptions::ScalarType scalar_type,
     size_t chunk_size,
-    size_t chunk_el) {
+    size_t chunk_el,
+    ReductionFunction fn) {
   const int state_group = 0;
   static int current_buffer = 0;
   static int state_idx = 0;
@@ -592,7 +599,8 @@ void symmetric_naive_all_reduce(
       scalar_type,
       world_rank,
       data_ptr,
-      symmetric_buffer[current_buffer]);
+      symmetric_buffer[current_buffer],
+      fn);
 
   // switch buffer
   current_buffer = 1 - current_buffer;
@@ -603,7 +611,8 @@ void distributed_naive_reduce(
     char* data_ptr,
     AllreduceOptions::ScalarType scalar_type,
     size_t chunk_size,
-    size_t chunk_el) {
+    size_t chunk_el,
+    ReductionFunction fn) {
   const int state_group = 1;
   static int current_buffer = 0;
   static int state_idx = 0;
@@ -647,7 +656,8 @@ void distributed_naive_reduce(
       scalar_type,
       world_rank,
       distributed_buffer[current_buffer][world_rank],
-      distributed_buffer[current_buffer]);
+      distributed_buffer[current_buffer],
+      fn);
   std::atomic_thread_fence(std::memory_order_release);
   workspace[world_rank]->states[state_group] = reduce_current;
 
@@ -728,10 +738,10 @@ void shm(const detail::AllreduceOptionsImpl& opts) {
         size_t chunk_el = chunk_size / (data_size / opts.elements);
         if (chunk_size < NAIVE_ALLREDUCE_THRESHOLD) {
         symmetric_naive_all_reduce(
-            data_ptr, opts.scalarType, chunk_size, chunk_el);
+            data_ptr, opts.scalarType, chunk_size, chunk_el, opts.reduce);
         } else {
         distributed_naive_reduce(
-            data_ptr, opts.scalarType, chunk_size, chunk_el);
+            data_ptr, opts.scalarType, chunk_size, chunk_el, opts.reduce);
         }
   }
 
