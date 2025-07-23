@@ -43,7 +43,7 @@ CudaStream::CudaStream(int deviceId, cudaStream_t stream)
 
   // Create new stream if it wasn't specified
   if (stream_ == kStreamNotSet) {
-#ifndef __HIP_PLATFORM_HCC__
+#ifndef __HIP_PLATFORM_AMD__
     int loPri, hiPri;
     CUDA_CHECK(cudaDeviceGetStreamPriorityRange(&loPri, &hiPri));
     CUDA_CHECK(
