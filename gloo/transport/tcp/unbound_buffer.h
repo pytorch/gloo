@@ -12,6 +12,7 @@
 #include "gloo/transport/unbound_buffer.h"
 
 #include <condition_variable>
+#include <exception>
 #include <memory>
 #include <mutex>
 
