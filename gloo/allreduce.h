@@ -49,13 +49,6 @@ struct AllreduceOptionsImpl {
     BCUBE = 2,
   };
 
-  enum ScalarType {
-    BFLOAT16,
-    HALF,
-    FLOAT,
-    UNKNOWN,
-  };
-
   explicit AllreduceOptionsImpl(const std::shared_ptr<Context>& context)
       : context(context),
         timeout(context->getTimeout()),
@@ -68,9 +61,6 @@ struct AllreduceOptionsImpl {
 
   // Algorithm selection.
   Algorithm algorithm;
-
-  // Scalar type
-  ScalarType scalarType;
 
   // Input and output buffers.
   // The output is used as input if input is not specified.
@@ -108,7 +98,6 @@ class AllreduceOptions {
  public:
   using Func = detail::AllreduceOptionsImpl::Func;
   using Algorithm = detail::AllreduceOptionsImpl::Algorithm;
-  using ScalarType = detail::AllreduceOptionsImpl::ScalarType;
 
   explicit AllreduceOptions(const std::shared_ptr<Context>& context)
       : impl_(context) {}
@@ -208,26 +197,6 @@ class AllreduceOptions {
 
   friend void allreduce(const AllreduceOptions&);
 };
-
-#if GLOO_USE_TORCH_DTYPES
-  template <>
-  void AllreduceOptions::setOutputs<c10::Half>(std::vector<c10::Half*> ptrs, size_t elements)  {
-    impl_.scalarType = ScalarType::HALF;
-    setOutputs(ptrs.data(), ptrs.size(), elements);
-  }
-
-  template <>
-  void AllreduceOptions::setOutputs<c10::BFloat16>(std::vector<c10::BFloat16*> ptrs, size_t elements)  {
-    impl_.scalarType = ScalarType::BFLOAT16;
-    setOutputs(ptrs.data(), ptrs.size(), elements);
-  }
-
-  template <>
-  void AllreduceOptions::setOutputs<float>(std::vector<float*> ptrs, size_t elements)  {
-    impl_.scalarType = ScalarType::FLOAT;
-    setOutputs(ptrs.data(), ptrs.size(), elements);
-  }
-#endif
 
 void allreduce(const AllreduceOptions& opts);
 

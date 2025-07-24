@@ -118,74 +118,47 @@ void wait_buffer_state_until_2(
   }
 }
 
-__m512 cvt_bf16_to_fp32(const __m256i src) __attribute__((target("avx512bw")));
-inline __m512 cvt_bf16_to_fp32(const __m256i src) {
-  auto y = _mm512_cvtepu16_epi32(src);
-  return _mm512_castsi512_ps(_mm512_bslli_epi128(y, 2));
-}
-
-inline __m256i cvt_fp32_to_bf16(const __m512 src)
-    __attribute__((target("avx512bw")));
-inline __m256i cvt_fp32_to_bf16(const __m512 src) {
-  __m512i value = _mm512_castps_si512(src);
-  __m512i nan = _mm512_set1_epi32(0xffff);
-  auto mask_value = _mm512_cmp_ps_mask(src, src, _CMP_ORD_Q);
-  __m512i ones = _mm512_set1_epi32(0x1);
-  __m512i vec_bias = _mm512_set1_epi32(0x7fff);
-  // uint32_t lsb = (input >> 16) & 1;
-  auto t_value = _mm512_and_si512(_mm512_srli_epi32(value, 16), ones);
-  // uint32_t rounding_bias = 0x7fff + lsb;
-  t_value = _mm512_add_epi32(t_value, vec_bias);
-  // input += rounding_bias;
-  t_value = _mm512_add_epi32(t_value, value);
-  // input = input >> 16;
-  t_value = _mm512_srli_epi32(t_value, 16);
-  // Check NaN before converting back to bf16
-  t_value = _mm512_mask_blend_epi32(mask_value, nan, t_value);
-  return _mm512_cvtusepi32_epi16(t_value);
-}
-
-__m512 cvt_fp16_to_fp32(const __m256i src) __attribute__((target("avx512bw")));
-inline __m512 cvt_fp16_to_fp32(const __m256i src) {
-  return _mm512_cvtph_ps(src);
-}
-
-inline __m256i cvt_fp32_to_fp16(const __m512 src)
-    __attribute__((target("avx512bw")));
-inline __m256i cvt_fp32_to_fp16(const __m512 src) {
-  return _mm512_cvtps_ph(src, (_MM_FROUND_TO_NEAREST_INT | _MM_FROUND_NO_EXC));
-}
-
-void reduce_bf16_buffers(
+void reduce_all_buffers(
     int start_elements,
     int num_elements,
-    char* to_buffer,
-    char** buffers,
-    ReductionFunction fn) __attribute__((target("avx512bw")));
-
-void reduce_fp16_buffers(
-    int start_elements,
-    int num_elements,
-    char* to_buffer,
-    char** buffers,
-    ReductionFunction fn) __attribute__((target("avx512bw")));
-
-void reduce_fp32_buffers(
-    int start_elements,
-    int num_elements,
-    char* to_buffer,
-    char** buffers,
-    ReductionFunction fn) __attribute__((target("avx512bw")));
-
-void reduce_remaining_part(
-    int start_elements,
-    int num_elements,
-    int remain_elements,
-    int main_elements,
     int element_size,
-    char *to_buffer,
-    char **buffers,
-    ReductionFunction fn){
+    int to_buffer_idx,
+    char* to_buffer,
+    char** buffers,
+    ReductionFunction fn) {
+  const int vector_length = VECTOR_LENGTH_IN_BYTES / element_size;
+  int main_elements = num_elements - (num_elements % vector_length);
+  int remain_elements = num_elements % vector_length;
+ 
+#pragma omp parallel for
+  for (int i = start_elements * element_size;
+       i < (start_elements + main_elements) * element_size;
+       i += VECTOR_LENGTH_IN_BYTES) {
+        memcpy(to_buffer + i, buffers[0] + i, element_size);
+        switch (world_size){
+            case 16: fn(to_buffer + i,  to_buffer + i, buffers[15] + i, vector_length);
+            case 15: fn(to_buffer + i,  to_buffer + i, buffers[14] + i, vector_length);
+            case 14: fn(to_buffer + i,  to_buffer + i, buffers[13] + i, vector_length);
+            case 13: fn(to_buffer + i,  to_buffer + i, buffers[12] + i, vector_length);
+            case 12: fn(to_buffer + i,  to_buffer + i, buffers[11] + i, vector_length);
+            case 11: fn(to_buffer + i,  to_buffer + i, buffers[10] + i, vector_length);
+            case 10: fn(to_buffer + i,  to_buffer + i, buffers[9] + i, vector_length);
+            case 9: fn(to_buffer + i,  to_buffer + i, buffers[8] + i, vector_length);
+            case 8: fn(to_buffer + i,  to_buffer + i, buffers[7] + i, vector_length);
+            case 7: fn(to_buffer + i,  to_buffer + i, buffers[6] + i, vector_length);
+            case 6: fn(to_buffer + i,  to_buffer + i, buffers[5] + i, vector_length);
+            case 5: fn(to_buffer + i,  to_buffer + i, buffers[4] + i, vector_length);
+            case 4: fn(to_buffer + i,  to_buffer + i, buffers[3] + i, vector_length);
+            case 3: fn(to_buffer + i,  to_buffer + i, buffers[2] + i, vector_length);
+            case 2: fn(to_buffer + i,  to_buffer + i, buffers[1] + i, vector_length);
+            case 1: break;
+            default:
+                for (int j = 1; j < world_size; j++) {
+                    fn(to_buffer + i,  to_buffer + i, buffers[j] + i, vector_length);
+                }
+        }
+        }
+
   size_t offset = (start_elements + main_elements) * element_size;
   while (remain_elements > 0) {
     memcpy(to_buffer + offset, buffers[0] + offset, element_size);
@@ -200,251 +173,7 @@ void reduce_remaining_part(
     remain_elements--;
     offset += element_size;
   }
-}
-
-void reduce_all_buffers(
-    int start_elements,
-    int num_elements,
-    AllreduceOptions::ScalarType scalar_type,
-    int to_buffer_idx,
-    char* to_buffer,
-    char** buffers,
-    ReductionFunction fn) {
-  switch (scalar_type) {
-    case AllreduceOptions::ScalarType::BFLOAT16:
-      //GLOO_ENFORCE(false, "Bfloat16 for shm_allreduce is not supported yet.");
-      reduce_bf16_buffers(start_elements, num_elements, to_buffer, buffers, fn);
-      break;
-    case AllreduceOptions::ScalarType::HALF:
-      reduce_fp16_buffers(start_elements, num_elements, to_buffer, buffers, fn);
-      break;
-    case AllreduceOptions::ScalarType::FLOAT:
-      reduce_fp32_buffers(start_elements, num_elements, to_buffer, buffers, fn);
-      break;
-    default:
-      assert(!"Should not get here");
-  }
-}
-
-#define CVT_ADD_BF16(x)                                                   \
-  do {                                                                    \
-    auto in##x##_val =                                                    \
-        cvt_bf16_to_fp32(_mm256_loadu_si256((__m256i*)(buffers[x] + i))); \
-    inout_val = _mm512_add_ps(inout_val, in##x##_val);                    \
-  } while (0)
-
-// Reduce functions down below use vectorized algorithm, the number of bytes
-// processed each iteration depends on vector length.  256bit vector ==> 32
-// bytes, 512bit vector ==> 64 bytes If you change implementation of
-// reduce_bf16_buffers, etc. , check whether this number needs to be changed
-#define VECTOR_LENGTH_IN_BYTES 32
-
-void reduce_bf16_buffers(
-    int start_elements,
-    int num_elements,
-    char* to_buffer,
-    char** buffers,
-    ReductionFunction fn) {
-  const int element_size = 2;
-  const int vector_length = VECTOR_LENGTH_IN_BYTES / element_size;
-  int main_elements = num_elements - (num_elements % vector_length);
-  int remain_elements = num_elements % vector_length;
-
-  // process aligned part
-#pragma omp parallel for
-  for (int i = start_elements * element_size;
-       i < (start_elements + main_elements) * element_size;
-       i += VECTOR_LENGTH_IN_BYTES) {
-    auto inout_val =
-        cvt_bf16_to_fp32(_mm256_loadu_si256((__m256i*)(buffers[0] + i)));
-    switch (world_size) {
-      case 16:
-        CVT_ADD_BF16(15);
-      case 15:
-        CVT_ADD_BF16(14);
-      case 14:
-        CVT_ADD_BF16(13);
-      case 13:
-        CVT_ADD_BF16(12);
-      case 12:
-        CVT_ADD_BF16(11);
-      case 11:
-        CVT_ADD_BF16(10);
-      case 10:
-        CVT_ADD_BF16(9);
-      case 9:
-        CVT_ADD_BF16(8);
-      case 8:
-        CVT_ADD_BF16(7);
-      case 7:
-        CVT_ADD_BF16(6);
-      case 6:
-        CVT_ADD_BF16(5);
-      case 5:
-        CVT_ADD_BF16(4);
-      case 4:
-        CVT_ADD_BF16(3);
-      case 3:
-        CVT_ADD_BF16(2);
-      case 2:
-        CVT_ADD_BF16(1);
-      case 1:
-        break;
-      default:
-        for (int j = 1; j < world_size; j++) {
-          auto in_val =
-              cvt_bf16_to_fp32(_mm256_loadu_si256((__m256i*)(buffers[j] + i)));
-          inout_val = _mm512_add_ps(inout_val, in_val);
-        }
-    }
-    _mm256_storeu_si256((__m256i*)(to_buffer + i), cvt_fp32_to_bf16(inout_val));
-  }
-
-  // process remaining part
-  reduce_remaining_part(start_elements, num_elements, remain_elements, main_elements, element_size, to_buffer, buffers, fn);
-}
-
-#define CVT_ADD_FP16(x)                                                   \
-  do {                                                                    \
-    auto in##x##_val =                                                    \
-        cvt_fp16_to_fp32(_mm256_loadu_si256((__m256i*)(buffers[x] + i))); \
-    inout_val = _mm512_add_ps(inout_val, in##x##_val);                    \
-  } while (0)
-
-void reduce_fp16_buffers(
-    int start_elements,
-    int num_elements,
-    char* to_buffer,
-    char** buffers,
-    ReductionFunction fn) {
-  const int element_size = 2;
-  const int vector_length = VECTOR_LENGTH_IN_BYTES / element_size;
-  int main_elements = num_elements - (num_elements % vector_length);
-  int remain_elements = num_elements % vector_length;
-
-  // process aligned part
-#pragma omp parallel for
-  for (int i = start_elements * element_size;
-       i < (start_elements + main_elements) * element_size;
-       i += VECTOR_LENGTH_IN_BYTES) {
-    auto inout_val =
-        cvt_fp16_to_fp32(_mm256_loadu_si256((__m256i*)(buffers[0] + i)));
-    switch (world_size) {
-      case 16:
-        CVT_ADD_FP16(15);
-      case 15:
-        CVT_ADD_FP16(14);
-      case 14:
-        CVT_ADD_FP16(13);
-      case 13:
-        CVT_ADD_FP16(12);
-      case 12:
-        CVT_ADD_FP16(11);
-      case 11:
-        CVT_ADD_FP16(10);
-      case 10:
-        CVT_ADD_FP16(9);
-      case 9:
-        CVT_ADD_FP16(8);
-      case 8:
-        CVT_ADD_FP16(7);
-      case 7:
-        CVT_ADD_FP16(6);
-      case 6:
-        CVT_ADD_FP16(5);
-      case 5:
-        CVT_ADD_FP16(4);
-      case 4:
-        CVT_ADD_FP16(3);
-      case 3:
-        CVT_ADD_FP16(2);
-      case 2:
-        CVT_ADD_FP16(1);
-      case 1:
-        break;
-      default:
-        for (int j = 1; j < world_size; j++) {
-          auto in_val =
-              cvt_fp16_to_fp32(_mm256_loadu_si256((__m256i*)(buffers[j] + i)));
-          inout_val = _mm512_add_ps(inout_val, in_val);
-        }
-    }
-    _mm256_storeu_si256((__m256i*)(to_buffer + i), cvt_fp32_to_fp16(inout_val));
-  }
-
-  
-
-  // process remaining part
-  reduce_remaining_part(start_elements, num_elements, remain_elements, main_elements, element_size, to_buffer, buffers, fn);
-}
-
-#define CVT_ADD_F32(x)                                            \
-  do {                                                            \
-    auto in##x##_val = _mm256_loadu_ps((float*)(buffers[x] + i)); \
-    inout_val = _mm256_add_ps(inout_val, in##x##_val);            \
-  } while (0)
-
-void reduce_fp32_buffers(
-    int start_elements,
-    int num_elements,
-    char* to_buffer,
-    char** buffers,
-    ReductionFunction fn) {
-  const int element_size = 4;
-  const int vector_length = VECTOR_LENGTH_IN_BYTES / element_size;
-  int main_elements = num_elements - (num_elements % vector_length);
-  int remain_elements = num_elements % vector_length;
-
-  // process aligned part
-#pragma omp parallel for
-  for (int i = start_elements * element_size;
-       i < (start_elements + main_elements) * element_size;
-       i += VECTOR_LENGTH_IN_BYTES) {
-    auto inout_val = _mm256_loadu_ps((float*)(buffers[0] + i));
-    switch (world_size) {
-      case 16:
-        CVT_ADD_F32(15);
-      case 15:
-        CVT_ADD_F32(14);
-      case 14:
-        CVT_ADD_F32(13);
-      case 13:
-        CVT_ADD_F32(12);
-      case 12:
-        CVT_ADD_F32(11);
-      case 11:
-        CVT_ADD_F32(10);
-      case 10:
-        CVT_ADD_F32(9);
-      case 9:
-        CVT_ADD_F32(8);
-      case 8:
-        CVT_ADD_F32(7);
-      case 7:
-        CVT_ADD_F32(6);
-      case 6:
-        CVT_ADD_F32(5);
-      case 5:
-        CVT_ADD_F32(4);
-      case 4:
-        CVT_ADD_F32(3);
-      case 3:
-        CVT_ADD_F32(2);
-      case 2:
-        CVT_ADD_F32(1);
-      case 1:
-        break;
-      default:
-        for (int j = 1; j < world_size; j++) {
-          auto in_val = _mm256_loadu_ps((float*)(buffers[j] + i));
-          inout_val = _mm256_add_ps(inout_val, in_val);
-        }
-    }
-    _mm256_storeu_ps((float*)(to_buffer + i), inout_val);
-  }
-
-  // process remaining part
-  reduce_remaining_part(start_elements, num_elements, remain_elements, main_elements, element_size, to_buffer, buffers, fn);
+    
 }
 
 void shm_initialize(int size, int rank, char* addr_string, char* port_string) {
@@ -551,7 +280,7 @@ size_t slice_el_start(size_t chunk_el, int slice_idx) {
 
 void symmetric_naive_all_reduce(
     char* data_ptr,
-    AllreduceOptions::ScalarType scalar_type,
+    int element_size,
     size_t chunk_size,
     size_t chunk_el,
     ReductionFunction fn) {
@@ -596,7 +325,7 @@ void symmetric_naive_all_reduce(
   reduce_all_buffers(
       0,
       chunk_el,
-      scalar_type,
+      element_size,
       world_rank,
       data_ptr,
       symmetric_buffer[current_buffer],
@@ -609,7 +338,7 @@ void symmetric_naive_all_reduce(
 // naive allreduce distributed, each rank do naive reduce on its slice
 void distributed_naive_reduce(
     char* data_ptr,
-    AllreduceOptions::ScalarType scalar_type,
+    int element_size,
     size_t chunk_size,
     size_t chunk_el,
     ReductionFunction fn) {
@@ -653,7 +382,7 @@ void distributed_naive_reduce(
   reduce_all_buffers(
       slice_el_start(chunk_el, world_rank),
       slice_size(chunk_el, world_rank),
-      scalar_type,
+      element_size,
       world_rank,
       distributed_buffer[current_buffer][world_rank],
       distributed_buffer[current_buffer],
@@ -738,10 +467,10 @@ void shm(const detail::AllreduceOptionsImpl& opts) {
         size_t chunk_el = chunk_size / (data_size / opts.elements);
         if (chunk_size < NAIVE_ALLREDUCE_THRESHOLD) {
         symmetric_naive_all_reduce(
-            data_ptr, opts.scalarType, chunk_size, chunk_el, opts.reduce);
+            data_ptr, opts.elementSize, chunk_size, chunk_el, opts.reduce);
         } else {
         distributed_naive_reduce(
-            data_ptr, opts.scalarType, chunk_size, chunk_el, opts.reduce);
+            data_ptr, opts.elementSize, chunk_size, chunk_el, opts.reduce);
         }
   }
 
