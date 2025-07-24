@@ -11,6 +11,12 @@
 #include <unistd.h>
 #include <assert.h>
 
+#define GPF_PRINT(...) do {\
+    printf("GPF_DEBUG:");\
+    printf(__VA_ARGS__);\
+    printf("\n");\
+}while(0)
+
 
 namespace gloo {
 

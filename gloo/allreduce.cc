@@ -96,7 +96,6 @@ BroadcastRangeFunction genLocalBroadcastFunction(const BufferVector& out) {
 }
 
 void allreduce(const detail::AllreduceOptionsImpl& opts) {
-  //printf("In gloo::allreduce\n");
   if (opts.elements == 0) {
     return;
   }

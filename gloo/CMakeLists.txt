@@ -188,7 +188,6 @@ if(USE_ROCM)
   endif()
 endif()
 
-
 # Install if necessary.
 # If the Gloo build is included from another project's build, it may
 # want to statically link with Gloo and not install any artifacts.

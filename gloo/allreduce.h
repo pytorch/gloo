@@ -11,17 +11,9 @@
 #include <functional>
 #include <memory>
 #include <vector>
-#include <type_traits>
 
 #include "gloo/context.h"
 #include "gloo/transport/unbound_buffer.h"
-#include "gloo/types.h"
-
-#define GPF_PRINT(...) do {\
-    printf("GPF_DEBUG:");\
-    printf(__VA_ARGS__);\
-    printf("\n");\
-}while(0)
 
 namespace gloo {
 
