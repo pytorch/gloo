@@ -9,8 +9,10 @@ endfunction(prepend)
 set(HIPIFY_SCRIPTS_DIR ${PROJECT_SOURCE_DIR}/tools/amd_build)
 file(GLOB HIPIFY_SCRIPTS ${HIPIFY_SCRIPTS_DIR}/*.py)
 set(HIPIFY_OUTPUT_ROOT_DIR ${PROJECT_BINARY_DIR}/hip)
+
+find_package (Python3 COMPONENTS Interpreter)
 set(HIPIFY_COMMAND
-  ${HIPIFY_SCRIPTS_DIR}/build_amd.py
+  ${Python3_EXECUTABLE} ${HIPIFY_SCRIPTS_DIR}/build_amd.py
   --project-directory ${PROJECT_SOURCE_DIR}
   --output-directory ${HIPIFY_OUTPUT_ROOT_DIR}
 )
