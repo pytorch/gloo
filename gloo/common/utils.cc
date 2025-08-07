@@ -11,6 +11,7 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #else
+#include <stdlib.h>
 #include <unistd.h>
 #include <cstdlib>
 #endif
