@@ -132,54 +132,11 @@ void reduce_all_buffers(
     char* to_buffer,
     char** buffers,
     ReductionFunction fn) {
-  const int vector_length = VECTOR_LENGTH_IN_BYTES / element_size;
-  int main_elements = num_elements - (num_elements % vector_length);
-  int remain_elements = num_elements % vector_length;
- 
-#pragma omp parallel for
-  for (int i = start_elements * element_size;
-       i < (start_elements + main_elements) * element_size;
-       i += VECTOR_LENGTH_IN_BYTES) {
-        memcpy(to_buffer + i, buffers[0] + i, element_size);
-        switch (world_size){
-            case 16: fn(to_buffer + i,  to_buffer + i, buffers[15] + i, vector_length);
-            case 15: fn(to_buffer + i,  to_buffer + i, buffers[14] + i, vector_length);
-            case 14: fn(to_buffer + i,  to_buffer + i, buffers[13] + i, vector_length);
-            case 13: fn(to_buffer + i,  to_buffer + i, buffers[12] + i, vector_length);
-            case 12: fn(to_buffer + i,  to_buffer + i, buffers[11] + i, vector_length);
-            case 11: fn(to_buffer + i,  to_buffer + i, buffers[10] + i, vector_length);
-            case 10: fn(to_buffer + i,  to_buffer + i, buffers[9] + i, vector_length);
-            case 9: fn(to_buffer + i,  to_buffer + i, buffers[8] + i, vector_length);
-            case 8: fn(to_buffer + i,  to_buffer + i, buffers[7] + i, vector_length);
-            case 7: fn(to_buffer + i,  to_buffer + i, buffers[6] + i, vector_length);
-            case 6: fn(to_buffer + i,  to_buffer + i, buffers[5] + i, vector_length);
-            case 5: fn(to_buffer + i,  to_buffer + i, buffers[4] + i, vector_length);
-            case 4: fn(to_buffer + i,  to_buffer + i, buffers[3] + i, vector_length);
-            case 3: fn(to_buffer + i,  to_buffer + i, buffers[2] + i, vector_length);
-            case 2: fn(to_buffer + i,  to_buffer + i, buffers[1] + i, vector_length);
-            case 1: break;
-            default:
-                for (int j = 1; j < world_size; j++) {
-                    fn(to_buffer + i,  to_buffer + i, buffers[j] + i, vector_length);
-                }
-        }
-        }
-
-  size_t offset = (start_elements + main_elements) * element_size;
-  while (remain_elements > 0) {
-    memcpy(to_buffer + offset, buffers[0] + offset, element_size);
-    for (int j = 1; j < world_size; j++) {
-      
-      fn(to_buffer + offset,
-        to_buffer + offset,
-        buffers[j] + offset,
-        1);
-      
-    }
-    remain_elements--;
-    offset += element_size;
+  size_t offset = start_elements  * element_size;
+  memcpy(to_buffer + offset, buffers[0] + offset, num_elements * element_size);
+  for (int i = 1; i < world_size; i++) {
+    fn(to_buffer + offset, to_buffer + offset, buffers[i] + offset, num_elements);
   }
-    
 }
 
 void shm_initialize(int size, int rank, char* addr_string, char* port_string) {
