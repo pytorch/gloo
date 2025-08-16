@@ -138,6 +138,16 @@ set(GLOO_USE_AVX ${USE_AVX})
 set(GLOO_USE_LIBUV ${USE_LIBUV})
 configure_file(config.h.in config.h)
 
+set(GLOO_WARNINGS
+  -Werror
+  -Wall
+  -Wno-comment
+  -Wno-sign-compare
+  -Wno-unused
+  -Wunused-label
+  -Wunused-result
+  )
+
 add_library(gloo ${GLOO_STATIC_OR_SHARED} ${GLOO_SRCS})
 if(USE_CUDA)
   if(GLOO_USE_CUDA_TOOLKIT)
@@ -147,10 +157,12 @@ if(USE_CUDA)
     cuda_add_library(gloo_cuda ${GLOO_CUDA_SRCS} ${GLOO_STATIC_OR_SHARED})
   endif()
   target_link_libraries(gloo_cuda gloo ${gloo_cuda_DEPENDENCY_LIBS})
+  target_compile_options(gloo_cuda PRIVATE ${GLOO_WARNINGS})
 endif()
 if(USE_ROCM)
   gloo_hip_add_library(gloo_hip ${GLOO_HIP_SRCS})
   target_link_libraries(gloo_hip gloo)
+  target_compile_options(gloo_hip PRIVATE ${GLOO_WARNINGS})
 endif()
 if(USE_LIBUV)
   target_link_libraries(gloo PRIVATE uv_a)
@@ -166,6 +178,7 @@ elseif(USE_TCP_OPENSSL_LOAD)
 endif()
 
 target_link_libraries(gloo PRIVATE ${gloo_DEPENDENCY_LIBS})
+target_compile_options(gloo PRIVATE ${GLOO_WARNINGS})
 
 # Add Interface include directories that are relocatable.
 target_include_directories(gloo INTERFACE $<INSTALL_INTERFACE:include>)
