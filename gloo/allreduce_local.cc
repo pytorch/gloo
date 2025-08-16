@@ -16,7 +16,7 @@ template <typename T>
 AllreduceLocal<T>::AllreduceLocal(
     const std::shared_ptr<Context>& context,
     const std::vector<T*>& ptrs,
-    const int count,
+    const size_t count,
     const ReductionFunction<T>* fn)
     : Algorithm(context),
       ptrs_(ptrs),
