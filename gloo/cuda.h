@@ -20,8 +20,8 @@
 #include "gloo/config.h"
 
 // Check that configuration header was properly generated
-#if !GLOO_USE_CUDA
-#error "Expected GLOO_USE_CUDA to be defined"
+#if !(GLOO_USE_CUDA || GLOO_USE_ROCM)
+#error "Expected GLOO_USE_CUDA or GLOO_USE_ROCM to be defined"
 #endif
 
 namespace gloo {

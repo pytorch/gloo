@@ -1350,7 +1350,7 @@ CUDA_IDENTIFIER_MAP = collections.OrderedDict(
             "CUDA_ARRAY3D_TEXTURE_GATHER",
             ("HIP_ARRAY3D_TEXTURE_GATHER", CONV_TYPE, API_DRIVER, HIP_UNSUPPORTED),
         ),
-        # ("CUDA_VERSION", ("HIP_VERSION", CONV_TYPE, API_DRIVER, HIP_UNSUPPORTED)),
+        ("CUDA_VERSION", ("CUDA_VERSION", CONV_TYPE, API_DRIVER, HIP_UNSUPPORTED)),
         (
             "CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK",
             (
@@ -7773,7 +7773,6 @@ GLOO_SPECIFIC_MAPPINGS = collections.OrderedDict(
         ("curandGenerateUniform", ("hiprandGenerateUniform", API_GLOO)),
         ("curand_generator", ("hiprand_generator", API_GLOO)),
         ("CaffeCudaGetDevice", ("CaffeHipGetDevice", API_GLOO)),
-        ("USE_CUDA", ("USE_ROCM", API_GLOO)),
         ("CUDA", ("HIP", API_GLOO)),
         ("Cuda", ("Hip", API_GLOO)),
         ("cuda_", ("hip_", API_GLOO)),
