@@ -132,13 +132,22 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
     return;
   }
 
-  switch (opts.algorithm) {
+  auto algorithm = opts.algorithm;
+  if (is_intra_node(context->size)) {
+    algorithm = detail::AllreduceOptionsImpl::SHM;
+  }
+
+
+  switch (algorithm) {
     case detail::AllreduceOptionsImpl::UNSPECIFIED:
     case detail::AllreduceOptionsImpl::RING:
       ring(opts, reduceInputs, broadcastOutputs);
       break;
     case detail::AllreduceOptionsImpl::BCUBE:
       bcube(opts, reduceInputs, broadcastOutputs);
+      break;
+    case detail::AllreduceOptionsImpl::SHM:
+      shm(opts);
       break;
     default:
       GLOO_ENFORCE(false, "Algorithm not handled.");
@@ -154,14 +163,6 @@ void ring(
   const auto slot = Slot::build(kAllreduceSlotPrefix, opts.tag);
   const size_t totalBytes = opts.elements * opts.elementSize;
 
-  
-  if (is_intra_node(context->size)) {
-    shm(opts);
-    return;
-  }
-    
-   //shm(opts);
-   //return;
 
   // Note: context->size > 1
   const auto recvRank = (context->size + context->rank + 1) % context->size;
