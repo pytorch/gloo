@@ -11,13 +11,6 @@
 #include <unistd.h>
 #include <assert.h>
 
-#define GPF_PRINT(...) do {\
-    printf("GPF_DEBUG:");\
-    printf(__VA_ARGS__);\
-    printf("\n");\
-}while(0)
-
-
 namespace gloo {
 
 namespace {
@@ -87,7 +80,7 @@ static bool is_initialized = false;
 #define NAME_BUF_SIZE 1000
 #define MAX_BUF_SIZE 1048576 * 32
 #define NAIVE_ALLREDUCE_THRESHOLD 1048576
-#define SHM_BUFFER_NAME "deepspeed_allreduce_buffer"
+#define SHM_BUFFER_NAME "shm_allreduce_buffer"
 struct allreduce_workspace {
   enum coll_state states[2]; // idx=0 -- state for symmetric_naive_all_reduce
                              // idx=1 -- state for distributed_naive_all_reduce
@@ -393,11 +386,8 @@ void shm(const detail::AllreduceOptionsImpl& opts) {
     const auto& context = opts.context;
   if (!is_initialized) {
 
-    //int size = context->size;
-    //int rank = context->rank;
-
-    int size = std::stoi(std::getenv("PMI_SIZE"));
-    int rank = std::stoi(std::getenv("PMI_RANK"));
+    int size = context->size;
+    int rank = context->rank;
 
     world_size = size;
     world_rank = rank;
@@ -411,12 +401,7 @@ void shm(const detail::AllreduceOptionsImpl& opts) {
     if (port_string == NULL) {
         port_string = "";
     }
-    // std::cout << "size: " << size << std::endl;
-    // std::cout << "rank: " << rank << std::endl;
-    // std::cout << "addr_string: " << addr_string << std::endl;
-    // std::cout << "port_string: " << port_string << std::endl;
     shm_initialize(size, rank, addr_string, port_string);
-    GPF_PRINT("SHM reduce has been initialized");
   }
 
   const size_t data_size = opts.elements * opts.elementSize;
