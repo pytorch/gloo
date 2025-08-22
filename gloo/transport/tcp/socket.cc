@@ -59,8 +59,11 @@ void Socket::block(bool on) {
   GLOO_ENFORCE_NE(rv, -1, "fcntl: ", strerror(errno));
 }
 
-void Socket::configureTimeout(int opt, std::chrono::milliseconds timeout) {
-  struct timeval tv = {
+void Socket::configureTimeout(int opt, const std::chrono::milliseconds timeout) {
+  struct timeval {
+    long long tv_sec;
+    long long tv_usec;
+  } tv = {
       .tv_sec = timeout.count() / 1000,
       .tv_usec = (timeout.count() % 1000) * 1000,
   };
