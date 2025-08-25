@@ -15,6 +15,7 @@
 #include "gloo/common/logging.h"
 #include "gloo/math.h"
 #include "gloo/types.h"
+#include "gloo/allreduce_shm.h"
 
 namespace gloo {
 
@@ -131,13 +132,22 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
     return;
   }
 
-  switch (opts.algorithm) {
+  auto algorithm = opts.algorithm;
+  if (is_intra_node(opts)) {
+    algorithm = detail::AllreduceOptionsImpl::SHM;
+  }
+
+
+  switch (algorithm) {
     case detail::AllreduceOptionsImpl::UNSPECIFIED:
     case detail::AllreduceOptionsImpl::RING:
       ring(opts, reduceInputs, broadcastOutputs);
       break;
     case detail::AllreduceOptionsImpl::BCUBE:
       bcube(opts, reduceInputs, broadcastOutputs);
+      break;
+    case detail::AllreduceOptionsImpl::SHM:
+      shm(opts);
       break;
     default:
       GLOO_ENFORCE(false, "Algorithm not handled.");
@@ -152,6 +162,7 @@ void ring(
   const std::vector<std::unique_ptr<transport::UnboundBuffer>>& out = opts.out;
   const auto slot = Slot::build(kAllreduceSlotPrefix, opts.tag);
   const size_t totalBytes = opts.elements * opts.elementSize;
+
 
   // Note: context->size > 1
   const auto recvRank = (context->size + context->rank + 1) % context->size;
