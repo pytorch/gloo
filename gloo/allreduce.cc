@@ -133,7 +133,7 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
   }
 
   auto algorithm = opts.algorithm;
-  if (is_intra_node(context->size)) {
+  if (is_intra_node(opts)) {
     algorithm = detail::AllreduceOptionsImpl::SHM;
   }
 
