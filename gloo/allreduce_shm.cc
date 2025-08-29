@@ -73,9 +73,9 @@ void shared_create(
   }
 }
 
-static int world_rank = -1;
-static int world_size = -1;
-static bool is_initialized = false;
+thread_local static int world_rank = -1;
+thread_local static int world_size = -1;
+thread_local static bool is_initialized = false;
 
 // SHM based allreduce helper functions
 // buffer that holds shm name
@@ -97,12 +97,12 @@ struct allreduce_workspace {
 #define BUFFER1_OFFSET(current_buffer) \
   2 * NAIVE_ALLREDUCE_THRESHOLD + current_buffer* MAX_BUF_SIZE
 
-struct allreduce_workspace** workspace;
+thread_local struct allreduce_workspace** workspace;
 
 // buffer for small messages, double buffer
-char** symmetric_buffer[2];
+thread_local char** symmetric_buffer[2];
 // buffer for large messages, double buffer
-char** distributed_buffer[2];
+thread_local char** distributed_buffer[2];
 
 void wait_buffer_state_until_2(
     int index,
@@ -243,8 +243,8 @@ void symmetric_naive_all_reduce(
     size_t chunk_el,
     ReductionFunction fn) {
   const int state_group = 0;
-  static int current_buffer = 0;
-  static int state_idx = 0;
+  thread_local static int current_buffer = 0;
+  thread_local static int state_idx = 0;
 
   enum coll_state copy_current, copy_next;
 
@@ -301,8 +301,8 @@ void distributed_naive_reduce(
     size_t chunk_el,
     ReductionFunction fn) {
   const int state_group = 1;
-  static int current_buffer = 0;
-  static int state_idx = 0;
+  thread_local static int current_buffer = 0;
+  thread_local static int state_idx = 0;
 
   enum coll_state copy_current, copy_next, reduce_current;
 
@@ -421,8 +421,37 @@ void shm(const detail::AllreduceOptionsImpl& opts) {
     shm_initialize(size, rank, addr_string, port_string);
   }
 
-  const size_t data_size = opts.elements * opts.elementSize;
-  const std::vector<std::unique_ptr<transport::UnboundBuffer>>& out = opts.out;
+ const size_t data_size = opts.elements * opts.elementSize;
+  auto& in = opts.in;
+  auto& out = opts.out;
+
+  // Do local reduction
+  if (in.size() > 0) {
+    if (in.size() == 1) {
+        memcpy(static_cast<uint8_t*>(out[0]->ptr), static_cast<uint8_t*>(in[0]->ptr), data_size);
+    } else {
+        opts.reduce(static_cast<uint8_t*>(out[0]->ptr), 
+                    static_cast<const uint8_t*>(in[0]->ptr), 
+                    static_cast<const uint8_t*>(in[1]->ptr),
+                    opts.elements);
+        for (size_t i = 2; i < in.size(); i++) {
+            opts.reduce(static_cast<uint8_t*>(out[0]->ptr), 
+                        static_cast<const uint8_t*>(out[0]->ptr), 
+                        static_cast<const uint8_t*>(in[i]->ptr),
+                        opts.elements);
+        }
+    }
+  } else {
+    for (size_t i = 1; i < out.size(); i++) {
+        opts.reduce(static_cast<uint8_t*>(out[0]->ptr), 
+                    static_cast<const uint8_t*>(out[0]->ptr), 
+                    static_cast<const uint8_t*>(out[i]->ptr),
+                    opts.elements);
+    }
+  }
+
+  
+  
   void* data = out[0].get()->ptr;
 
     for (int offset = 0; offset < data_size; offset += MAX_BUF_SIZE) {
@@ -438,6 +467,13 @@ void shm(const detail::AllreduceOptionsImpl& opts) {
             data_ptr, opts.elementSize, chunk_size, chunk_el, opts.reduce);
         }
   }
+
+  if (out.size() > 1) {
+    for (size_t i = 1; i < out.size(); i++) {
+        memcpy(static_cast<uint8_t*>(out[i]->ptr), static_cast<uint8_t*>(out[0]->ptr), data_size);
+    }
+  }
+        
 
 }
 
