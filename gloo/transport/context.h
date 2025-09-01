@@ -72,6 +72,11 @@ class Context {
     return intraNode_;
   }
 
+  virtual std::unique_ptr<RemoteKey> deserializeRemoteKey(
+      const std::string& serialized) {
+    throw std::runtime_error("Not implemented");
+  }
+
  protected:
   // Protects access to the pending operations and expected
   // notifications vectors. These vectors can only be mutated by an

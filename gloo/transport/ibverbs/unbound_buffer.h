@@ -11,11 +11,13 @@
 #include "gloo/common/memory.h"
 #include "gloo/transport/ibverbs/device.h"
 #include "gloo/transport/ibverbs/pair.h"
+#include "gloo/transport/ibverbs/remote_key.h"
 #include "gloo/transport/unbound_buffer.h"
 
 #include <condition_variable>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 
 namespace gloo {
@@ -64,6 +66,23 @@ class UnboundBuffer : public ::gloo::transport::UnboundBuffer,
   // Set exception and wake up any waitRecv/waitSend threads.
   void signalError(const std::exception_ptr&) override;
 
+  virtual std::unique_ptr<::gloo::transport::RemoteKey> getRemoteKey()
+      const override;
+
+  virtual void put(
+      const transport::RemoteKey& key,
+      uint64_t slot,
+      size_t offset,
+      size_t roffset,
+      size_t nbytes) override;
+
+  virtual void get(
+      const transport::RemoteKey& key,
+      uint64_t slot,
+      size_t offset,
+      size_t roffset,
+      size_t nbytes) override;
+
  protected:
   std::shared_ptr<Context> context_;
 
@@ -77,6 +96,7 @@ class UnboundBuffer : public ::gloo::transport::UnboundBuffer,
   bool abortWaitSend_{false};
 
   struct ibv_mr* mr_;
+  std::optional<RemoteKey> remoteKey_;
 
   std::deque<int> recvCompletions_;
   int recvRank_;
