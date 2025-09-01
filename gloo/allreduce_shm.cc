@@ -371,33 +371,6 @@ void distributed_naive_reduce(
 
 } // namespace
 
-bool is_intra_node(const detail::AllreduceOptionsImpl& opts) {
-
-  // It's difficult to get local_world_size directly in gloo. However, we could get local_rank infos from each rank's connection info. 
-  // In intra-node scenario, the local_rank of last rank is supposed to be equal to world_size - 1.
-  const auto& context = opts.context;
-  int rank = context->rank;
-  int world_size = context->size;
-  int max_local_rank = 0;
-  // Get max local rank from pair 0.
-  if (rank == world_size - 1) {
-    max_local_rank = context->getPair(0)->getLocalRank();
-  }
-
-  // Do broadcast
-  BroadcastOptions broadcast_opts(context);
-  broadcast_opts.setRoot(world_size - 1);
-  broadcast_opts.setOutput(&max_local_rank, sizeof(max_local_rank));
-  broadcast(broadcast_opts);
-
-  // Do barrier
-  BarrierOptions barrier_opts(context);
-  barrier(barrier_opts);
-  return max_local_rank == world_size - 1;
-}
-
-
-
 void shm(const detail::AllreduceOptionsImpl& opts) {
 
     const auto& context = opts.context;

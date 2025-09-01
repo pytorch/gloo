@@ -133,10 +133,12 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
   }
 
   auto algorithm = opts.algorithm;
-  if (is_intra_node(opts)) {
+
+#ifndef _WIN32
+  if (context->isIntraNode()) {
     algorithm = detail::AllreduceOptionsImpl::SHM;
   }
-
+#endif
 
   switch (algorithm) {
     case detail::AllreduceOptionsImpl::UNSPECIFIED:

@@ -68,6 +68,10 @@ class Context {
     return timeout_;
   }
 
+  bool isIntraNode() const{
+    return intraNode_;
+  }
+
  protected:
   // Protects access to the pending operations and expected
   // notifications vectors. These vectors can only be mutated by an
@@ -92,6 +96,9 @@ class Context {
   // Default timeout for new pairs (e.g. during initialization) and
   // any kind of send/recv operation.
   std::chrono::milliseconds timeout_;
+
+  // Whether is intra-node.
+  bool intraNode_ = false;
 
   std::vector<char> extractAddress(const std::vector<char>& allAddrs, int i)
       const;

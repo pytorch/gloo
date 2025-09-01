@@ -42,6 +42,7 @@ void Context::createAndConnectAllPairs(std::shared_ptr<IStore> store) {
   const std::vector<char> value(localHostName.begin(), localHostName.end());
   store->set(localKey, value);
 
+  intraNode_ = true;
   for (int i = 0; i < size; i++) {
     if (i == rank) {
       break;
@@ -54,6 +55,8 @@ void Context::createAndConnectAllPairs(std::shared_ptr<IStore> store) {
     if (hostName == localHostName) {
       localRank++;
     }
+
+    intraNode_ = intraNode_ && hostName == localHostName;
   }
 
   // Create pairs

@@ -51,6 +51,8 @@ class Context {
 
   std::chrono::milliseconds getTimeout() const;
 
+  bool isIntraNode() const;
+
  protected:
   std::shared_ptr<transport::Device> device_;
   std::shared_ptr<transport::Context> transportContext_;
