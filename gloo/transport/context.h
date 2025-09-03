@@ -68,7 +68,7 @@ class Context {
     return timeout_;
   }
 
-  bool isIntraNode() const{
+  bool isIntraNode() const {
     return intraNode_;
   }
 

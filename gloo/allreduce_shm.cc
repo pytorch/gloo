@@ -2,6 +2,7 @@
 #include "gloo/barrier.h"
 #include "gloo/broadcast.h"
 
+#include <assert.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <immintrin.h>
@@ -11,7 +12,6 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
-#include <assert.h>
 
 namespace gloo {
 
@@ -127,14 +127,21 @@ void reduce_all_buffers(
     char* to_buffer,
     char** buffers,
     ReductionFunction fn) {
-  size_t offset = start_elements  * element_size;
+  size_t offset = start_elements * element_size;
   memcpy(to_buffer + offset, buffers[0] + offset, num_elements * element_size);
   for (int i = 1; i < world_size; i++) {
-    fn(to_buffer + offset, to_buffer + offset, buffers[i] + offset, num_elements);
+    fn(to_buffer + offset,
+       to_buffer + offset,
+       buffers[i] + offset,
+       num_elements);
   }
 }
 
-void shm_initialize(int size, int rank, char* addr_string, char* port_string) {
+void shm_initialize(
+    int size,
+    int rank,
+    const char* addr_string,
+    const char* port_string) {
   world_size = size;
   world_rank = rank;
 
@@ -155,7 +162,8 @@ void shm_initialize(int size, int rank, char* addr_string, char* port_string) {
   struct allreduce_workspace* workspace_buf_other;
   workspace_buf =
       (struct allreduce_workspace*)malloc(sizeof(struct allreduce_workspace));
-  int written = snprintf(shm_name, NAME_BUF_SIZE, "%s_%d", shm_name_prefix, rank);
+  int written =
+      snprintf(shm_name, NAME_BUF_SIZE, "%s_%d", shm_name_prefix, rank);
   if (written >= NAME_BUF_SIZE) {
     std::cout << "[warning]: written >= NAME_BUF_SIZE" << std::endl;
   }
@@ -179,10 +187,11 @@ void shm_initialize(int size, int rank, char* addr_string, char* port_string) {
   // map shm of all ranks
   for (int i = 0; i < size; i++) {
     if (i != rank) {
-        int written = snprintf(shm_name, NAME_BUF_SIZE, "%s_%d", shm_name_prefix, i);
-        if (written >= NAME_BUF_SIZE) {
-          std::cout << "[warning]: written >= NAME_BUF_SIZE" << std::endl;
-        }
+      int written =
+          snprintf(shm_name, NAME_BUF_SIZE, "%s_%d", shm_name_prefix, i);
+      if (written >= NAME_BUF_SIZE) {
+        std::cout << "[warning]: written >= NAME_BUF_SIZE" << std::endl;
+      }
       // printf("open %s, %d\n", shm_name, rank);
       do {
         shared_open(
@@ -372,10 +381,8 @@ void distributed_naive_reduce(
 } // namespace
 
 void shm(const detail::AllreduceOptionsImpl& opts) {
-
-    const auto& context = opts.context;
+  const auto& context = opts.context;
   if (!is_initialized) {
-
     int size = context->size;
     int rank = context->rank;
 
@@ -383,72 +390,77 @@ void shm(const detail::AllreduceOptionsImpl& opts) {
     world_rank = rank;
     is_initialized = true;
 
-    auto addr_string = std::getenv("MASTER_ADDR");
-    if (addr_string == NULL) {
-        addr_string = "";
+    std::string addr_string(""), port_string("");
+    const auto& addr_string_env = std::getenv("MASTER_ADDR");
+    if (addr_string_env != nullptr) {
+      addr_string = addr_string_env;
     }
-    auto port_string = std::getenv("MASTER_PORT");
-    if (port_string == NULL) {
-        port_string = "";
+    const auto port_string_env = std::getenv("MASTER_PORT");
+    if (port_string_env != NULL) {
+      port_string = port_string_env;
     }
-    shm_initialize(size, rank, addr_string, port_string);
+    shm_initialize(size, rank, addr_string.c_str(), port_string.c_str());
   }
 
- const size_t data_size = opts.elements * opts.elementSize;
+  const size_t data_size = opts.elements * opts.elementSize;
   auto& in = opts.in;
   auto& out = opts.out;
 
   // Do local reduction
   if (in.size() > 0) {
     if (in.size() == 1) {
-        memcpy(static_cast<uint8_t*>(out[0]->ptr), static_cast<uint8_t*>(in[0]->ptr), data_size);
+      memcpy(
+          static_cast<uint8_t*>(out[0]->ptr),
+          static_cast<uint8_t*>(in[0]->ptr),
+          data_size);
     } else {
-        opts.reduce(static_cast<uint8_t*>(out[0]->ptr), 
-                    static_cast<const uint8_t*>(in[0]->ptr), 
-                    static_cast<const uint8_t*>(in[1]->ptr),
-                    opts.elements);
-        for (size_t i = 2; i < in.size(); i++) {
-            opts.reduce(static_cast<uint8_t*>(out[0]->ptr), 
-                        static_cast<const uint8_t*>(out[0]->ptr), 
-                        static_cast<const uint8_t*>(in[i]->ptr),
-                        opts.elements);
-        }
+      opts.reduce(
+          static_cast<uint8_t*>(out[0]->ptr),
+          static_cast<const uint8_t*>(in[0]->ptr),
+          static_cast<const uint8_t*>(in[1]->ptr),
+          opts.elements);
+      for (size_t i = 2; i < in.size(); i++) {
+        opts.reduce(
+            static_cast<uint8_t*>(out[0]->ptr),
+            static_cast<const uint8_t*>(out[0]->ptr),
+            static_cast<const uint8_t*>(in[i]->ptr),
+            opts.elements);
+      }
     }
   } else {
     for (size_t i = 1; i < out.size(); i++) {
-        opts.reduce(static_cast<uint8_t*>(out[0]->ptr), 
-                    static_cast<const uint8_t*>(out[0]->ptr), 
-                    static_cast<const uint8_t*>(out[i]->ptr),
-                    opts.elements);
+      opts.reduce(
+          static_cast<uint8_t*>(out[0]->ptr),
+          static_cast<const uint8_t*>(out[0]->ptr),
+          static_cast<const uint8_t*>(out[i]->ptr),
+          opts.elements);
     }
   }
 
-  
-  
   void* data = out[0].get()->ptr;
 
-    for (int offset = 0; offset < data_size; offset += MAX_BUF_SIZE) {
-        auto data_ptr = ((char*)(data) + offset);
-        size_t chunk_size =
-            data_size - offset > MAX_BUF_SIZE ? MAX_BUF_SIZE : data_size - offset;
-        size_t chunk_el = chunk_size / (data_size / opts.elements);
-        if (chunk_size < NAIVE_ALLREDUCE_THRESHOLD) {
-        symmetric_naive_all_reduce(
-            data_ptr, opts.elementSize, chunk_size, chunk_el, opts.reduce);
-        } else {
-        distributed_naive_reduce(
-            data_ptr, opts.elementSize, chunk_size, chunk_el, opts.reduce);
-        }
+  for (int offset = 0; offset < data_size; offset += MAX_BUF_SIZE) {
+    auto data_ptr = ((char*)(data) + offset);
+    size_t chunk_size =
+        data_size - offset > MAX_BUF_SIZE ? MAX_BUF_SIZE : data_size - offset;
+    size_t chunk_el = chunk_size / (data_size / opts.elements);
+    if (chunk_size < NAIVE_ALLREDUCE_THRESHOLD) {
+      symmetric_naive_all_reduce(
+          data_ptr, opts.elementSize, chunk_size, chunk_el, opts.reduce);
+    } else {
+      distributed_naive_reduce(
+          data_ptr, opts.elementSize, chunk_size, chunk_el, opts.reduce);
+    }
   }
 
   if (out.size() > 1) {
     for (size_t i = 1; i < out.size(); i++) {
-        memcpy(static_cast<uint8_t*>(out[i]->ptr), static_cast<uint8_t*>(out[0]->ptr), data_size);
+      memcpy(
+          static_cast<uint8_t*>(out[i]->ptr),
+          static_cast<uint8_t*>(out[0]->ptr),
+          data_size);
     }
   }
-        
-
 }
 
-} //namespace gloo
-
+} // namespace gloo

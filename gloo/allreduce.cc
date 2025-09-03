@@ -12,10 +12,11 @@
 #include <array>
 #include <cstring>
 
+#include "gloo/allreduce_shm.h"
 #include "gloo/common/logging.h"
 #include "gloo/math.h"
+#include "gloo/transport/device.h"
 #include "gloo/types.h"
-#include "gloo/allreduce_shm.h"
 
 namespace gloo {
 
@@ -135,7 +136,7 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
   auto algorithm = opts.algorithm;
 
 #ifndef _WIN32
-  if (context->isIntraNode()) {
+  if (context->isIntraNode() && !context->getDevice()->hasGPUDirect()) {
     algorithm = detail::AllreduceOptionsImpl::SHM;
   }
 #endif
@@ -148,9 +149,11 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
     case detail::AllreduceOptionsImpl::BCUBE:
       bcube(opts, reduceInputs, broadcastOutputs);
       break;
+#ifndef _WIN32
     case detail::AllreduceOptionsImpl::SHM:
       shm(opts);
       break;
+#endif
     default:
       GLOO_ENFORCE(false, "Algorithm not handled.");
   }
@@ -164,7 +167,6 @@ void ring(
   const std::vector<std::unique_ptr<transport::UnboundBuffer>>& out = opts.out;
   const auto slot = Slot::build(kAllreduceSlotPrefix, opts.tag);
   const size_t totalBytes = opts.elements * opts.elementSize;
-
 
   // Note: context->size > 1
   const auto recvRank = (context->size + context->rank + 1) % context->size;
