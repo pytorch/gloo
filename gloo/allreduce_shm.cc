@@ -12,6 +12,7 @@
 #include <string.h>
 #include <sys/mman.h>
 #include <unistd.h>
+#include <thread>
 
 namespace gloo {
 
@@ -108,14 +109,28 @@ void wait_buffer_state_until_2(
     int index,
     enum coll_state state0,
     enum coll_state state1,
-    int state_group) {
+    int state_group,
+    std::chrono::milliseconds timeout) {
   volatile enum coll_state* state_ptr =
       &(workspace[index]->states[state_group]);
 
-  while (1) {
+  auto total_milliseconds = timeout.count();
+  auto count = 0;
+  while (count < total_milliseconds) {
     volatile enum coll_state cur_state = *state_ptr;
-    if (cur_state == state0 || cur_state == state1)
+    if (cur_state == state0 || cur_state == state1) {
       break;
+    }
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    count += 10;
+  }
+
+  volatile enum coll_state cur_state = *state_ptr;
+  if (!(cur_state == state0 || cur_state == state1)) {
+    throw ::gloo::IoException(GLOO_ERROR_MSG(
+        "Timed out waiting",
+        timeout.count(),
+        "ms for wait buffer state operation to complete"));
   }
 }
 
@@ -250,7 +265,8 @@ void symmetric_naive_all_reduce(
     int element_size,
     size_t chunk_size,
     size_t chunk_el,
-    ReductionFunction fn) {
+    ReductionFunction fn,
+    std::chrono::milliseconds timeout) {
   const int state_group = 0;
   thread_local static int current_buffer = 0;
   thread_local static int state_idx = 0;
@@ -283,7 +299,8 @@ void symmetric_naive_all_reduce(
   for (int i = 0; i < world_size; i++) {
     // wait until the other rank copy the buffer
     if (i != world_rank) {
-      wait_buffer_state_until_2(i, copy_current, copy_next, state_group);
+      wait_buffer_state_until_2(
+          i, copy_current, copy_next, state_group, timeout);
     }
   }
 
@@ -308,7 +325,8 @@ void distributed_naive_reduce(
     int element_size,
     size_t chunk_size,
     size_t chunk_el,
-    ReductionFunction fn) {
+    ReductionFunction fn,
+    std::chrono::milliseconds timeout) {
   const int state_group = 1;
   thread_local static int current_buffer = 0;
   thread_local static int state_idx = 0;
@@ -316,7 +334,8 @@ void distributed_naive_reduce(
   enum coll_state copy_current, copy_next, reduce_current;
 
   // similar to symmetric_naive_allreduce, but here we only need two sets of
-  // states, because distributed naive reduce has two barriers in the algorithm
+  // states, because distributed naive reduce has two barriers in the
+  // algorithm
   switch (state_idx) {
     case 0:
       copy_current = coll_allreduce_naive__copy_in_done;
@@ -342,7 +361,8 @@ void distributed_naive_reduce(
   for (int i = 0; i < world_size; i++) {
     // wait until all the other ranks copy the buffer
     if (i != world_rank)
-      wait_buffer_state_until_2(i, copy_current, reduce_current, state_group);
+      wait_buffer_state_until_2(
+          i, copy_current, reduce_current, state_group, timeout);
   }
 
   // reduce scatter
@@ -360,7 +380,8 @@ void distributed_naive_reduce(
   for (int i = 0; i < world_size; i++) {
     // wait until all the other ranks reduce the buffer
     if (i != world_rank)
-      wait_buffer_state_until_2(i, reduce_current, copy_next, state_group);
+      wait_buffer_state_until_2(
+          i, reduce_current, copy_next, state_group, timeout);
   }
 
   for (int i = 0; i < world_size; i++) {
@@ -446,10 +467,20 @@ void shm(const detail::AllreduceOptionsImpl& opts) {
     size_t chunk_el = chunk_size / (data_size / opts.elements);
     if (chunk_size < NAIVE_ALLREDUCE_THRESHOLD) {
       symmetric_naive_all_reduce(
-          data_ptr, opts.elementSize, chunk_size, chunk_el, opts.reduce);
+          data_ptr,
+          opts.elementSize,
+          chunk_size,
+          chunk_el,
+          opts.reduce,
+          opts.timeout);
     } else {
       distributed_naive_reduce(
-          data_ptr, opts.elementSize, chunk_size, chunk_el, opts.reduce);
+          data_ptr,
+          opts.elementSize,
+          chunk_size,
+          chunk_el,
+          opts.reduce,
+          opts.timeout);
     }
   }
 
