@@ -11,10 +11,29 @@
 #include <string>
 
 #include <sys/socket.h>
+#include <unistd.h>
+#include <memory>
 
 namespace gloo {
 namespace transport {
 namespace tcp {
+
+// RAII for fds so they'll close when all references to them are freed.
+class FDHolder {
+ public:
+  explicit FDHolder(int fd) : fd_(fd) {}
+  ~FDHolder() {
+    close(fd_);
+  }
+
+  FDHolder(const FDHolder&) = delete;
+  FDHolder& operator=(const FDHolder&) = delete;
+  FDHolder(FDHolder&&) = delete;
+  FDHolder& operator=(FDHolder&&) = delete;
+
+ private:
+  const int fd_;
+};
 
 struct attr {
   attr() {}
@@ -31,6 +50,8 @@ struct attr {
   int ai_protocol;
   struct sockaddr_storage ai_addr;
   int ai_addrlen;
+
+  std::shared_ptr<FDHolder> fd{nullptr};
 };
 
 } // namespace tcp
