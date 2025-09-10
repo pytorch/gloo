@@ -192,29 +192,28 @@ const std::string& infinibandToBusID(const std::string& name) {
 static int getInterfaceSpeedGLinkSettings(int sock, struct ifreq* ifr) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
   constexpr auto link_mode_data_nwords = 3 * 127;
-  struct {
-    __u32 link_mode_data[link_mode_data_nwords];
-    struct ethtool_link_settings req;
-  } ecmd;
+  constexpr auto bufsize = sizeof(struct ethtool_link_settings) + sizeof(__u32)*link_mode_data_nwords;
+  char buf[bufsize];
+  struct ethtool_link_settings* ecmd = (struct ethtool_link_settings*)buf;
   int rv;
 
-  ifr->ifr_data = (__caddr_t)&ecmd;
-  memset(&ecmd, 0, sizeof(ecmd));
-  ecmd.req.cmd = ETHTOOL_GLINKSETTINGS;
+  ifr->ifr_data = (__caddr_t)buf;
+  memset(buf, 0, bufsize);
+  ecmd->cmd = ETHTOOL_GLINKSETTINGS;
 
   rv = ioctl(sock, SIOCETHTOOL, ifr);
-  if (rv < 0 || ecmd.req.link_mode_masks_nwords >= 0) {
+  if (rv < 0 || ecmd->link_mode_masks_nwords >= 0) {
     return SPEED_UNKNOWN;
   }
 
-  ecmd.req.cmd = ETHTOOL_GLINKSETTINGS;
-  ecmd.req.link_mode_masks_nwords = -ecmd.req.link_mode_masks_nwords;
+  ecmd->cmd = ETHTOOL_GLINKSETTINGS;
+  ecmd->link_mode_masks_nwords = -ecmd->link_mode_masks_nwords;
   rv = ioctl(sock, SIOCETHTOOL, ifr);
   if (rv < 0) {
     return SPEED_UNKNOWN;
   }
 
-  return ecmd.req.speed;
+  return ecmd->speed;
 #else
   (void)sock;
   (void)ifr;
