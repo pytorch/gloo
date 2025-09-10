@@ -5,6 +5,10 @@ set(gloo_hip_DEPENDENCY_LIBS "")
 # Configure path to modules (for find_package)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
 
+if (WIN32)
+  list(APPEND gloo_DEPENDENCY_LIBS "ws2_32")
+endif()
+
 if(USE_REDIS)
   find_package(hiredis REQUIRED)
   if(HIREDIS_FOUND)
