@@ -240,22 +240,18 @@ std::vector<int> Context::getUnConnectedPeerRanks() const {
 
 void Context::printConnectivityInfo() const {
   int numConnectedPeers = getConnectedPeerRanks().size();
-  std::cout << "[Gloo] Rank " << rank << " is connected to "
-            << numConnectedPeers << " peer ranks. "
-            << "Expected number of connected peer ranks is : " << size - 1
-            << std::endl;
+  GLOO_INFO(
+      "Rank ",
+      rank,
+      " is connected to ",
+      numConnectedPeers,
+      ". Expected number of connected peers is: ",
+      size - 1);
 
   if (numConnectedPeers != size - 1) {
     std::vector<int> unConnectedPeers = getUnConnectedPeerRanks();
-    std::cout << "[Gloo] Rank " << rank << " is NOT connected to: [";
-    for (int i = 0; i < unConnectedPeers.size(); i++) {
-      if (i != unConnectedPeers.size() - 1) {
-        std::cout << unConnectedPeers[i] << ", ";
-      } else {
-        std::cout << unConnectedPeers[i];
-      }
-    }
-    std::cout << "]" << std::endl;
+    auto peerStrCat = ::gloo::MakeString<int>(unConnectedPeers, /*delim=*/", ");
+    GLOO_INFO("Rank ", rank, " is NOT connected to: [", peerStrCat, "]");
   }
 }
 
