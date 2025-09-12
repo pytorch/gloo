@@ -20,14 +20,47 @@
 
 namespace gloo {
 
+enum LogLevel {
+  ERROR,
+  WARN,
+  INFO,
+  DEBUG,
+  UNSET,
+};
+
+inline LogLevel logLevel();
+
 #define GLOO_LOG_MSG(level, ...)   \
   std::cerr << ::gloo::MakeString( \
       "[", __FILE__, ":", __LINE__, "] ", level, " ", __VA_ARGS__, "\n")
 
-#define GLOO_INFO(...) GLOO_LOG_MSG("INFO", __VA_ARGS__)
-#define GLOO_ERROR(...) GLOO_LOG_MSG("ERROR", __VA_ARGS__)
-#define GLOO_WARN(...) GLOO_LOG_MSG("WARN", __VA_ARGS__)
-#define GLOO_DEBUG(...) // GLOO_LOG_MSG("DEBUG", __VA_ARGS__)
+#define GLOO_ERROR(...)                   \
+  do {                                    \
+    if (logLevel() >= LogLevel::ERROR) {  \
+      GLOO_LOG_MSG("ERROR", __VA_ARGS__); \
+    }                                     \
+  } while (0)
+
+#define GLOO_WARN(...)                   \
+  do {                                   \
+    if (logLevel() >= LogLevel::WARN) {  \
+      GLOO_LOG_MSG("WARN", __VA_ARGS__); \
+    }                                    \
+  } while (0)
+
+#define GLOO_INFO(...)                   \
+  do {                                   \
+    if (logLevel() >= LogLevel::INFO) {  \
+      GLOO_LOG_MSG("INFO", __VA_ARGS__); \
+    }                                    \
+  } while (0)
+
+#define GLOO_DEBUG(...)                   \
+  do {                                    \
+    if (logLevel() >= LogLevel::DEBUG) {  \
+      GLOO_LOG_MSG("DEBUG", __VA_ARGS__); \
+    }                                     \
+  } while (0)
 
 class EnforceNotMet : public std::exception {
  public:
