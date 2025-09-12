@@ -49,7 +49,7 @@ void Context::createAndConnectAllPairs(std::shared_ptr<IStore> store) {
     }
 
     std::string key("rank_" + std::to_string(i));
-    auto val = store->get(key);
+    auto val = store->wait_get(key, getTimeout());
     auto hostName = std::string((const char*)val.data(), val.size());
 
     if (hostName == localHostName) {

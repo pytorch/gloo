@@ -1,6 +1,4 @@
 #include "gloo/allreduce_shm.h"
-#include "gloo/barrier.h"
-#include "gloo/broadcast.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -19,19 +17,16 @@ namespace gloo {
 namespace {
 
 using ReductionFunction = AllreduceOptions::Func;
+using CollState = AllreduceSharedMemoryData::CollState;
+using Allreduceworkspace = AllreduceSharedMemoryData::AllreduceWorkspace;
 
-#define VECTOR_LENGTH_IN_BYTES 32
-// states for collectives
-enum coll_state {
-  coll_begin = 0,
-  coll_allreduce_naive__copy_in_done,
-  coll_allreduce_naive__reduce_done,
-  // alternative state when allreduce is working on alternative buffer
-  // of the double buffer.
-  coll_alt1_allreduce_naive__copy_in_done,
-  coll_alt2_allreduce_naive__copy_in_done,
-  coll_alt1_allreduce_naive__reduce_done,
-};
+constexpr int VECTOR_LENGTH_IN_BYTES = 32;
+
+#define BUFFER0_OFFSET(current_buffer) \
+  current_buffer* Allreduceworkspace::NAIVE_ALLREDUCE_THRESHOLD
+#define BUFFER1_OFFSET(current_buffer)                \
+  2 * Allreduceworkspace::NAIVE_ALLREDUCE_THRESHOLD + \
+      current_buffer* Allreduceworkspace::MAX_BUF_SIZE
 
 // SHM building blocks
 struct SharedData {
@@ -74,63 +69,65 @@ void shared_create(
   }
 }
 
-thread_local static int world_rank = -1;
-thread_local static int world_size = -1;
-thread_local static bool is_initialized = false;
-
-// SHM based allreduce helper functions
-// buffer that holds shm name
-#define NAME_BUF_SIZE 1000
-#define MAX_BUF_SIZE 1048576 * 32
-#define NAIVE_ALLREDUCE_THRESHOLD 1048576
-#define SHM_BUFFER_NAME "shm_allreduce_buffer"
-struct allreduce_workspace {
-  enum coll_state states[2]; // idx=0 -- state for symmetric_naive_all_reduce
-                             // idx=1 -- state for distributed_naive_all_reduce
-  // double buffer to avoid syncing between rounds
-  // offset=0 -- 2*NAIVE_ALLREDUCE_THRESHOLD : buffer for
-  // symmetric_naive_all_reduce after that : buffer for
-  // distributed_naive_all_reduce
-  char buffer[2 * NAIVE_ALLREDUCE_THRESHOLD + 2 * MAX_BUF_SIZE];
-};
-
-#define BUFFER0_OFFSET(current_buffer) current_buffer* NAIVE_ALLREDUCE_THRESHOLD
-#define BUFFER1_OFFSET(current_buffer) \
-  2 * NAIVE_ALLREDUCE_THRESHOLD + current_buffer* MAX_BUF_SIZE
-
-thread_local struct allreduce_workspace** workspace;
-
-// buffer for small messages, double buffer
-thread_local char** symmetric_buffer[2];
-// buffer for large messages, double buffer
-thread_local char** distributed_buffer[2];
-
-void wait_buffer_state_until_2(
-    int index,
-    enum coll_state state0,
-    enum coll_state state1,
+void wait_buffer_state(
+    CollState state0,
+    CollState state1,
     int state_group,
-    std::chrono::milliseconds timeout) {
-  volatile enum coll_state* state_ptr =
-      &(workspace[index]->states[state_group]);
+    std::chrono::milliseconds timeout,
+    std::shared_ptr<AllreduceSharedMemoryData> shm_data) {
+  // Create a new thread
+  auto workspace = shm_data->workspace;
+  const int rank = shm_data->rank;
+  const int world_size = shm_data->world_size;
 
-  auto total_milliseconds = timeout.count();
-  auto count = 0;
-  while (count < total_milliseconds) {
-    volatile enum coll_state cur_state = *state_ptr;
-    if (cur_state == state0 || cur_state == state1) {
-      break;
+  for (int i = 0; i < world_size; i++) {
+    if (i == rank) {
+      continue;
     }
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    count += 10;
+    volatile CollState* state_ptr = &(workspace[i]->states[state_group]);
+
+    while (true) {
+      volatile CollState cur_state = *state_ptr;
+      if (cur_state == state0 || cur_state == state1) {
+        break;
+      }
+      if (shm_data->shutdown) {
+        return;
+      }
+    }
   }
 
-  volatile enum coll_state cur_state = *state_ptr;
-  if (!(cur_state == state0 || cur_state == state1)) {
+  std::unique_lock lock(shm_data->m);
+  shm_data->wait_done = true;
+  lock.unlock();
+  shm_data->cv.notify_one();
+}
+
+void wait_buffer_state_until_2(
+    CollState state0,
+    CollState state1,
+    int state_group,
+    std::chrono::milliseconds timeout,
+    std::shared_ptr<AllreduceSharedMemoryData> shm_data) {
+  shm_data->wait_done = false;
+  shm_data->shutdown = false;
+
+  // Create wait buffer thread.
+  std::thread t(
+      wait_buffer_state, state0, state1, state_group, timeout, shm_data);
+
+  std::unique_lock lock(shm_data->m);
+  auto done =
+      shm_data->cv.wait_for(lock, timeout, [&] { return shm_data->wait_done; });
+  if (!done) {
+    shm_data->shutdown = true;
+    t.join();
     throw ::gloo::IoException(GLOO_ERROR_MSG(
         "Timed out waiting",
         timeout.count(),
         "ms for wait buffer state operation to complete"));
+  } else {
+    t.join();
   }
 }
 
@@ -139,6 +136,7 @@ void reduce_all_buffers(
     int num_elements,
     int element_size,
     int to_buffer_idx,
+    int world_size,
     char* to_buffer,
     char** buffers,
     ReductionFunction fn) {
@@ -149,78 +147,6 @@ void reduce_all_buffers(
        to_buffer + offset,
        buffers[i] + offset,
        num_elements);
-  }
-}
-
-void shm_initialize(
-    int size,
-    int rank,
-    const char* addr_string,
-    const char* port_string) {
-  world_size = size;
-  world_rank = rank;
-
-  char shm_name_prefix[NAME_BUF_SIZE];
-  char shm_name[NAME_BUF_SIZE];
-  snprintf(
-      shm_name_prefix,
-      NAME_BUF_SIZE,
-      "%s_%d_%s_%s",
-      SHM_BUFFER_NAME,
-      getuid(),
-      addr_string,
-      port_string);
-  // create shared workspace for SHM based allreduce
-  SharedData allreduce_buffer;
-  // allocate workspace_buf for current rank
-  struct allreduce_workspace* workspace_buf;
-  struct allreduce_workspace* workspace_buf_other;
-  workspace_buf =
-      (struct allreduce_workspace*)malloc(sizeof(struct allreduce_workspace));
-  int written =
-      snprintf(shm_name, NAME_BUF_SIZE, "%s_%d", shm_name_prefix, rank);
-  if (written >= NAME_BUF_SIZE) {
-    std::cout << "[warning]: written >= NAME_BUF_SIZE" << std::endl;
-  }
-  shared_create(
-      &allreduce_buffer,
-      shm_name,
-      workspace_buf,
-      sizeof(struct allreduce_workspace));
-  workspace_buf = (struct allreduce_workspace*)allreduce_buffer.bytes;
-  workspace_buf->states[0] = coll_alt2_allreduce_naive__copy_in_done;
-  workspace_buf->states[1] = coll_begin;
-
-  // create the workspace pointer list
-  workspace = (struct allreduce_workspace**)malloc(
-      size * sizeof(struct allreduce_workspace*));
-  symmetric_buffer[0] = (char**)malloc(size * sizeof(char**));
-  symmetric_buffer[1] = (char**)malloc(size * sizeof(char**));
-  distributed_buffer[0] = (char**)malloc(size * sizeof(char**));
-  distributed_buffer[1] = (char**)malloc(size * sizeof(char**));
-
-  // map shm of all ranks
-  for (int i = 0; i < size; i++) {
-    if (i != rank) {
-      int written =
-          snprintf(shm_name, NAME_BUF_SIZE, "%s_%d", shm_name_prefix, i);
-      if (written >= NAME_BUF_SIZE) {
-        std::cout << "[warning]: written >= NAME_BUF_SIZE" << std::endl;
-      }
-      // printf("open %s, %d\n", shm_name, rank);
-      do {
-        shared_open(
-            &allreduce_buffer, shm_name, sizeof(struct allreduce_workspace));
-      } while (allreduce_buffer.descriptor == -1 && errno == ENOENT);
-      workspace_buf_other = (struct allreduce_workspace*)allreduce_buffer.bytes;
-      workspace[i] = workspace_buf_other;
-    } else {
-      workspace[i] = workspace_buf;
-    }
-    symmetric_buffer[0][i] = workspace[i]->buffer + BUFFER0_OFFSET(0);
-    symmetric_buffer[1][i] = workspace[i]->buffer + BUFFER0_OFFSET(1);
-    distributed_buffer[0][i] = workspace[i]->buffer + BUFFER1_OFFSET(0);
-    distributed_buffer[1][i] = workspace[i]->buffer + BUFFER1_OFFSET(1);
   }
 }
 
@@ -241,21 +167,24 @@ static void parallel_memcpy(void* to, void* from, size_t n_bytes) {
   }
 }
 
-#define positive_mod(num, mod) ((((num) % (mod)) + (mod)) % (mod))
-#define rank_mod(rank) positive_mod(rank, world_size)
-size_t slice_size(size_t chunk_el, int slice_idx) {
+size_t slice_size(size_t chunk_el, int slice_idx, int world_size) {
   size_t slice_size = chunk_el / world_size;
   return slice_idx == world_size - 1 ? slice_size + (chunk_el % world_size)
                                      : slice_size;
 }
 
-char* slice_data(char* data_ptr, size_t chunk_el, int el_size, int slice_idx) {
+char* slice_data(
+    char* data_ptr,
+    size_t chunk_el,
+    int el_size,
+    int slice_idx,
+    int world_size) {
   size_t slice_size = chunk_el / world_size;
   size_t el_offset = slice_size * slice_idx;
   return data_ptr + el_offset * el_size;
 }
 
-size_t slice_el_start(size_t chunk_el, int slice_idx) {
+size_t slice_el_start(size_t chunk_el, int slice_idx, int world_size) {
   size_t slice_size = chunk_el / world_size;
   return slice_size * slice_idx;
 }
@@ -265,44 +194,45 @@ void symmetric_naive_all_reduce(
     int element_size,
     size_t chunk_size,
     size_t chunk_el,
-    ReductionFunction fn,
-    std::chrono::milliseconds timeout) {
-  const int state_group = 0;
-  thread_local static int current_buffer = 0;
-  thread_local static int state_idx = 0;
+    const detail::AllreduceOptionsImpl& opts) {
+  const auto& context = opts.context;
+  auto& shm_data = context->shmData;
+  const int rank = shm_data->rank;
+  const int world_size = shm_data->world_size;
+  auto symmetric_buffer = shm_data->symmetric_buffer;
+  auto workspace = shm_data->workspace;
+  auto& state_idx = shm_data->state_idx;
+  auto& current_buffer = shm_data->current_buffer;
 
-  enum coll_state copy_current, copy_next;
+  const int state_group = 0;
+
+  CollState copy_current, copy_next;
 
   switch (state_idx) {
     case 0:
-      copy_current = coll_allreduce_naive__copy_in_done;
-      copy_next = coll_alt1_allreduce_naive__copy_in_done;
+      copy_current = CollState::coll_allreduce_naive__copy_in_done;
+      copy_next = CollState::coll_alt1_allreduce_naive__copy_in_done;
       break;
     case 1:
-      copy_current = coll_alt1_allreduce_naive__copy_in_done;
-      copy_next = coll_alt2_allreduce_naive__copy_in_done;
+      copy_current = CollState::coll_alt1_allreduce_naive__copy_in_done;
+      copy_next = CollState::coll_alt2_allreduce_naive__copy_in_done;
       break;
     case 2:
-      copy_current = coll_alt2_allreduce_naive__copy_in_done;
-      copy_next = coll_allreduce_naive__copy_in_done;
+      copy_current = CollState::coll_alt2_allreduce_naive__copy_in_done;
+      copy_next = CollState::coll_allreduce_naive__copy_in_done;
       break;
     default:
       assert(!"Should not get here.");
   }
   state_idx = (state_idx + 1) % 3;
 
-  parallel_memcpy(
-      symmetric_buffer[current_buffer][world_rank], data_ptr, chunk_size);
-  std::atomic_thread_fence(std::memory_order_release);
-  workspace[world_rank]->states[state_group] = copy_current;
+  parallel_memcpy(symmetric_buffer[current_buffer][rank], data_ptr, chunk_size);
 
-  for (int i = 0; i < world_size; i++) {
-    // wait until the other rank copy the buffer
-    if (i != world_rank) {
-      wait_buffer_state_until_2(
-          i, copy_current, copy_next, state_group, timeout);
-    }
-  }
+  std::atomic_thread_fence(std::memory_order_release);
+  workspace[rank]->states[state_group] = copy_current;
+
+  wait_buffer_state_until_2(
+      copy_current, copy_next, state_group, opts.timeout, shm_data);
 
   // each rank reduce the buffer independently so therre is no need for
   // synchronization afterward
@@ -310,10 +240,11 @@ void symmetric_naive_all_reduce(
       0,
       chunk_el,
       element_size,
-      world_rank,
+      rank,
+      world_size,
       data_ptr,
       symmetric_buffer[current_buffer],
-      fn);
+      opts.reduce);
 
   // switch buffer
   current_buffer = 1 - current_buffer;
@@ -325,27 +256,33 @@ void distributed_naive_reduce(
     int element_size,
     size_t chunk_size,
     size_t chunk_el,
-    ReductionFunction fn,
-    std::chrono::milliseconds timeout) {
-  const int state_group = 1;
-  thread_local static int current_buffer = 0;
-  thread_local static int state_idx = 0;
+    const detail::AllreduceOptionsImpl& opts) {
+  const auto& context = opts.context;
+  auto& shm_data = context->shmData;
+  const int rank = shm_data->rank;
+  const int world_size = shm_data->world_size;
+  auto distributed_buffer = shm_data->distributed_buffer;
+  auto workspace = shm_data->workspace;
+  auto& state_idx = shm_data->state_idx;
+  auto& current_buffer = shm_data->current_buffer;
 
-  enum coll_state copy_current, copy_next, reduce_current;
+  const int state_group = 1;
+
+  CollState copy_current, copy_next, reduce_current;
 
   // similar to symmetric_naive_allreduce, but here we only need two sets of
   // states, because distributed naive reduce has two barriers in the
   // algorithm
   switch (state_idx) {
     case 0:
-      copy_current = coll_allreduce_naive__copy_in_done;
-      reduce_current = coll_allreduce_naive__reduce_done;
-      copy_next = coll_alt1_allreduce_naive__copy_in_done;
+      copy_current = CollState::coll_allreduce_naive__copy_in_done;
+      reduce_current = CollState::coll_allreduce_naive__reduce_done;
+      copy_next = CollState::coll_alt1_allreduce_naive__copy_in_done;
       break;
     case 1:
-      copy_current = coll_alt1_allreduce_naive__copy_in_done;
-      reduce_current = coll_alt1_allreduce_naive__reduce_done;
-      copy_next = coll_allreduce_naive__copy_in_done;
+      copy_current = CollState::coll_alt1_allreduce_naive__copy_in_done;
+      reduce_current = CollState::coll_alt1_allreduce_naive__reduce_done;
+      copy_next = CollState::coll_allreduce_naive__copy_in_done;
       break;
     default:
       assert(!"Should not get here.");
@@ -354,46 +291,40 @@ void distributed_naive_reduce(
 
   int data_size = chunk_size / chunk_el;
   parallel_memcpy(
-      distributed_buffer[current_buffer][world_rank], data_ptr, chunk_size);
+      distributed_buffer[current_buffer][rank], data_ptr, chunk_size);
   std::atomic_thread_fence(std::memory_order_release);
-  workspace[world_rank]->states[state_group] = copy_current;
+  workspace[rank]->states[state_group] = copy_current;
 
-  for (int i = 0; i < world_size; i++) {
-    // wait until all the other ranks copy the buffer
-    if (i != world_rank)
-      wait_buffer_state_until_2(
-          i, copy_current, reduce_current, state_group, timeout);
-  }
+  wait_buffer_state_until_2(
+      copy_current, reduce_current, state_group, opts.timeout, shm_data);
 
   // reduce scatter
   reduce_all_buffers(
-      slice_el_start(chunk_el, world_rank),
-      slice_size(chunk_el, world_rank),
+      slice_el_start(chunk_el, rank, world_size),
+      slice_size(chunk_el, rank, world_size),
       element_size,
-      world_rank,
-      distributed_buffer[current_buffer][world_rank],
+      rank,
+      world_size,
+      distributed_buffer[current_buffer][rank],
       distributed_buffer[current_buffer],
-      fn);
+      opts.reduce);
   std::atomic_thread_fence(std::memory_order_release);
-  workspace[world_rank]->states[state_group] = reduce_current;
+  workspace[rank]->states[state_group] = reduce_current;
+
+  wait_buffer_state_until_2(
+      copy_current, reduce_current, state_group, opts.timeout, shm_data);
 
   for (int i = 0; i < world_size; i++) {
-    // wait until all the other ranks reduce the buffer
-    if (i != world_rank)
-      wait_buffer_state_until_2(
-          i, reduce_current, copy_next, state_group, timeout);
-  }
-
-  for (int i = 0; i < world_size; i++) {
-    int rank = (i + world_rank) % world_size;
+    int rank = (i + rank) % world_size;
     parallel_memcpy(
-        slice_data(data_ptr, chunk_el, data_size, rank),
+        slice_data(data_ptr, chunk_el, data_size, rank, world_size),
         slice_data(
             distributed_buffer[current_buffer][rank],
             chunk_el,
             chunk_size / chunk_el,
-            rank),
-        slice_size(chunk_el, rank) * data_size);
+            rank,
+            world_size),
+        slice_size(chunk_el, rank, world_size) * data_size);
   }
 
   current_buffer = 1 - current_buffer;
@@ -401,28 +332,117 @@ void distributed_naive_reduce(
 
 } // namespace
 
-void shm(const detail::AllreduceOptionsImpl& opts) {
-  const auto& context = opts.context;
-  if (!is_initialized) {
-    int size = context->size;
-    int rank = context->rank;
-
-    world_size = size;
-    world_rank = rank;
-    is_initialized = true;
-
-    std::string addr_string(""), port_string("");
-    const auto& addr_string_env = std::getenv("MASTER_ADDR");
-    if (addr_string_env != nullptr) {
-      addr_string = addr_string_env;
-    }
-    const auto port_string_env = std::getenv("MASTER_PORT");
-    if (port_string_env != NULL) {
-      port_string = port_string_env;
-    }
-    shm_initialize(size, rank, addr_string.c_str(), port_string.c_str());
+void AllreduceSharedMemoryData::initialize() {
+  std::string addr_string(""), port_string("");
+  const auto& addr_string_env = std::getenv("MASTER_ADDR");
+  if (addr_string_env != nullptr) {
+    addr_string = addr_string_env;
+  }
+  const auto port_string_env = std::getenv("MASTER_PORT");
+  if (port_string_env != NULL) {
+    port_string = port_string_env;
   }
 
+  char shm_name_prefix[Allreduceworkspace::NAME_BUF_SIZE];
+  char shm_name[Allreduceworkspace::NAME_BUF_SIZE];
+  snprintf(
+      shm_name_prefix,
+      Allreduceworkspace::NAME_BUF_SIZE,
+      "%s_%d_%s_%s",
+      "shm_allreduce_buffer",
+      getuid(),
+      addr_string.c_str(),
+      port_string.c_str());
+  // create shared workspace for SHM based allreduce
+  // allocate workspace_buf for current rank
+  AllreduceWorkspace* workspace_buf;
+  AllreduceWorkspace* workspace_buf_other;
+  SharedData allreduce_buffer;
+  cur_workspace = (AllreduceWorkspace*)malloc(sizeof(AllreduceWorkspace));
+  workspace_buf = cur_workspace;
+
+  int written = snprintf(
+      shm_name,
+      AllreduceWorkspace::NAME_BUF_SIZE,
+      "%s_%d",
+      shm_name_prefix,
+      rank);
+  if (written >= AllreduceWorkspace::NAME_BUF_SIZE) {
+    std::cout << "[warning]: written >= NAME_BUF_SIZE" << std::endl;
+  }
+
+  shared_create(
+      &allreduce_buffer, shm_name, workspace_buf, sizeof(AllreduceWorkspace));
+
+  workspace_buf = (AllreduceWorkspace*)allreduce_buffer.bytes;
+  workspace_buf->states[0] = coll_alt2_allreduce_naive__copy_in_done;
+  workspace_buf->states[1] = coll_begin;
+  workspace_buf->fd = allreduce_buffer.descriptor;
+  strcpy(workspace_buf->name, shm_name);
+
+  // create the workspace pointer list
+  workspace =
+      (AllreduceWorkspace**)malloc(world_size * sizeof(Allreduceworkspace*));
+  symmetric_buffer[0] = (char**)malloc(world_size * sizeof(char**));
+  symmetric_buffer[1] = (char**)malloc(world_size * sizeof(char**));
+  distributed_buffer[0] = (char**)malloc(world_size * sizeof(char**));
+  distributed_buffer[1] = (char**)malloc(world_size * sizeof(char**));
+
+  // map shm of all ranks
+  for (int i = 0; i < world_size; i++) {
+    if (i != rank) {
+      int written = snprintf(
+          shm_name,
+          AllreduceWorkspace::NAME_BUF_SIZE,
+          "%s_%d",
+          shm_name_prefix,
+          i);
+      if (written >= AllreduceWorkspace::NAME_BUF_SIZE) {
+        std::cout << "[warning]: written >= NAME_BUF_SIZE" << std::endl;
+      }
+
+      do {
+        shared_open(&allreduce_buffer, shm_name, sizeof(AllreduceWorkspace));
+      } while (allreduce_buffer.descriptor == -1 && errno == ENOENT);
+      workspace_buf_other = (AllreduceWorkspace*)allreduce_buffer.bytes;
+      workspace[i] = workspace_buf_other;
+    } else {
+      workspace[i] = workspace_buf;
+    }
+    symmetric_buffer[0][i] = workspace[i]->buffer + BUFFER0_OFFSET(0);
+    symmetric_buffer[1][i] = workspace[i]->buffer + BUFFER0_OFFSET(1);
+    distributed_buffer[0][i] = workspace[i]->buffer + BUFFER1_OFFSET(0);
+    distributed_buffer[1][i] = workspace[i]->buffer + BUFFER1_OFFSET(1);
+  }
+  is_initialized = true;
+}
+
+AllreduceSharedMemoryData::~AllreduceSharedMemoryData() {
+  if (is_initialized == true) {
+    // unlink and munmap shared memory
+    for (int i = 0; i < world_size; i++) {
+      std::string shm_name = std::string(workspace[i]->name);
+      close(workspace[i]->fd);
+      munmap(workspace[i], sizeof(Allreduceworkspace));
+      shm_unlink(shm_name.c_str());
+    }
+
+    free(cur_workspace);
+    free(workspace);
+    free(symmetric_buffer[0]);
+    free(symmetric_buffer[1]);
+    free(distributed_buffer[0]);
+    free(distributed_buffer[1]);
+  }
+}
+
+void shm(const detail::AllreduceOptionsImpl& opts) {
+  const auto& context = opts.context;
+  if (context->shmData == nullptr) {
+    context->shmData = std::make_shared<AllreduceSharedMemoryData>(
+        context->rank, context->size);
+    context->shmData->initialize();
+  }
   const size_t data_size = opts.elements * opts.elementSize;
   auto& in = opts.in;
   auto& out = opts.out;
@@ -460,27 +480,19 @@ void shm(const detail::AllreduceOptionsImpl& opts) {
 
   void* data = out[0].get()->ptr;
 
-  for (int offset = 0; offset < data_size; offset += MAX_BUF_SIZE) {
+  for (int offset = 0; offset < data_size;
+       offset += Allreduceworkspace::MAX_BUF_SIZE) {
     auto data_ptr = ((char*)(data) + offset);
-    size_t chunk_size =
-        data_size - offset > MAX_BUF_SIZE ? MAX_BUF_SIZE : data_size - offset;
+    size_t chunk_size = data_size - offset > Allreduceworkspace::MAX_BUF_SIZE
+        ? Allreduceworkspace::MAX_BUF_SIZE
+        : data_size - offset;
     size_t chunk_el = chunk_size / (data_size / opts.elements);
-    if (chunk_size < NAIVE_ALLREDUCE_THRESHOLD) {
+    if (chunk_size < Allreduceworkspace::NAIVE_ALLREDUCE_THRESHOLD) {
       symmetric_naive_all_reduce(
-          data_ptr,
-          opts.elementSize,
-          chunk_size,
-          chunk_el,
-          opts.reduce,
-          opts.timeout);
+          data_ptr, opts.elementSize, chunk_size, chunk_el, opts);
     } else {
       distributed_naive_reduce(
-          data_ptr,
-          opts.elementSize,
-          chunk_size,
-          chunk_el,
-          opts.reduce,
-          opts.timeout);
+          data_ptr, opts.elementSize, chunk_size, chunk_el, opts);
     }
   }
 
