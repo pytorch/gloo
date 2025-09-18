@@ -6,6 +6,7 @@
 
 #include <cstdint>
 #include <iostream>
+#include <cstdint>
 
 #ifdef __CUDA_ARCH__
 #include <cuda.h>
