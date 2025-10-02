@@ -6,6 +6,10 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+#include "store.h"
+
 namespace gloo {
-namespace rendezvous {} // namespace rendezvous
+namespace rendezvous {
+constexpr std::chrono::milliseconds Store::kDefaultTimeout;
+} // namespace rendezvous
 } // namespace gloo
