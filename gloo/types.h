@@ -339,4 +339,12 @@ inline float cpu_half2float(float16 h) {
   return *(float*)rp;
 }
 
+/**
+ * @brief Format helper for spdlog/fmt - convert to a float32 and format as
+ * usual
+ */
+inline float format_as(float16 v) {
+  return cpu_half2float(v);
+}
+
 } // namespace gloo

@@ -189,11 +189,7 @@ void Buffer::send(size_t offset, size_t length, size_t roffset) {
 
     checkErrorState();
 
-    if (debug_) {
-      std::cout << "[" << getpid() << "] ";
-      std::cout << "send " << length << " bytes";
-      std::cout << std::endl;
-    }
+    GLOO_TRACE("send {} bytes", length);
 
     // Increment number of sends in flight
     sendPending_++;
@@ -208,19 +204,11 @@ void Buffer::handleCompletion(int rank, struct ibv_wc* wc) {
   std::unique_lock<std::mutex> lock(m_);
 
   if (wc->opcode & IBV_WC_RECV) {
-    if (debug_) {
-      std::cout << "[" << getpid() << "] ";
-      std::cout << "recv " << wc->byte_len << " bytes";
-      std::cout << std::endl;
-    }
+    GLOO_TRACE("recv {} bytes", wc->byte_len);
     recvCompletions_++;
     recvCv_.notify_one();
   } else if (wc->opcode == IBV_WC_RDMA_WRITE) {
-    if (debug_) {
-      std::cout << "[" << getpid() << "] ";
-      std::cout << "send complete";
-      std::cout << std::endl;
-    }
+    GLOO_TRACE("send complete");
     sendCompletions_++;
     sendPending_--;
     sendCv_.notify_one();

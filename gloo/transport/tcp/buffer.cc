@@ -6,16 +6,15 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include "gloo/transport/tcp/buffer.h"
-
 #include <string.h>
 #include <sys/syscall.h>
 #include <unistd.h>
-
 #include <iostream>
 
-#include "gloo/common/error.h"
 #include "gloo/common/enforce.h"
+#include "gloo/common/error.h"
+#include "gloo/common/log.h"
+#include "gloo/transport/tcp/buffer.h"
 
 namespace gloo {
 namespace transport {
@@ -126,12 +125,7 @@ void Buffer::send(size_t offset, size_t length, size_t roffset) {
   // to support this.
   GLOO_ENFORCE_LE(offset + length, size_);
 
-  if (debug_) {
-    std::cout << "[" << getpid() << ": " << syscall(SYS_gettid) << "] ";
-    std::cout << "send " << length << " bytes";
-    std::cout << " to " << pair_->peer().str();
-    std::cout << std::endl;
-  }
+  GLOO_TRACE("send {} bytes to {}", length, pair_->peer().str());
 
   op.preamble.nbytes = sizeof(op.preamble) + length;
   op.preamble.opcode = Op::SEND_BUFFER;
