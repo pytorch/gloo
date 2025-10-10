@@ -7,7 +7,7 @@
  */
 
 #include "gloo/common/win.h"
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 
 #include <mutex>
 

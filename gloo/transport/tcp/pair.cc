@@ -22,8 +22,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include "gloo/common/enforce.h"
 #include "gloo/common/error.h"
-#include "gloo/common/logging.h"
 #include "gloo/transport/tcp/buffer.h"
 #include "gloo/transport/tcp/context.h"
 #include "gloo/transport/tcp/unbound_buffer.h"

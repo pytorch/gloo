@@ -6,16 +6,15 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include "gloo/transport/ibverbs/buffer.h"
-
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
-
 #include <iostream>
 
+#include "gloo/common/enforce.h"
 #include "gloo/common/error.h"
-#include "gloo/common/logging.h"
+#include "gloo/common/log.h"
+#include "gloo/transport/ibverbs/buffer.h"
 
 namespace gloo {
 namespace transport {
@@ -63,7 +62,8 @@ Buffer::~Buffer() {
     std::lock_guard<std::mutex> lock(m_);
     if (sendPending_ > 0) {
       GLOO_WARN(
-          "Destructing buffer with pending sends, sendPending_=", sendPending_);
+          "Destructing buffer with pending sends, sendPending_={}",
+          sendPending_.load());
     }
 
     ibv_dereg_mr(mr_);

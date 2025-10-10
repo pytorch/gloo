@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 #include "gloo/context.h"
 #include "gloo/transport/unbound_buffer.h"
 

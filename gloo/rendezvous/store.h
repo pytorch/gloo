@@ -12,8 +12,8 @@
 #include <string>
 #include <vector>
 
+#include "gloo/common/enforce.h"
 #include "gloo/common/error.h"
-#include "gloo/common/logging.h"
 #include "gloo/common/store.h"
 
 // can be used by upstream users to know whether this is available or not.

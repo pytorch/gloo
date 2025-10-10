@@ -5,7 +5,7 @@
 #include "gloo/test/openssl_utils.h"
 #if GLOO_HAVE_TRANSPORT_TCP_TLS
 
-#include <gloo/common/logging.h>
+#include <gloo/common/enforce.h>
 #include <cstdlib>
 
 namespace gloo {

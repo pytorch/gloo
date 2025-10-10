@@ -11,16 +11,11 @@
 #include <functional>
 #include <memory>
 
-#include <gloo/common/logging.h>
-#include <gloo/transport/tcp/debug_data.h>
-#include <gloo/transport/tcp/error.h>
-#include <gloo/transport/tcp/loop.h>
-#include <gloo/transport/tcp/socket.h>
-#include "gloo/transport/tcp/debug_logger.h" // @manual=//gloo:debug_logger
+#include "gloo/transport/tcp/error.h"
+#include "gloo/transport/tcp/loop.h"
+#include "gloo/transport/tcp/socket.h"
 
-namespace gloo {
-namespace transport {
-namespace tcp {
+namespace gloo::transport::tcp {
 
 // ReadValueOperation asynchronously reads a value of type T from the
 // socket specified at construction. Upon completion or error, the
@@ -171,48 +166,7 @@ class ConnectOperation final
         this->shared_from_this());
   }
 
-  void handleEvents(Loop& loop, int /*events*/) override {
-    // Hold a reference to this object to keep it alive until the
-    // callback is called.
-    auto leak = shared_from_this();
-    loop.unregisterDescriptor(socket_->fd(), this);
-
-    int result;
-    socklen_t result_len = sizeof(result);
-    if (getsockopt(socket_->fd(), SOL_SOCKET, SO_ERROR, &result, &result_len) <
-        0) {
-      fn_(loop, socket_, SystemError("getsockopt", errno, remote_));
-      return;
-    }
-    if (result != 0) {
-      SystemError e("SO_ERROR", result, remote_);
-      bool willRetry = std::chrono::steady_clock::now() < deadline_ &&
-          retry_++ < maxRetries_;
-
-      auto debugData = ConnectDebugData{
-          retry_,
-          maxRetries_,
-          willRetry,
-          rank_,
-          size_,
-          e.what(),
-          remote_.str(),
-          socket_->sockName().str(),
-      };
-      DebugLogger::log(debugData);
-
-      // check deadline
-      if (willRetry) {
-        run(loop);
-      } else {
-        fn_(loop, socket_, TimeoutError("timed out connecting: " + e.what()));
-      }
-
-      return;
-    }
-
-    fn_(loop, socket_, Error::kSuccess);
-  }
+  void handleEvents(Loop& loop, int /*events*/) override;
 
  private:
   const Address remote_;
@@ -235,6 +189,4 @@ void connectLoop(
     std::chrono::milliseconds timeout,
     typename ConnectOperation::callback_t fn);
 
-} // namespace tcp
-} // namespace transport
-} // namespace gloo
+} // namespace gloo::transport::tcp

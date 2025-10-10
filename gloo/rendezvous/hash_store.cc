@@ -8,8 +8,8 @@
 
 #include "gloo/rendezvous/hash_store.h"
 
+#include "gloo/common/enforce.h"
 #include "gloo/common/error.h"
-#include "gloo/common/logging.h"
 
 namespace gloo {
 namespace rendezvous {

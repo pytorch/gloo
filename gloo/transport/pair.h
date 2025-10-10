@@ -10,7 +10,7 @@
 
 #include <memory>
 
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 #include "gloo/transport/address.h"
 #include "gloo/transport/buffer.h"
 #include "gloo/transport/unbound_buffer.h"

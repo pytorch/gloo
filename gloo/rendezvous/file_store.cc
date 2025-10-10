@@ -26,8 +26,8 @@
 #include <io.h>
 #endif
 
+#include "gloo/common/enforce.h"
 #include "gloo/common/error.h"
-#include "gloo/common/logging.h"
 
 namespace gloo {
 namespace rendezvous {

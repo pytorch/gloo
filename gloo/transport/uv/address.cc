@@ -12,7 +12,7 @@
 
 #include <uv.h>
 
-#include <gloo/common/logging.h>
+#include <gloo/common/enforce.h>
 
 namespace gloo {
 namespace transport {

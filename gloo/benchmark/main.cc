@@ -26,7 +26,7 @@
 #include "gloo/broadcast_one_to_all.h"
 #include "gloo/common/aligned_allocator.h"
 #include "gloo/common/common.h"
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 #include "gloo/context.h"
 #include "gloo/pairwise_exchange.h"
 #include "gloo/reduce.h"

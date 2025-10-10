@@ -8,8 +8,8 @@
 
 #include <gloo/transport/uv/context.h>
 
+#include <gloo/common/enforce.h>
 #include <gloo/common/error.h>
-#include <gloo/common/logging.h>
 #include <gloo/transport/uv/device.h>
 #include <gloo/transport/uv/pair.h>
 #include <gloo/transport/uv/unbound_buffer.h>

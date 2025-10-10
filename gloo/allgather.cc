@@ -11,7 +11,7 @@
 #include <array>
 #include <cstring>
 
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 #include "gloo/types.h"
 
 namespace gloo {

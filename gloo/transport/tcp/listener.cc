@@ -12,7 +12,7 @@
 #include <string.h>
 
 #include <gloo/common/common.h>
-#include <gloo/common/logging.h>
+#include <gloo/common/enforce.h>
 #include <gloo/common/utils.h>
 #include <gloo/transport/tcp/helpers.h>
 #

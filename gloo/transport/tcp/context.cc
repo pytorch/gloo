@@ -6,16 +6,15 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include "gloo/transport/tcp/context.h"
-
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
-#include <iostream>
 #include <string>
 
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
+#include "gloo/common/log.h"
 #include "gloo/common/utils.h"
+#include "gloo/transport/tcp/context.h"
 #include "gloo/transport/tcp/device.h"
 #include "gloo/transport/tcp/pair.h"
 #include "gloo/transport/tcp/unbound_buffer.h"
@@ -241,17 +240,14 @@ std::vector<int> Context::getUnConnectedPeerRanks() const {
 void Context::printConnectivityInfo() const {
   int numConnectedPeers = getConnectedPeerRanks().size();
   GLOO_INFO(
-      "Rank ",
+      "Rank {} is connected to {}. Expected number of connected peers is: {}",
       rank,
-      " is connected to ",
       numConnectedPeers,
-      ". Expected number of connected peers is: ",
       size - 1);
 
   if (numConnectedPeers != size - 1) {
     std::vector<int> unConnectedPeers = getUnConnectedPeerRanks();
-    auto peerStrCat = ::gloo::MakeString<int>(unConnectedPeers, /*delim=*/", ");
-    GLOO_INFO("Rank ", rank, " is NOT connected to: [", peerStrCat, "]");
+    GLOO_INFO("Rank {} is NOT connected to: {}", rank, unConnectedPeers);
   }
 }
 
