@@ -190,8 +190,9 @@ void init(const std::string& path) {
   const int size = atoi(getenv("SIZE"));
 
   // Initialize store
-  auto fileStore = gloo::rendezvous::FileStore(path);
-  auto prefixStore = gloo::rendezvous::PrefixStore(prefix, fileStore);
+  auto fileStore = std::make_shared<gloo::rendezvous::FileStore>(path);
+  auto prefixStore =
+      std::make_shared<gloo::rendezvous::PrefixStore>(prefix, fileStore);
 
   // Initialize device
   gloo::transport::tcp::attr attr;
