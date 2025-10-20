@@ -11,6 +11,7 @@
 #include <array>
 #include <atomic>
 #include <condition_variable>
+#include <deque>
 #include <exception>
 #include <list>
 #include <map>
@@ -31,12 +32,24 @@ namespace ibverbs {
 // Forward declaration
 class Buffer;
 
+class BufferHandler {
+ public:
+  virtual ~BufferHandler() = default;
+
+  virtual void handleCompletion(int rank, struct ibv_wc* wc) = 0;
+  virtual void signalError(const std::exception_ptr& ex) = 0;
+
+  virtual bool isPeristentHandler() {
+    return false;
+  }
+};
+
 class Pair : public ::gloo::transport::Pair {
   static constexpr int kMaxBuffers = 8;
   static constexpr auto kRecvCompletionQueueCapacity = kMaxBuffers;
   static constexpr auto kSendCompletionQueueCapacity = kMaxBuffers;
   static constexpr auto kCompletionQueueCapacity =
-    kRecvCompletionQueueCapacity + kSendCompletionQueueCapacity;
+      kRecvCompletionQueueCapacity + kSendCompletionQueueCapacity;
 
   // The ibv_req_notify(3) function takes an argument called
   // 'solicited_only' which makes it only trigger a notification for
@@ -46,6 +59,7 @@ class Pair : public ::gloo::transport::Pair {
 
  public:
   explicit Pair(
+      int rank,
       const std::shared_ptr<Device>& dev,
       std::chrono::milliseconds timeout);
 
@@ -61,11 +75,15 @@ class Pair : public ::gloo::transport::Pair {
 
   virtual void setSync(bool enable, bool busyPoll) override;
 
-  virtual std::unique_ptr<::gloo::transport::Buffer>
-  createSendBuffer(int slot, void* ptr, size_t size) override;
+  virtual std::unique_ptr<::gloo::transport::Buffer> createSendBuffer(
+      int slot,
+      void* ptr,
+      size_t size) override;
 
-  virtual std::unique_ptr<::gloo::transport::Buffer>
-  createRecvBuffer(int slot, void* ptr, size_t size) override;
+  virtual std::unique_ptr<::gloo::transport::Buffer> createRecvBuffer(
+      int slot,
+      void* ptr,
+      size_t size) override;
 
   virtual bool isConnected() override;
 
@@ -83,6 +101,22 @@ class Pair : public ::gloo::transport::Pair {
       size_t offset,
       size_t nbytes) override;
 
+  void put(
+      transport::UnboundBuffer* tbuf,
+      const transport::RemoteKey& key,
+      uint64_t slot,
+      size_t offset,
+      size_t roffset,
+      size_t nbytes) override;
+
+  void get(
+      transport::UnboundBuffer* tbuf,
+      const transport::RemoteKey& key,
+      uint64_t slot,
+      size_t offset,
+      size_t roffset,
+      size_t nbytes) override;
+
   void handleCompletionEvent();
 
   void pollCompletions();
@@ -93,7 +127,11 @@ class Pair : public ::gloo::transport::Pair {
 
   void close() override;
 
+  void signalIoFailure(const std::string& msg);
+
  protected:
+  const int rank_;
+
   std::shared_ptr<Device> dev_;
 
   // Whether or not this pair is running in sync mode.
@@ -120,7 +158,9 @@ class Pair : public ::gloo::transport::Pair {
   std::condition_variable cv_;
 
   // For us to copy the remote peer's ibv_mr into.
-  std::map<int, struct ibv_mr> peerMemoryRegions_;
+  std::map<int, std::deque<struct ibv_mr>> peerMemoryRegions_;
+  std::map<int, std::deque<std::function<void(struct ibv_mr)>>>
+      recvMemoryRegionCallbacks_;
 
   // These fields store memory regions that the remote side of the pair
   // can send to and that the local side of the pair can send from.
@@ -135,7 +175,7 @@ class Pair : public ::gloo::transport::Pair {
   // mappedRecvRegions_. These regions are referenced round-robin for
   // every posted receive work request.
   //
-  std::map<int, std::unique_ptr<MemoryRegion> > mappedSendRegions_;
+  std::map<int, std::deque<std::unique_ptr<MemoryRegion>>> mappedSendRegions_;
   std::array<std::unique_ptr<MemoryRegion>, kMaxBuffers> mappedRecvRegions_;
 
   // Keep track of number of request work requests posted and completed.
@@ -144,11 +184,14 @@ class Pair : public ::gloo::transport::Pair {
   uint64_t recvPosted_;
 
   // Completions on behalf of buffers need to be forwarded to those buffers.
-  std::map<int, Buffer*> sendCompletionHandlers_;
-  std::map<int, Buffer*> recvCompletionHandlers_;
+  std::map<int, std::deque<BufferHandler*>> sendCompletionHandlers_;
+  std::map<int, std::deque<BufferHandler*>> recvCompletionHandlers_;
 
   void sendMemoryRegion(struct ibv_mr* mr, int slot);
-  const struct ibv_mr* getMemoryRegion(int slot);
+  void recvMemoryRegion(
+      std::unique_lock<std::mutex>& lock,
+      int slot,
+      std::function<void(struct ibv_mr)> callback);
 
   void postReceive();
 
@@ -165,10 +208,10 @@ class Pair : public ::gloo::transport::Pair {
   bool closed_ = false;
 
   // Used to signal IO exceptions from one thread and propagate onto others.
-  void signalIoFailure(const std::string& msg);
   void checkErrorState();
 
   friend class Buffer;
+  friend class UnboundBuffer;
 };
 
 } // namespace ibverbs

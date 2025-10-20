@@ -127,12 +127,18 @@ INSTANTIATE_TEST_CASE_P(
 TEST_F(BarrierNewTest, TestTimeout) {
   spawn(Transport::TCP, 2, [&](std::shared_ptr<Context> context) {
     BarrierOptions opts(context);
+
+    // Run barrier first so we're measuring the barrier timeout not connection
+    // timeout.
+    barrier(opts);
+
     opts.setTimeout(std::chrono::milliseconds(10));
     if (context->rank == 0) {
       try {
         barrier(opts);
         FAIL() << "Expected exception to be thrown";
       } catch (::gloo::IoException& e) {
+        std::cerr << e.what() << std::endl;
         ASSERT_NE(std::string(e.what()).find("Timed out"), std::string::npos);
       }
     }

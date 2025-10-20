@@ -14,7 +14,7 @@
 
 namespace gloo {
 
-template <typename T, typename W = CudaHostWorkspace<T> >
+template <typename T, typename W = CudaHostWorkspace<T>>
 class CudaAllreduceRing : public Algorithm {
  public:
   CudaAllreduceRing(
@@ -31,15 +31,17 @@ class CudaAllreduceRing : public Algorithm {
   // Both workspace types have their own initialization function.
   template <typename U = W>
   void init(
-      typename std::enable_if<std::is_same<U, CudaHostWorkspace<T> >::value,
-                              typename U::Pointer>::type* = nullptr);
+      typename std::enable_if<
+          std::is_same<U, CudaHostWorkspace<T>>::value,
+          typename U::Pointer>::type* = nullptr);
 
   template <typename U = W>
   void init(
-      typename std::enable_if<std::is_same<U, CudaDeviceWorkspace<T> >::value,
-                              typename U::Pointer>::type* = nullptr);
+      typename std::enable_if<
+          std::is_same<U, CudaDeviceWorkspace<T>>::value,
+          typename U::Pointer>::type* = nullptr);
 
-  std::vector<CudaDevicePointer<T> > devicePtrs_;
+  std::vector<CudaDevicePointer<T>> devicePtrs_;
   std::vector<CudaStream> streams_;
   typename W::Pointer scratch_;
   CudaStream* scratchStream_;
@@ -49,8 +51,8 @@ class CudaAllreduceRing : public Algorithm {
   const bool synchronizeDeviceOutputs_;
   const CudaReductionFunction<T>* fn_;
 
-  std::unique_ptr<LocalOp<T> > localReduceOp_;
-  std::unique_ptr<LocalOp<T> > localBroadcastOp_;
+  std::unique_ptr<LocalOp<T>> localReduceOp_;
+  std::unique_ptr<LocalOp<T>> localBroadcastOp_;
 
   typename W::Pointer inbox_;
   typename W::Pointer outbox_;

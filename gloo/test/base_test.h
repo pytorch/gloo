@@ -33,6 +33,10 @@
 #include "gloo/transport/uv/device.h"
 #endif
 
+#if GLOO_HAVE_TRANSPORT_IBVERBS
+#include "gloo/transport/ibverbs/device.h"
+#endif
+
 namespace gloo {
 namespace test {
 
@@ -59,30 +63,17 @@ class Barrier {
 
 enum Transport {
   TCP,
+  TCP_LAZY,
 #if GLOO_HAVE_TRANSPORT_TCP_TLS
   TCP_TLS,
 #endif
   UV,
+  IBVERBS,
 };
 
-// Transports that instantiated algorithms can be tested against.
-const std::vector<Transport> kTransportsForClassAlgorithms {
-  Transport::TCP,
-#if GLOO_HAVE_TRANSPORT_TCP_TLS
-      Transport::TCP_TLS,
-#endif
-};
-
-// Transports that function algorithms can be tested against.
-// This is the new style of calling collectives and must be
-// preferred over the instantiated style.
-const std::vector<Transport> kTransportsForFunctionAlgorithms {
-  Transport::TCP,
-#if GLOO_HAVE_TRANSPORT_TCP_TLS
-      Transport::TCP_TLS,
-#endif
-      Transport::UV,
-};
+extern const std::vector<Transport> kTransportsForClassAlgorithms;
+extern const std::vector<Transport> kTransportsForFunctionAlgorithms;
+extern const std::vector<Transport> kTransportsForRDMA;
 
 std::shared_ptr<::gloo::transport::Device> createDevice(Transport transport);
 
@@ -122,7 +113,7 @@ class BaseTest : public ::testing::Test {
       std::function<void(std::shared_ptr<Context>)> fn,
       int base = 2) {
     Barrier barrier(size);
-    ::gloo::rendezvous::HashStore store;
+    auto store = std::make_shared<::gloo::rendezvous::HashStore>();
 
     spawnThreads(size, [&](int rank) {
       auto context =
@@ -132,6 +123,7 @@ class BaseTest : public ::testing::Test {
       // socket address.
       auto device = device_creator(transport);
       if (!device) {
+        GTEST_SKIP() << "Skipping test: transport not available";
         return;
       }
       context->connectFullMesh(store, device);
@@ -296,8 +288,10 @@ class Fixture<float16> {
     }
   }
 
-  void
-  checkBroadcastResult(Fixture<float16>& fixture, int root, int rootPointer) {
+  void checkBroadcastResult(
+      Fixture<float16>& fixture,
+      int root,
+      int rootPointer) {
     // Expected is set to the expected value at ptr[0]
     const auto expected = root * fixture.srcs.size() + rootPointer;
     // Stride is difference between values at subsequent indices
@@ -407,8 +401,10 @@ class Fixture<float> {
     }
   }
 
-  void
-  checkBroadcastResult(Fixture<float>& fixture, int root, int rootPointer) {
+  void checkBroadcastResult(
+      Fixture<float>& fixture,
+      int root,
+      int rootPointer) {
     // Expected is set to the expected value at ptr[0]
     const auto expected = root * fixture.srcs.size() + rootPointer;
     // Stride is difference between values at subsequent indices

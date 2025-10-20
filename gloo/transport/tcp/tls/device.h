@@ -15,29 +15,35 @@ namespace transport {
 namespace tcp {
 namespace tls {
 
-std::shared_ptr<transport::Device>
-CreateDevice(const struct attr &src, std::string pkey_file,
-             std::string cert_file, std::string ca_file, std::string ca_path);
+std::shared_ptr<transport::Device> CreateDevice(
+    const struct attr& src,
+    std::string pkey_file,
+    std::string cert_file,
+    std::string ca_file,
+    std::string ca_path);
 
 class Device : public ::gloo::transport::tcp::Device {
-public:
-  explicit Device(const struct attr &attr, std::string pkey_file,
-                  std::string cert_file, std::string ca_file,
-                  std::string ca_path);
+ public:
+  explicit Device(
+      const struct attr& attr,
+      std::string pkey_file,
+      std::string cert_file,
+      std::string ca_file,
+      std::string ca_path);
   ~Device() override;
 
-  std::shared_ptr<::gloo::transport::Context> createContext(int rank,
-                                                            int size) override;
+  std::shared_ptr<::gloo::transport::Context> createContext(int rank, int size)
+      override;
 
-  const std::string &getPKeyFile() const;
+  const std::string& getPKeyFile() const;
 
-  const std::string &getCertFile() const;
+  const std::string& getCertFile() const;
 
-  const std::string &getCAFile() const;
+  const std::string& getCAFile() const;
 
-  const std::string &getCAPath() const;
+  const std::string& getCAPath() const;
 
-protected:
+ protected:
   const std::string pkey_file_;
   const std::string cert_file_;
   const std::string ca_file_;

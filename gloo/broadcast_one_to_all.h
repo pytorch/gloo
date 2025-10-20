@@ -36,32 +36,6 @@ class BroadcastOneToAll : public Algorithm {
     GLOO_ENFORCE_LT(rootRank_, contextSize_);
     GLOO_ENFORCE_GE(rootPointerRank_, 0);
     GLOO_ENFORCE_LT(rootPointerRank_, ptrs_.size());
-
-    // Setup pairs/buffers for sender/receivers
-    if (contextSize_ > 1) {
-      auto ptr = ptrs_[rootPointerRank_];
-      auto slot = context_->nextSlot();
-      if (contextRank_ == rootRank_) {
-        sender_.resize(contextSize_);
-        for (auto i = 0; i < contextSize_; i++) {
-          if (i == contextRank_) {
-            continue;
-          }
-
-          sender_[i] = make_unique<forSender>();
-          auto& pair = context_->getPair(i);
-          sender_[i]->clearToSendBuffer = pair->createRecvBuffer(
-              slot, &sender_[i]->dummy, sizeof(sender_[i]->dummy));
-          sender_[i]->sendBuffer = pair->createSendBuffer(slot, ptr, bytes_);
-        }
-      } else {
-        receiver_ = make_unique<forReceiver>();
-        auto& rootPair = context_->getPair(rootRank_);
-        receiver_->clearToSendBuffer = rootPair->createSendBuffer(
-            slot, &receiver_->dummy, sizeof(receiver_->dummy));
-        receiver_->recvBuffer = rootPair->createRecvBuffer(slot, ptr, bytes_);
-      }
-    }
   }
 
   void run() {
@@ -70,14 +44,21 @@ class BroadcastOneToAll : public Algorithm {
       return;
     }
 
+    auto clearToSendBuffer = context_->createUnboundBuffer(nullptr, 0);
+    auto buffer =
+        context_->createUnboundBuffer(ptrs_[rootPointerRank_], bytes_);
+    auto slot = context_->nextSlot();
+    auto timeout = context_->getTimeout();
+
     if (contextRank_ == rootRank_) {
       // Fire off send operations after receiving clear to send
       for (auto i = 0; i < contextSize_; i++) {
         if (i == contextRank_) {
           continue;
         }
-        sender_[i]->clearToSendBuffer->waitRecv();
-        sender_[i]->sendBuffer->send();
+        clearToSendBuffer->recv(i, slot);
+        clearToSendBuffer->waitRecv(timeout);
+        buffer->send(i, slot);
       }
 
       // Broadcast locally while sends are happening
@@ -88,11 +69,13 @@ class BroadcastOneToAll : public Algorithm {
         if (i == contextRank_) {
           continue;
         }
-        sender_[i]->sendBuffer->waitSend();
+        buffer->waitSend(timeout);
       }
     } else {
-      receiver_->clearToSendBuffer->send();
-      receiver_->recvBuffer->waitRecv();
+      clearToSendBuffer->send(rootRank_, slot);
+      clearToSendBuffer->waitSend(timeout);
+      buffer->recv(rootRank_, slot);
+      buffer->waitRecv(timeout);
 
       // Broadcast locally after receiving from root
       broadcastLocally();
@@ -116,24 +99,6 @@ class BroadcastOneToAll : public Algorithm {
   const size_t bytes_;
   const int rootRank_;
   const int rootPointerRank_;
-
-  // For the sender (root)
-  struct forSender {
-    int dummy;
-    std::unique_ptr<transport::Buffer> clearToSendBuffer;
-    std::unique_ptr<transport::Buffer> sendBuffer;
-  };
-
-  std::vector<std::unique_ptr<forSender>> sender_;
-
-  // For all receivers
-  struct forReceiver {
-    int dummy;
-    std::unique_ptr<transport::Buffer> clearToSendBuffer;
-    std::unique_ptr<transport::Buffer> recvBuffer;
-  };
-
-  std::unique_ptr<forReceiver> receiver_;
 };
 
 } // namespace gloo

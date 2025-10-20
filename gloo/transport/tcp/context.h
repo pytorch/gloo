@@ -30,15 +30,20 @@ class Pair;
 class UnboundBuffer;
 
 class Context : public ::gloo::transport::Context,
-                      public std::enable_shared_from_this<Context> {
+                public std::enable_shared_from_this<Context> {
  public:
   Context(std::shared_ptr<Device> device, int rank, int size);
 
   virtual ~Context();
 
-  virtual void createAndConnectAllPairs(IStore& store) override;
+  virtual void createAndConnectAllPairs(std::shared_ptr<IStore> store) override;
 
   std::unique_ptr<transport::Pair>& createPair(int rank) override;
+  std::unique_ptr<transport::Pair>& createPair(
+      int rank,
+      bool useRankAsSeqNumber);
+
+  virtual std::unique_ptr<transport::Pair>& getPair(int rank) override;
 
   std::unique_ptr<transport::UnboundBuffer> createUnboundBuffer(
       void* ptr,
@@ -46,6 +51,12 @@ class Context : public ::gloo::transport::Context,
 
  protected:
   std::shared_ptr<Device> device_;
+  std::shared_ptr<IStore> store_{nullptr};
+
+  // Protects the connection states to avoid race conditions.
+  std::mutex m_;
+  // Whether or not connection has been started for this peer.
+  std::vector<bool> connecting_;
 
   using pendingRecvTuple = std::tuple<
       WeakNonOwningPtr<UnboundBuffer>,

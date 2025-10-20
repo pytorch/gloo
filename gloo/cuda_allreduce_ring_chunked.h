@@ -16,7 +16,7 @@
 
 namespace gloo {
 
-template <typename T, typename W = CudaHostWorkspace<T> >
+template <typename T, typename W = CudaHostWorkspace<T>>
 class CudaAllreduceRingChunked : public Algorithm {
  public:
   CudaAllreduceRingChunked(
@@ -36,15 +36,17 @@ class CudaAllreduceRingChunked : public Algorithm {
   // Both workspace types have their own initialization function.
   template <typename U = W>
   void init(
-    typename std::enable_if<std::is_same<U, CudaHostWorkspace<T> >::value,
-    typename U::Pointer>::type* = nullptr);
+      typename std::enable_if<
+          std::is_same<U, CudaHostWorkspace<T>>::value,
+          typename U::Pointer>::type* = nullptr);
 
   template <typename U = W>
   void init(
-    typename std::enable_if<std::is_same<U, CudaDeviceWorkspace<T> >::value,
-    typename U::Pointer>::type* = nullptr);
+      typename std::enable_if<
+          std::is_same<U, CudaDeviceWorkspace<T>>::value,
+          typename U::Pointer>::type* = nullptr);
 
-  std::vector<CudaDevicePointer<T> > devicePtrs_;
+  std::vector<CudaDevicePointer<T>> devicePtrs_;
   std::vector<CudaStream> streams_;
   typename W::Pointer scratch_;
   CudaStream* scratchStream_;

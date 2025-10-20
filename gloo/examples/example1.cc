@@ -29,12 +29,10 @@
 
 int main(void) {
   // Unrelated to the example: perform some sanity checks.
-  if (getenv("PREFIX") == nullptr ||
-      getenv("SIZE") == nullptr ||
+  if (getenv("PREFIX") == nullptr || getenv("SIZE") == nullptr ||
       getenv("RANK") == nullptr) {
-    std::cerr
-      << "Please set environment variables PREFIX, SIZE, and RANK."
-      << std::endl;
+    std::cerr << "Please set environment variables PREFIX, SIZE, and RANK."
+              << std::endl;
     return 1;
   }
 
@@ -51,8 +49,8 @@ int main(void) {
   // name, for example.
   //
   gloo::transport::tcp::attr attr;
-  //attr.iface = "eth0";
-  //attr.iface = "ib0";
+  // attr.iface = "eth0";
+  // attr.iface = "ib0";
   attr.iface = "lo";
 
   // attr.ai_family = AF_INET; // Force IPv4
@@ -84,14 +82,15 @@ int main(void) {
   // Below, we instantiate rendezvous using the filesystem, given that
   // this example uses multiple processes on a single machine.
   //
-  auto fileStore = gloo::rendezvous::FileStore("/tmp");
+  auto fileStore = std::make_shared<gloo::rendezvous::FileStore>("/tmp");
 
   // To be able to reuse the same store over and over again and not have
   // interference between runs, we scope it to a unique prefix with the
   // PrefixStore. This wraps another store and prefixes every key before
   // forwarding the call to the underlying store.
   std::string prefix = getenv("PREFIX");
-  auto prefixStore = gloo::rendezvous::PrefixStore(prefix, fileStore);
+  auto prefixStore =
+      std::make_shared<gloo::rendezvous::PrefixStore>(prefix, fileStore);
 
   // Using this store, we can now create a Gloo context. The context
   // holds a reference to every communication pair involving this
@@ -124,8 +123,7 @@ int main(void) {
 
   // Instantiate the collective algorithm.
   auto allreduce =
-    std::make_shared<gloo::AllreduceRing<int>>(
-      context, ptrs, count);
+      std::make_shared<gloo::AllreduceRing<int>>(context, ptrs, count);
 
   // Run the algorithm.
   allreduce->run();

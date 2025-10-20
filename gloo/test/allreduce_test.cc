@@ -389,6 +389,11 @@ TEST_F(AllreduceNewTest, TestTimeout) {
     AllreduceOptions opts(context);
     opts.setOutputs(outputs.getPointers(), 1);
     opts.setReduceFunction(getFunction<uint64_t>());
+
+    // Run one operation first so we're measuring the operation timeout not
+    // connection timeout.
+    allreduce(opts);
+
     opts.setTimeout(std::chrono::milliseconds(10));
     if (context->rank == 0) {
       try {

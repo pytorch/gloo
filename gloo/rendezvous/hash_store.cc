@@ -35,7 +35,7 @@ void HashStore::wait(
     const std::vector<std::string>& keys,
     const std::chrono::milliseconds& timeout) {
   const auto end = std::chrono::steady_clock::now() + timeout;
-  auto pred = [&](){
+  auto pred = [&]() {
     auto done = true;
     for (const auto& key : keys) {
       if (map_.find(key) == map_.end()) {

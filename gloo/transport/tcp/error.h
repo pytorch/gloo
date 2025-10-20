@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <gloo/transport/tcp/address.h>
 #include <string>
 
 namespace gloo {
@@ -22,6 +23,10 @@ class Error {
   /* implicit */ Error() : valid_(false) {}
 
   virtual ~Error() = default;
+
+  // Don't allow Error to be copied or moved to avoid losing the error message.
+  Error(const Error&) = delete;
+  Error& operator=(const Error&) = delete;
 
   // Converting to boolean means checking if there is an error. This
   // means we don't need to use an `std::optional` and allows for a
@@ -48,38 +53,70 @@ class Error {
 
 class SystemError : public Error {
  public:
-  explicit SystemError(const char* syscall, int error)
-      : Error(true), syscall_(syscall), error_(error) {}
+  explicit SystemError(const char* syscall, int error, Address remote)
+      : Error(true),
+        syscall_(syscall),
+        error_(error),
+        remote_(std::move(remote)) {}
 
   std::string what() const override;
 
  private:
   const char* syscall_;
   const int error_;
+  const Address remote_;
 };
 
 class ShortReadError : public Error {
  public:
-  ShortReadError(ssize_t expected, ssize_t actual)
-      : Error(true), expected_(expected), actual_(actual) {}
+  ShortReadError(ssize_t expected, ssize_t actual, Address remote)
+      : Error(true),
+        expected_(expected),
+        actual_(actual),
+        remote_(std::move(remote)) {}
 
   std::string what() const override;
 
  private:
   const ssize_t expected_;
   const ssize_t actual_;
+  const Address remote_;
 };
 
 class ShortWriteError : public Error {
  public:
-  ShortWriteError(ssize_t expected, ssize_t actual)
-      : Error(true), expected_(expected), actual_(actual) {}
+  ShortWriteError(ssize_t expected, ssize_t actual, Address remote)
+      : Error(true),
+        expected_(expected),
+        actual_(actual),
+        remote_(std::move(remote)) {}
 
   std::string what() const override;
 
  private:
   const ssize_t expected_;
   const ssize_t actual_;
+  const Address remote_;
+};
+
+class TimeoutError : public Error {
+ public:
+  explicit TimeoutError(std::string msg) : Error(true), msg_(std::move(msg)) {}
+
+  std::string what() const override;
+
+ private:
+  const std::string msg_;
+};
+
+class LoopError : public Error {
+ public:
+  explicit LoopError(std::string msg) : Error(true), msg_(std::move(msg)) {}
+
+  std::string what() const override;
+
+ private:
+  const std::string msg_;
 };
 
 } // namespace tcp

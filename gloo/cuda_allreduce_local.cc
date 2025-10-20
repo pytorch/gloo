@@ -16,10 +16,10 @@ namespace gloo {
 
 template <typename T>
 CudaAllreduceLocal<T>::CudaAllreduceLocal(
-  const std::shared_ptr<Context>& context,
-  const std::vector<T*>& ptrs,
-  const int count,
-  const std::vector<cudaStream_t>& streams)
+    const std::shared_ptr<Context>& context,
+    const std::vector<T*>& ptrs,
+    const int count,
+    const std::vector<cudaStream_t>& streams)
     : Algorithm(context),
       count_(count),
       bytes_(count_ * sizeof(T)),
@@ -45,9 +45,9 @@ CudaAllreduceLocal<T>::CudaAllreduceLocal(
   // TODO(pietern): Optimize this to use real direct allreduce if possible
   if (devicePtrs_.size() > 1) {
     localReduceOp_ =
-      cudaDeviceReduce(streams_, devicePtrs_, devicePtrs_[0], fn_, 0, count_);
+        cudaDeviceReduce(streams_, devicePtrs_, devicePtrs_[0], fn_, 0, count_);
     localBroadcastOp_ =
-      cudaDeviceBroadcast(streams_, devicePtrs_, devicePtrs_[0], 0, count_);
+        cudaDeviceBroadcast(streams_, devicePtrs_, devicePtrs_[0], 0, count_);
   }
 }
 
@@ -75,5 +75,10 @@ INSTANTIATE_TEMPLATE(uint64_t);
 INSTANTIATE_TEMPLATE(float);
 INSTANTIATE_TEMPLATE(double);
 INSTANTIATE_TEMPLATE(float16);
+
+#if GLOO_USE_TORCH_DTYPES
+INSTANTIATE_TEMPLATE(c10::BFloat16);
+INSTANTIATE_TEMPLATE(c10::Half);
+#endif
 
 } // namespace gloo

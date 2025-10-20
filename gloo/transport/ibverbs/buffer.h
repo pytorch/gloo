@@ -24,7 +24,7 @@ namespace gloo {
 namespace transport {
 namespace ibverbs {
 
-class Buffer : public ::gloo::transport::Buffer {
+class Buffer : public ::gloo::transport::Buffer, public BufferHandler {
  public:
   virtual ~Buffer();
 
@@ -33,10 +33,14 @@ class Buffer : public ::gloo::transport::Buffer {
   virtual void waitRecv() override;
   virtual void waitSend() override;
 
-  void handleCompletion(struct ibv_wc* wc);
+  void handleCompletion(int rank, struct ibv_wc* wc) override;
 
-  void signalError(const std::exception_ptr& ex);
+  void signalError(const std::exception_ptr& ex) override;
   void checkErrorState();
+
+  bool isPeristentHandler() override {
+    return true;
+  }
 
  protected:
   // May only be constructed from helper function in pair.cc
@@ -44,7 +48,11 @@ class Buffer : public ::gloo::transport::Buffer {
 
   Pair* pair_;
 
+  // Empty buffer to use when a nullptr buffer is created.
+  char emptyBuf_[1];
+
   struct ibv_mr* mr_;
+  std::unique_ptr<struct ibv_mr> peerMr_;
 
   std::mutex m_;
   std::condition_variable recvCv_;

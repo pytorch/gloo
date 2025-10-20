@@ -9,7 +9,6 @@
 #include "gloo/transport/tcp/buffer.h"
 
 #include <string.h>
-#include <sys/types.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -56,7 +55,7 @@ void Buffer::waitRecv() {
     // The device thread will signal completion. If the completion
     // hasn't arrived yet, wait until it does or read times out.
     auto timeout = pair_->getTimeout();
-    auto pred = [&]{
+    auto pred = [&] {
       throwIfException();
       return recvCompletions_ > 0;
     };
@@ -95,7 +94,7 @@ void Buffer::waitSend() {
     // The device thread will signal completion. If the completion
     // hasn't arrived yet, wait until it does or write times out.
     auto timeout = pair_->getTimeout();
-    auto pred = [&]{
+    auto pred = [&] {
       throwIfException();
       return sendCompletions_ > 0;
     };
@@ -128,7 +127,7 @@ void Buffer::send(size_t offset, size_t length, size_t roffset) {
   GLOO_ENFORCE_LE(offset + length, size_);
 
   if (debug_) {
-    std::cout << "[" << getpid() << ": " << syscall(__NR_gettid) << "] ";
+    std::cout << "[" << getpid() << ": " << syscall(SYS_gettid) << "] ";
     std::cout << "send " << length << " bytes";
     std::cout << " to " << pair_->peer().str();
     std::cout << std::endl;

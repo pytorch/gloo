@@ -32,7 +32,7 @@ uint32_t reverseLastNBits(uint32_t ctr, uint32_t n) {
   }
   return reversed;
 }
-}
+} // namespace
 
 template <typename T>
 class AllreduceHalvingDoubling : public Algorithm {
@@ -91,7 +91,7 @@ class AllreduceHalvingDoubling : public Algorithm {
         nextSmallerBlockSize_(0),
         nextLargerBlockSize_(0) {
     if (count_ == 0 || this->contextSize_ == 1) {
-        return;
+      return;
     }
 
     initBinaryBlocks();
@@ -126,7 +126,8 @@ class AllreduceHalvingDoubling : public Algorithm {
       }
       int myRank = this->context_->rank;
       auto slot = slotOffset_ +
-          2 * (std::min(myRank, destRank) * this->contextSize_ +
+          2 *
+              (std::min(myRank, destRank) * this->contextSize_ +
                std::max(myRank, destRank));
       sendDataBufs_.push_back(pair->createSendBuffer(slot, ptrs_[0], bytes_));
       if (recvOffsets_[i] < count_) {
@@ -137,9 +138,8 @@ class AllreduceHalvingDoubling : public Algorithm {
           recvCounts_[i] = stepChunkSize;
         }
       }
-      recvDataBufs_.push_back(
-          pair->createRecvBuffer(
-              slot, &recvBuf_[bufferOffset], stepChunkBytes));
+      recvDataBufs_.push_back(pair->createRecvBuffer(
+          slot, &recvBuf_[bufferOffset], stepChunkBytes));
       bufferOffset += stepChunkSize;
       if (this->context_->rank & bitmask) {
         sendOffset += stepChunkSize;
@@ -164,10 +164,11 @@ class AllreduceHalvingDoubling : public Algorithm {
       auto& destPair = this->context_->getPair(destRank);
       const auto myRank = this->context_->rank;
       const auto slot = slotOffset_ +
-          2 * (std::min(myRank, destRank) * this->contextSize_ +
+          2 *
+              (std::min(myRank, destRank) * this->contextSize_ +
                std::max(myRank, destRank));
-      smallerBlockSendDataBuf_ = destPair->createSendBuffer(
-          slot, ptrs_[0], bytes_);
+      smallerBlockSendDataBuf_ =
+          destPair->createSendBuffer(slot, ptrs_[0], bytes_);
       const auto itemCount = recvCounts_[stepsWithinBlock_ - 1];
       if (itemCount > 0) {
         smallerBlockRecvDataBuf_ = destPair->createRecvBuffer(
@@ -203,7 +204,8 @@ class AllreduceHalvingDoubling : public Algorithm {
         auto& destPair = this->context_->getPair(destRank);
         const auto myRank = this->context_->rank;
         const auto slot = slotOffset_ +
-            2 * (std::min(myRank, destRank) * this->contextSize_ +
+            2 *
+                (std::min(myRank, destRank) * this->contextSize_ +
                  std::max(myRank, destRank));
         largerBlockSendDataBufs_.push_back(
             destPair->createSendBuffer(slot, ptrs[0], bytes_));
@@ -211,9 +213,8 @@ class AllreduceHalvingDoubling : public Algorithm {
           const auto toSend = std::min(
               sendCountToLargerBlock_,
               totalItemsToSend - sendCountToLargerBlock_ * i);
-          largerBlockRecvDataBufs_.push_back(
-              destPair->createRecvBuffer(
-                  slot, &recvBuf_[bufferOffset], toSend * sizeof(T)));
+          largerBlockRecvDataBufs_.push_back(destPair->createRecvBuffer(
+              slot, &recvBuf_[bufferOffset], toSend * sizeof(T)));
           bufferOffset += toSend;
         }
         destOrdinal++;

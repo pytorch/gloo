@@ -8,8 +8,6 @@
 
 #include <gloo/transport/uv/unbound_buffer.h>
 
-#include <stdexcept>
-
 #include <gloo/common/error.h>
 #include <gloo/common/logging.h>
 #include <gloo/transport/uv/context.h>

@@ -38,7 +38,7 @@ class Distribution;
 
 // Stores latency samples
 class Samples {
-public:
+ public:
   Samples() {
     constexpr auto capacity = 100 * 1000;
     samples_.reserve(capacity);
@@ -54,9 +54,7 @@ public:
 
   void merge(const Samples& other) {
     samples_.insert(
-      samples_.end(),
-      other.samples_.begin(),
-      other.samples_.end());
+        samples_.end(), other.samples_.begin(), other.samples_.end());
   }
 
   long sum() const {
@@ -76,8 +74,7 @@ public:
 // Stores a sorted list of latency samples
 class Distribution {
  public:
-  explicit Distribution(const Samples& samples) :
-      samples_(samples.samples_) {
+  explicit Distribution(const Samples& samples) : samples_(samples.samples_) {
     std::sort(samples_.begin(), samples_.end());
   }
 

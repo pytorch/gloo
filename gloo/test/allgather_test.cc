@@ -167,6 +167,11 @@ TEST_F(AllgatherNewTest, TestTimeout) {
     AllgatherOptions opts(context);
     opts.setInput(input.getPointer(), 1);
     opts.setOutput(output.getPointer(), context->size);
+
+    // Run one operation first so we're measuring the operation timeout not
+    // connection timeout.
+    allgather(opts);
+
     opts.setTimeout(std::chrono::milliseconds(10));
     if (context->rank == 0) {
       try {

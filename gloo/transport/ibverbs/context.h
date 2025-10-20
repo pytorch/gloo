@@ -33,10 +33,19 @@ class Context : public ::gloo::transport::Context,
       void* ptr,
       size_t size) override;
 
+  // Set exception on every pair in this context. This is called when
+  // waiting for a send or recv operation on an unbound buffer times
+  // out. All pairs should be signaled and closed in that event.
+  void signalException(const std::string& msg);
+
+  std::unique_ptr<::gloo::transport::RemoteKey> deserializeRemoteKey(
+      const std::string& serialized) override;
+
  protected:
   std::shared_ptr<Device> device_;
 
   friend class Pair;
+  friend class UnboundBuffer;
 };
 
 } // namespace ibverbs

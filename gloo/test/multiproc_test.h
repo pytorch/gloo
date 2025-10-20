@@ -33,8 +33,10 @@ class MultiProcTest : public ::testing::Test {
 
   // Forks numRanks child processes that create a context of the defined
   // transport and run the provided lambda function.
-  void spawnAsync(Transport transport, int numRanks,
-                  std::function<void(std::shared_ptr<Context>)> fn);
+  void spawnAsync(
+      Transport transport,
+      int numRanks,
+      std::function<void(std::shared_ptr<Context>)> fn);
 
   // Waits on each forked child process.
   void wait();
@@ -52,7 +54,10 @@ class MultiProcTest : public ::testing::Test {
   // A single function that encapsulates spawnAsync to run the specified number
   // of child processes, waiting for their completion, and asserting correct
   // exit statuses.
-  void spawn(Transport transport, int size, std::function<void(std::shared_ptr<Context>)> fn);
+  void spawn(
+      Transport transport,
+      int size,
+      std::function<void(std::shared_ptr<Context>)> fn);
 
  private:
   // Creates a MultiProcWorker to run the specified lambda.
@@ -96,14 +101,34 @@ class MultiProcWorker {
     auto context = std::make_shared<::gloo::rendezvous::Context>(rank, size);
     auto device = createDevice(transport);
     context->setTimeout(std::chrono::milliseconds(kMultiProcTimeout));
-    context->connectFullMesh(*store_, device);
+    context->connectFullMesh(store_, device);
+
+    // Wait for all workers to be ready
+    ringBarrier(context);
+
     device.reset();
     sem_post(semaphore_);
     fn(std::move(context));
   }
 
+  void ringBarrier(std::shared_ptr<::gloo::rendezvous::Context>& context) {
+    int sendScratch = 0;
+    int recvScratch = 0;
+    auto sendBuf =
+        context->createUnboundBuffer(&sendScratch, sizeof(sendScratch));
+    auto recvBuf =
+        context->createUnboundBuffer(&recvScratch, sizeof(recvScratch));
+    const auto leftRank = (context->size + context->rank - 1) % context->size;
+    const auto rightRank = (context->rank + 1) % context->size;
+
+    sendBuf->send(leftRank, 0);
+    recvBuf->recv(rightRank, 0);
+    sendBuf->waitSend();
+    recvBuf->waitRecv();
+  }
+
  protected:
-  std::unique_ptr<::gloo::rendezvous::Store> store_;
+  std::shared_ptr<::gloo::rendezvous::Store> store_;
   sem_t* semaphore_;
 };
 

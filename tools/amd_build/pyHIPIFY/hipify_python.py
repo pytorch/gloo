@@ -24,7 +24,6 @@
 # THE SOFTWARE.
 """
 
-from __future__ import absolute_import, division, print_function
 
 import fnmatch
 import os
@@ -37,7 +36,7 @@ class InputError(Exception):
     # Exception raised for errors in the input.
 
     def __init__(self, message):
-        super(InputError, self).__init__(message)
+        super().__init__(message)
         self.message = message
 
     def __str__(self):
@@ -128,8 +127,8 @@ def add_dim3(kernel_string, cuda_kernel):
         .strip(" ")
     )
 
-    first_arg_dim3 = "dim3({})".format(first_arg_clean)
-    second_arg_dim3 = "dim3({})".format(second_arg_clean)
+    first_arg_dim3 = f"dim3({first_arg_clean})"
+    second_arg_dim3 = f"dim3({second_arg_clean})"
 
     first_arg_raw_dim3 = first_arg_raw.replace(first_arg_clean, first_arg_dim3)
     second_arg_raw_dim3 = second_arg_raw.replace(second_arg_clean, second_arg_dim3)
@@ -145,9 +144,7 @@ RE_KERNEL_LAUNCH = re.compile(r"([ ]+)(detail?)::[ ]+\\\n[ ]+")
 def processKernelLaunches(string):
     """Replace the CUDA style Kernel launches with the HIP style kernel launches."""
     # Concat the namespace with the kernel names. (Find cleaner way of doing this later).
-    string = RE_KERNEL_LAUNCH.sub(
-        lambda inp: "{0}{1}::".format(inp.group(1), inp.group(2)), string
-    )
+    string = RE_KERNEL_LAUNCH.sub(lambda inp: f"{inp.group(1)}{inp.group(2)}::", string)
 
     def grab_method_and_template(in_kernel):
         # The positions for relevant kernel components.
@@ -388,7 +385,7 @@ def re_replace(input_string):
 def preprocessor(project_directory, output_directory, filepath):
     """Executes the CUDA -> HIP conversion on the specified file."""
     fin_path = os.path.join(project_directory, filepath)
-    with open(fin_path, "r") as fin:
+    with open(fin_path) as fin:
         output_source = fin.read()
 
     fout_path = os.path.join(output_directory, get_hip_file_path(filepath))

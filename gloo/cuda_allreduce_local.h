@@ -27,15 +27,15 @@ class CudaAllreduceLocal : public Algorithm {
   virtual void run() override;
 
  protected:
-  std::vector<CudaDevicePointer<T> > devicePtrs_;
+  std::vector<CudaDevicePointer<T>> devicePtrs_;
   std::vector<CudaStream> streams_;
   const int count_;
   const int bytes_;
   const CudaReductionFunction<T>* fn_;
   const bool synchronizeDeviceOutputs_;
 
-  std::unique_ptr<LocalOp<T> > localReduceOp_;
-  std::unique_ptr<LocalOp<T> > localBroadcastOp_;
+  std::unique_ptr<LocalOp<T>> localReduceOp_;
+  std::unique_ptr<LocalOp<T>> localBroadcastOp_;
 };
 
 } // namespace gloo

@@ -49,7 +49,7 @@ class Context {
 
   virtual std::unique_ptr<Pair>& createPair(int rank) = 0;
 
-  virtual void createAndConnectAllPairs(IStore& store);
+  virtual void createAndConnectAllPairs(std::shared_ptr<IStore> store);
 
   // Creates unbound buffer to be used with the ranks in this context.
   // It is not bound to a specific rank, but still bound to this
@@ -66,6 +66,11 @@ class Context {
 
   std::chrono::milliseconds getTimeout() const {
     return timeout_;
+  }
+
+  virtual std::unique_ptr<RemoteKey> deserializeRemoteKey(
+      const std::string& serialized) {
+    throw std::runtime_error("Not implemented");
   }
 
  protected:
@@ -93,7 +98,8 @@ class Context {
   // any kind of send/recv operation.
   std::chrono::milliseconds timeout_;
 
-  std::vector<char> extractAddress(const std::vector<char>& allAddrs, int i) const;
+  std::vector<char> extractAddress(const std::vector<char>& allAddrs, int i)
+      const;
 
  protected:
   // Keep track of pending send and recv notifications or operations

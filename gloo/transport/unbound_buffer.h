@@ -12,7 +12,11 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <memory>
+#include <stdexcept>
 #include <vector>
+
+#include <gloo/transport/remote_key.h>
 
 namespace gloo {
 namespace transport {
@@ -43,6 +47,8 @@ class UnboundBuffer {
 
   // If specified, the destination of this send is stored in the rank pointer.
   // Returns true if it completed, false if it was aborted.
+  // put/get are both considered sends since they're initiated by the sender so
+  // you need to call waitSend for those operations.
   virtual bool waitSend(int* rank, std::chrono::milliseconds timeout) = 0;
 
   // Aborts a pending waitRecv call.
@@ -98,7 +104,8 @@ class UnboundBuffer {
   // If the byte count argument is not specified, it will default the
   // number of bytes to be equal to the number of bytes remaining in
   // the buffer w.r.t. the offset.
-  static constexpr auto kUnspecifiedByteCount = std::numeric_limits<size_t>::max();
+  static constexpr auto kUnspecifiedByteCount =
+      std::numeric_limits<size_t>::max();
 
   virtual void send(
       int dstRank,
@@ -117,6 +124,32 @@ class UnboundBuffer {
       uint64_t slot,
       size_t offset = 0,
       size_t nbytes = kUnspecifiedByteCount) = 0;
+
+  virtual std::unique_ptr<RemoteKey> getRemoteKey() const {
+    throw std::runtime_error("getRemoteKey() not implemented");
+  }
+
+  // Asymmetrically send data to the given remote key.
+  // Call waitSend to wait on the results of this.
+  virtual void put(
+      const RemoteKey& key,
+      uint64_t slot,
+      size_t offset,
+      size_t roffset,
+      size_t nbytes) {
+    throw std::runtime_error("put(RemoteKey) not implemented");
+  }
+
+  // Asymmetrically receive data from the given remote key.
+  // Call waitRecv to wait on the results of this.
+  virtual void get(
+      const RemoteKey& key,
+      uint64_t slot,
+      size_t offset,
+      size_t roffset,
+      size_t nbytes) {
+    throw std::runtime_error("get(RemoteKey) not implemented");
+  }
 };
 
 } // namespace transport

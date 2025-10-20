@@ -22,8 +22,7 @@ AllreduceLocal<T>::AllreduceLocal(
       ptrs_(ptrs),
       count_(count),
       bytes_(count_ * sizeof(T)),
-      fn_(fn) {
-}
+      fn_(fn) {}
 
 template <typename T>
 void AllreduceLocal<T>::run() {

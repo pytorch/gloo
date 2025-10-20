@@ -75,7 +75,7 @@ static void usage(int status, const char* argv0) {
   X("      --gpudirect        Use GPUDirect (CUDA only)");
   X("      --halfprecision    Use 16-bit floating point values");
   X("      --destinations     Number of separate destinations per host in "
-                              "pairwise exchange benchmark");
+    "pairwise exchange benchmark");
   X("Algorithm parameters:");
   X("      --base           The base for allreduce_bcube (if applicable)");
   X("      --messages       The number of messages to send from A to B for");
@@ -245,10 +245,8 @@ struct options parseOptions(int argc, char** argv) {
       }
       case 0x1005: // --sync
       {
-        result.sync =
-          atoi(optarg) == 1 ||
-          tolower(optarg[0])== 't' ||
-          tolower(optarg[0])== 'y';
+        result.sync = atoi(optarg) == 1 || tolower(optarg[0]) == 't' ||
+            tolower(optarg[0]) == 'y';
         break;
       }
       case 0x1006: // --nanos
@@ -258,10 +256,8 @@ struct options parseOptions(int argc, char** argv) {
       }
       case 0x1007: // --busy-poll
       {
-        result.busyPoll =
-          atoi(optarg) == 1 ||
-          tolower(optarg[0])== 't' ||
-          tolower(optarg[0])== 'y';
+        result.busyPoll = atoi(optarg) == 1 || tolower(optarg[0]) == 't' ||
+            tolower(optarg[0]) == 'y';
         break;
       }
       case 0x1008: // --inputs

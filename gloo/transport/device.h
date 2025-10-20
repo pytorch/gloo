@@ -39,9 +39,13 @@ class Device {
 
   virtual const std::string& getPCIBusID() const = 0;
 
-  virtual int getInterfaceSpeed() const { return 0; }
+  virtual int getInterfaceSpeed() const {
+    return 0;
+  }
 
-  virtual bool hasGPUDirect() const { return false; }
+  virtual bool hasGPUDirect() const {
+    return false;
+  }
 
   // Factory function to create transport context. A single device may
   // service multiple contexts, with no constraints on this process

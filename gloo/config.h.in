@@ -37,3 +37,5 @@ static_assert(
 #cmakedefine01 GLOO_HAVE_TRANSPORT_TCP_TLS
 #cmakedefine01 GLOO_HAVE_TRANSPORT_IBVERBS
 #cmakedefine01 GLOO_HAVE_TRANSPORT_UV
+
+#cmakedefine01 GLOO_USE_TORCH_DTYPES

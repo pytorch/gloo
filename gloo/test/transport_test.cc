@@ -16,7 +16,7 @@ namespace gloo {
 namespace test {
 namespace {
 
-const std::vector<Transport> kTransportsForMultiProcTest {
+const std::vector<Transport> kTransportsForMultiProcTest{
 #if GLOO_HAVE_TRANSPORT_TCP
     Transport::TCP,
 #endif

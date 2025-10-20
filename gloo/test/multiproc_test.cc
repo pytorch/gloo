@@ -100,7 +100,8 @@ void MultiProcTest::waitProcess(int rank) {
   ASSERT_LT(rank, workers_.size());
   const auto& worker = workers_[rank];
   const auto& pid = waitpid(worker, &workerResults_[rank], 0);
-  ASSERT_EQ(pid, worker) << "Encountered error while waiting for pid " << pid << " to change state.";
+  ASSERT_EQ(pid, worker) << "Encountered error while waiting for pid " << pid
+                         << " to change state.";
 }
 
 void MultiProcTest::spawn(

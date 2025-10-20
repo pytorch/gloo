@@ -33,19 +33,19 @@ class Group;
 } // namespace cuda
 
 /**
-* This is the main allreduce implementation. Bcube is a scheme where nodes are
-* divided in groups. In reduce-scatter stage, in each group, a node peers with
-* `base - 1` other nodes. In the first step data is reduced between nodes
-* within the group. In the next step each node of a group peers with `base - 1`
-* nodes from other exclusively different groups. Since each node would start
-* with reduced data communicating with it would be like communicating with
-* `base` number of nodes/groups from the previous step. This process continues
-* until all the groups are covered and to be able to do that the algorithm
-* would have log_base(n) number of steps. Each step the node reduces
-* totalNumElems_ / (base^step) amount of elements. At the end of reduce-scatter
-* stage each node would have reduced a chunk of elements. Now, in all-gather
-* we follow a reverse process of reduce-scatter to communicate the reduced data
-* with other nodes.
+ * This is the main allreduce implementation. Bcube is a scheme where nodes are
+ * divided in groups. In reduce-scatter stage, in each group, a node peers with
+ * `base - 1` other nodes. In the first step data is reduced between nodes
+ * within the group. In the next step each node of a group peers with `base - 1`
+ * nodes from other exclusively different groups. Since each node would start
+ * with reduced data communicating with it would be like communicating with
+ * `base` number of nodes/groups from the previous step. This process continues
+ * until all the groups are covered and to be able to do that the algorithm
+ * would have log_base(n) number of steps. Each step the node reduces
+ * totalNumElems_ / (base^step) amount of elements. At the end of reduce-scatter
+ * stage each node would have reduced a chunk of elements. Now, in all-gather
+ * we follow a reverse process of reduce-scatter to communicate the reduced data
+ * with other nodes.
  */
 template <typename T, typename W = CudaHostWorkspace<T>>
 class CudaAllreduceBcube : public Algorithm {
@@ -389,16 +389,22 @@ class Group {
    * @count The total number of elements to be processed by this node
    * @return The number of elements to be processed by this group
    */
-  static int
-  computeNumElems(int step, const Node& firstNode, int peers, int count);
+  static int computeNumElems(
+      int step,
+      const Node& firstNode,
+      int peers,
+      int count);
   /**
    * Determines all the nodes in a group in a particular step
    * @param peerDistance This is the distance between rank of each peer in the
    *   group
    * @return List of ranks of nodes in the group
    */
-  std::vector<int>
-  getNodeRanks(int firstNodeRank, int peerDistance, int base, int nodes) const;
+  std::vector<int> getNodeRanks(
+      int firstNodeRank,
+      int peerDistance,
+      int base,
+      int nodes) const;
 };
 
 } // namespace bcube

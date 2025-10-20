@@ -18,7 +18,7 @@ namespace gloo {
 namespace test {
 namespace {
 
-const char *kDefaultDevice = "localhost";
+const char* kDefaultDevice = "localhost";
 
 class TlsTcpTest : public BaseTest {};
 
@@ -26,14 +26,15 @@ TEST_F(TlsTcpTest, CreateDeviceWithAllEmptyFilePaths) {
   bool exception_thrown = false;
   try {
     ::gloo::rendezvous::HashStore store;
-    auto device =
-        ::gloo::transport::tcp::tls::CreateDevice(kDefaultDevice, "", "", "", "");
+    auto device = ::gloo::transport::tcp::tls::CreateDevice(
+        kDefaultDevice, "", "", "", "");
     auto context = device->createContext(0, 1);
   } catch (::gloo::EnforceNotMet e) {
     exception_thrown = true;
-    ASSERT_THAT(e.what(),
-                ::testing::ContainsRegex(
-                    "Private key and certificate location must be specified"));
+    ASSERT_THAT(
+        e.what(),
+        ::testing::ContainsRegex(
+            "Private key and certificate location must be specified"));
   }
   ASSERT_TRUE(exception_thrown);
 }
@@ -47,8 +48,9 @@ TEST_F(TlsTcpTest, CreateDeviceWithCAEmptyFilePaths) {
     auto context = device->createContext(0, 1);
   } catch (::gloo::EnforceNotMet e) {
     exception_thrown = true;
-    ASSERT_THAT(e.what(),
-                ::testing::ContainsRegex("CAfile or CApath must be specified"));
+    ASSERT_THAT(
+        e.what(),
+        ::testing::ContainsRegex("CAfile or CApath must be specified"));
   }
   ASSERT_TRUE(exception_thrown);
 }
@@ -57,9 +59,9 @@ TEST_F(TlsTcpTest, CreateDeviceWithUnknownCA) {
   auto device = ::gloo::transport::tcp::tls::CreateDevice(
       kDefaultDevice, pkey_file, cert_file, cert_file, "");
   auto context = device->createContext(0, 2);
-  auto &pair0 = context->createPair(0);
+  auto& pair0 = context->createPair(0);
   auto addrBytes0 = pair0->address().bytes();
-  auto &pair1 = context->createPair(1);
+  auto& pair1 = context->createPair(1);
   auto addrBytes1 = pair1->address().bytes();
 
   bool exception_thrown = false;
@@ -75,8 +77,8 @@ TEST_F(TlsTcpTest, CreateDeviceWithUnknownCA) {
       ASSERT_THAT(e.what(), ::testing::ContainsRegex("unknown ca"));
     } catch (::gloo::EnforceNotMet e) {
       exception_thrown = true;
-      ASSERT_THAT(e.what(),
-                  ::testing::ContainsRegex("handshake was not succeeded"));
+      ASSERT_THAT(
+          e.what(), ::testing::ContainsRegex("handshake was not succeeded"));
     }
   });
 

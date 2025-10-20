@@ -10,13 +10,13 @@
 #include <iostream>
 #include <stdexcept>
 
+#include "gloo/allreduce_ring.h"
 #include "gloo/mpi/context.h"
 #include "gloo/transport/tcp/device.h"
-#include "gloo/allreduce_ring.h"
 
 int main(int argc, char** argv) {
   auto rv = MPI_Init(&argc, &argv);
-  if(rv != MPI_SUCCESS) {
+  if (rv != MPI_SUCCESS) {
     throw std::runtime_error("Failed to initialize MPI");
   }
 
@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
   }
 
   rv = MPI_Finalize();
-  if(rv != MPI_SUCCESS) {
+  if (rv != MPI_SUCCESS) {
     throw std::runtime_error("Failed to Finalize MPI");
   }
 

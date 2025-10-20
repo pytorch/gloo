@@ -19,7 +19,7 @@ class Barrier : public Algorithm {
   explicit Barrier(const std::shared_ptr<Context>& context)
       : Algorithm(context) {}
 
-  virtual ~Barrier(){}
+  virtual ~Barrier() {}
 };
 
 class BarrierOptions {

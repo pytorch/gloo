@@ -8,16 +8,17 @@
 
 #include "gloo/transport/tcp/device.h"
 
-#include <array>
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <array>
+#include <iostream>
 
-
+#include "gloo/common/error.h"
 #include "gloo/common/linux.h"
 #include "gloo/common/logging.h"
-#include "gloo/common/error.h"
+#include "gloo/common/utils.h"
 #include "gloo/transport/tcp/context.h"
 #include "gloo/transport/tcp/helpers.h"
 #include "gloo/transport/tcp/pair.h"
@@ -30,7 +31,7 @@ static void lookupAddrForIface(struct attr& attr) {
   struct ifaddrs* ifap;
   auto rv = getifaddrs(&ifap);
   GLOO_ENFORCE_NE(rv, -1, strerror(errno));
-  struct ifaddrs *ifa;
+  struct ifaddrs* ifa;
   for (ifa = ifap; ifa != nullptr; ifa = ifa->ifa_next) {
     // Skip entry if ifa_addr is NULL (see getifaddrs(3))
     if (ifa->ifa_addr == nullptr) {
@@ -80,10 +81,7 @@ static void lookupAddrForIface(struct attr& attr) {
     attr.ai_protocol = 0;
     break;
   }
-  GLOO_ENFORCE(
-    ifa != nullptr,
-    "Unable to find address for: ",
-    attr.iface);
+  GLOO_ENFORCE(ifa != nullptr, "Unable to find address for: ", attr.iface);
   freeifaddrs(ifap);
   return;
 }
@@ -98,7 +96,7 @@ static void lookupAddrForHostname(struct attr& attr) {
   int bind_errno = 0;
   std::string bind_addr;
   auto rv = getaddrinfo(attr.hostname.data(), nullptr, &hints, &result);
-  GLOO_ENFORCE_NE(rv, -1);
+  GLOO_ENFORCE_EQ(rv, 0);
   struct addrinfo* rp;
   for (rp = result; rp != nullptr; rp = rp->ai_next) {
     auto fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
@@ -125,19 +123,16 @@ static void lookupAddrForHostname(struct attr& attr) {
 
   // If the final call to bind(2) failed, raise error saying so.
   GLOO_ENFORCE(
-    bind_rv == 0,
-    "Unable to find address for ",
-    attr.hostname,
-    "; bind(2) for ",
-    bind_addr,
-    " failed with: ",
-    strerror(bind_errno));
+      bind_rv == 0,
+      "Unable to find address for ",
+      attr.hostname,
+      "; bind(2) for ",
+      bind_addr,
+      " failed with: ",
+      strerror(bind_errno));
 
   // Verify that we were able to find an address in the first place.
-  GLOO_ENFORCE(
-    rp != nullptr,
-    "Unable to find address for: ",
-    attr.hostname);
+  GLOO_ENFORCE(rp != nullptr, "Unable to find address for: ", attr.hostname);
   freeaddrinfo(result);
   return;
 }
@@ -162,7 +157,14 @@ struct attr CreateDeviceAttr(const struct attr& src) {
 }
 
 std::shared_ptr<transport::Device> CreateDevice(const struct attr& src) {
-  auto device = std::make_shared<Device>(CreateDeviceAttr(src));
+  auto device =
+      std::make_shared<Device>(CreateDeviceAttr(src), /*lazyInit=*/false);
+  return std::shared_ptr<transport::Device>(device);
+}
+
+std::shared_ptr<transport::Device> CreateLazyDevice(const struct attr& src) {
+  auto device =
+      std::make_shared<Device>(CreateDeviceAttr(src), /*lazyInit=*/true);
   return std::shared_ptr<transport::Device>(device);
 }
 
@@ -183,7 +185,7 @@ const std::string sockaddrToInterfaceName(const struct attr& attr) {
   auto rv = getifaddrs(&ifap);
   GLOO_ENFORCE_NE(rv, -1, strerror(errno));
   auto addrIsLocalhost = isLocalhostAddr((struct sockaddr*)&attr.ai_addr);
-  struct ifaddrs *ifa;
+  struct ifaddrs* ifa;
   for (ifa = ifap; ifa != nullptr; ifa = ifa->ifa_next) {
     // Skip entry if ifa_addr is NULL (see getifaddrs(3))
     if (ifa->ifa_addr == nullptr) {
@@ -208,23 +210,29 @@ const std::string sockaddrToInterfaceName(const struct attr& attr) {
     }
   }
   GLOO_ENFORCE(
-    ifa != nullptr,
-    "Unable to find interface for: ",
-    Address(attr.ai_addr).str());
+      ifa != nullptr,
+      "Unable to find interface for: ",
+      Address(attr.ai_addr).str());
   freeifaddrs(ifap);
   return iface;
 }
 
-Device::Device(const struct attr& attr)
+Device::Device(const struct attr& attr, bool lazyInit)
     : attr_(attr),
+      lazyInit_(lazyInit),
       loop_(std::make_shared<Loop>()),
       listener_(std::make_shared<Listener>(loop_, attr)),
       interfaceName_(sockaddrToInterfaceName(attr_)),
       interfaceSpeedMbps_(getInterfaceSpeedByName(interfaceName_)),
-      pciBusID_(interfaceToBusID(interfaceName_)) {
+      pciBusID_(interfaceToBusID(interfaceName_)) {}
+
+void Device::shutdown() {
+  loop_->shutdown();
+  listener_->shutdown();
 }
 
 Device::~Device() {
+  shutdown();
 }
 
 std::string Device::str() const {
@@ -245,8 +253,7 @@ int Device::getInterfaceSpeed() const {
   return interfaceSpeedMbps_;
 }
 
-std::shared_ptr<transport::Context> Device::createContext(
-    int rank, int size) {
+std::shared_ptr<transport::Context> Device::createContext(int rank, int size) {
   return std::shared_ptr<transport::Context>(
       new tcp::Context(shared_from_this(), rank, size));
 }
@@ -263,9 +270,11 @@ Address Device::nextAddress() {
   return listener_->nextAddress();
 }
 
-bool Device::isInitiator(
-    const Address& local,
-    const Address& remote) const {
+Address Device::nextAddress(int seq) {
+  return listener_->nextAddress(seq);
+}
+
+bool Device::isInitiator(const Address& local, const Address& remote) const {
   int rv = 0;
   // The remote side of a pair will be called with the same
   // addresses, but in reverse. There should only be a single
@@ -306,12 +315,14 @@ bool Device::isInitiator(
 void Device::connect(
     const Address& local,
     const Address& remote,
+    const int rank,
+    const int size,
     std::chrono::milliseconds timeout,
     connect_callback_t fn) {
   auto initiator = isInitiator(local, remote);
 
   if (initiator) {
-    connectAsInitiator(remote, timeout, std::move(fn));
+    connectAsInitiator(remote, rank, size, timeout, std::move(fn));
     return;
   }
   connectAsListener(local, timeout, std::move(fn));
@@ -342,20 +353,44 @@ void Device::connectAsListener(
 //
 void Device::connectAsInitiator(
     const Address& remote,
-    std::chrono::milliseconds /* unused */,
+    const int rank,
+    const int size,
+    std::chrono::milliseconds timeout,
     connect_callback_t fn) {
-  const auto& sockaddr = remote.getSockaddr();
+  auto writeSeq =
+      [seq = remote.getSeq()](
+          Loop& loop, std::shared_ptr<Socket> socket, connect_callback_t fn) {
+        // Write sequence number for peer to new socket.
+        write<sequence_number_t>(loop, std::move(socket), seq, std::move(fn));
+      };
 
-  // Create new socket to connect to peer.
-  auto socket = Socket::createForFamily(sockaddr.ss_family);
-  socket->reuseAddr(true);
-  socket->noDelay(true);
-  socket->connect(sockaddr);
+  if (disableConnectionRetries()) {
+    const auto& sockaddr = remote.getSockaddr();
 
-  // Write sequence number for peer to new socket.
-  // TODO(pietern): Use timeout.
-  write<sequence_number_t>(
-      loop_, std::move(socket), remote.getSeq(), std::move(fn));
+    // Create new socket to connect to peer.
+    auto socket = Socket::createForFamily(sockaddr.ss_family);
+    socket->reuseAddr(true);
+    socket->noDelay(true);
+    socket->connect(sockaddr);
+
+    writeSeq(*loop_, std::move(socket), std::move(fn));
+  } else {
+    connectLoop(
+        *loop_,
+        remote,
+        rank,
+        size,
+        timeout,
+        [fn = std::move(fn), writeSeq = std::move(writeSeq)](
+            Loop& loop, std::shared_ptr<Socket> socket, const Error& error) {
+          if (error) {
+            fn(socket, error);
+            return;
+          }
+
+          writeSeq(loop, std::move(socket), fn);
+        });
+  }
 }
 
 } // namespace tcp

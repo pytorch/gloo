@@ -16,11 +16,12 @@
 
 namespace gloo {
 
-class PairwiseExchange: public Algorithm {
+class PairwiseExchange : public Algorithm {
  public:
   explicit PairwiseExchange(
       const std::shared_ptr<Context>& context,
-      const int numBytes, const int numDestinations)
+      const int numBytes,
+      const int numDestinations)
       : Algorithm(context),
         numDestinations_(numDestinations),
         bytesPerMsg_(numBytes / numDestinations_),
@@ -35,8 +36,7 @@ class PairwiseExchange: public Algorithm {
     size_t bitmask = 1;
     for (int i = 0; i < numDestinations_; i++) {
       auto slot = this->context_->nextSlot();
-      int destination =
-        this->context_->rank ^ bitmask;
+      int destination = this->context_->rank ^ bitmask;
       const auto& pair = this->getPair(destination);
       sendBuffers_.push_back(pair->createSendBuffer(
           slot, &sendBufferData_.get()[i * bytesPerMsg_], bytesPerMsg_));

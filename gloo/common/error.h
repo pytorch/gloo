@@ -26,9 +26,7 @@ struct Exception : public std::runtime_error {
   explicit Exception(const std::string& msg) : std::runtime_error(msg) {}
 };
 
-#define GLOO_THROW(...) \
-  throw ::gloo::Exception(GLOO_ERROR_MSG(__VA_ARGS__))
-
+#define GLOO_THROW(...) throw ::gloo::Exception(GLOO_ERROR_MSG(__VA_ARGS__))
 
 // Thrown for invalid operations on gloo APIs
 struct InvalidOperationException : public ::gloo::Exception {
@@ -39,7 +37,6 @@ struct InvalidOperationException : public ::gloo::Exception {
 
 #define GLOO_THROW_INVALID_OPERATION_EXCEPTION(...) \
   throw ::gloo::InvalidOperationException(GLOO_ERROR_MSG(__VA_ARGS__))
-
 
 // Thrown for unrecoverable IO errors
 struct IoException : public ::gloo::Exception {

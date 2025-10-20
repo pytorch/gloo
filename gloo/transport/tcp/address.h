@@ -8,9 +8,13 @@
 
 #pragma once
 
-#include <sys/socket.h>
-#include <unistd.h>
 #include <mutex>
+
+#ifdef _WIN32
+#include "gloo/common/win.h" // @manual
+#else
+#include <sys/socket.h>
+#endif
 
 #include "gloo/transport/address.h"
 
@@ -31,6 +35,11 @@ class Address : public ::gloo::transport::Address {
   explicit Address(const struct sockaddr* addr, size_t addrlen);
 
   explicit Address(const std::vector<char>&);
+
+  explicit Address(
+      const std::string& ip,
+      uint16_t port,
+      sequence_number_t seq = -1);
 
   Address(const Address& other);
 

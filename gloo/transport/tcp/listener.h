@@ -30,27 +30,33 @@ namespace tcp {
 class Listener final : public Handler {
  public:
   using connect_callback_t =
-      std::function<void(std::shared_ptr<Socket> socket, Error error)>;
+      std::function<void(std::shared_ptr<Socket> socket, const Error& error)>;
 
-  static constexpr int kBacklog = -1;  // allow somaxconn
+  static constexpr int kBacklog = -1; // allow somaxconn
 
   Listener(std::shared_ptr<Loop> loop, const attr& attr);
 
   ~Listener() override;
 
-  void handleEvents(int events) override;
+  void handleEvents(Loop& loop, int events) override;
 
   Address nextAddress();
+
+  Address nextAddress(int);
 
   // Wait for connection with sequence number `seq`. The callback is
   // always called from a different thread (the event loop thread),
   // even if the connection is already available.
   void waitForConnection(sequence_number_t seq, connect_callback_t fn);
 
+  void shutdown();
+
  private:
   std::mutex mutex_;
   std::shared_ptr<Loop> loop_;
   std::shared_ptr<Socket> listener_;
+  std::shared_ptr<std::atomic<bool>> closed_{
+      std::make_shared<std::atomic<bool>>(false)};
 
   // Address of this listener and the sequence number for the next
   // connection. Sequence numbers are written by a peer right after
@@ -67,6 +73,12 @@ class Listener final : public Handler {
 
   // Sockets by sequence number (while waiting for a pair to call).
   std::unordered_map<sequence_number_t, std::shared_ptr<Socket>> seqToSocket_;
+
+  // Option to use rank as sequence number and avoid pair identifiers
+  // to the store during rendezvous. Experimental, disabled by default.
+  // Can be enabled by setting the environment variable
+  // GLOO_ENABLE_RANK_AS_SEQUENCE_NUMBER=1.
+  bool useRankAsSeqNumber_{false};
 };
 
 } // namespace tcp

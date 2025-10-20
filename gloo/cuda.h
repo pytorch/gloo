@@ -16,8 +16,8 @@
 #include <cuda_runtime.h>
 
 #include "gloo/algorithm.h"
-#include "gloo/config.h"
 #include "gloo/common/logging.h"
+#include "gloo/config.h"
 
 // Check that configuration header was properly generated
 #if !GLOO_USE_CUDA
@@ -30,11 +30,11 @@ extern const cudaStream_t kStreamNotSet;
 extern const int kInvalidDeviceId;
 
 // Forward declarations
-template<typename T>
+template <typename T>
 class CudaDevicePointer;
 template <typename T>
 class CudaHostPointer;
-template<typename T>
+template <typename T>
 class CudaReductionFunction;
 
 class CudaShared {
@@ -113,7 +113,7 @@ class CudaStream {
   bool streamOwner_;
 };
 
-template<typename T>
+template <typename T>
 class CudaDevicePointer {
  public:
   static CudaDevicePointer<T> alloc(size_t count);
@@ -137,7 +137,7 @@ class CudaDevicePointer {
   // Move assignment operator
   CudaDevicePointer& operator=(CudaDevicePointer&&);
 
-  bool operator ==(const CudaDevicePointer<T>& other) const {
+  bool operator==(const CudaDevicePointer<T>& other) const {
     return device_ == other.device_ && count_ == other.count_;
   }
 
@@ -203,7 +203,7 @@ class CudaHostPointer {
   // Move assignment operator
   CudaHostPointer& operator=(CudaHostPointer&&);
 
-  bool operator ==(const CudaHostPointer<T>& other) const {
+  bool operator==(const CudaHostPointer<T>& other) const {
     return host_ == other.host_ && count_ == other.count_;
   }
 
@@ -248,11 +248,11 @@ template <typename T, typename Src, typename Dst>
 class CudaLocalMemcpy : public LocalOp<T> {
  public:
   CudaLocalMemcpy(
-    CudaStream& stream,
-    Src& src,
-    Dst& dst,
-    size_t offset,
-    size_t count)
+      CudaStream& stream,
+      Src& src,
+      Dst& dst,
+      size_t offset,
+      size_t count)
       : stream_(stream),
         src_(src.range(offset, count)),
         dst_(dst.range(offset, count)) {}
@@ -286,9 +286,8 @@ void cudaMin(T* x, const T* y, size_t n, const cudaStream_t stream);
 template <typename T>
 class CudaReductionFunction {
   using DeviceFunction =
-    void(T*, const T*, size_t n, const cudaStream_t stream);
-  using HostFunction =
-    void(T*, const T*, size_t n);
+      void(T*, const T*, size_t n, const cudaStream_t stream);
+  using HostFunction = void(T*, const T*, size_t n);
 
  public:
   static const CudaReductionFunction<T>* sum;
@@ -297,12 +296,10 @@ class CudaReductionFunction {
   static const CudaReductionFunction<T>* max;
 
   CudaReductionFunction(
-    ReductionType type,
-    DeviceFunction* deviceFn,
-    HostFunction* hostFn)
-      : type_(type),
-        deviceFn_(deviceFn),
-        hostFn_(hostFn) {}
+      ReductionType type,
+      DeviceFunction* deviceFn,
+      HostFunction* hostFn)
+      : type_(type), deviceFn_(deviceFn), hostFn_(hostFn) {}
 
   ReductionType type() const {
     return type_;
@@ -346,19 +343,18 @@ class CudaReductionFunction {
 
 template <typename T>
 const CudaReductionFunction<T>* CudaReductionFunction<T>::sum =
-  new CudaReductionFunction<T>(
-    SUM, &::gloo::cudaSum<T>, &::gloo::sum<T>);
+    new CudaReductionFunction<T>(SUM, &::gloo::cudaSum<T>, &::gloo::sum<T>);
 template <typename T>
 const CudaReductionFunction<T>* CudaReductionFunction<T>::product =
-  new CudaReductionFunction<T>(
-    PRODUCT, &::gloo::cudaProduct<T>, &::gloo::product<T>);
+    new CudaReductionFunction<T>(
+        PRODUCT,
+        &::gloo::cudaProduct<T>,
+        &::gloo::product<T>);
 template <typename T>
 const CudaReductionFunction<T>* CudaReductionFunction<T>::min =
-  new CudaReductionFunction<T>(
-    MIN, &::gloo::cudaMin<T>, &::gloo::min<T>);
+    new CudaReductionFunction<T>(MIN, &::gloo::cudaMin<T>, &::gloo::min<T>);
 template <typename T>
 const CudaReductionFunction<T>* CudaReductionFunction<T>::max =
-  new CudaReductionFunction<T>(
-    MAX, &::gloo::cudaMax<T>, &::gloo::max<T>);
+    new CudaReductionFunction<T>(MAX, &::gloo::cudaMax<T>, &::gloo::max<T>);
 
 } // namespace gloo

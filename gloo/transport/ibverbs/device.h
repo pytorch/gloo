@@ -35,8 +35,7 @@ struct attr {
 // Helper function that returns the list of IB device names in sorted order
 std::vector<std::string> getDeviceNames();
 
-std::shared_ptr<::gloo::transport::Device> CreateDevice(
-    const struct attr&);
+std::shared_ptr<::gloo::transport::Device> CreateDevice(const struct attr&);
 
 // Forward declarations
 class Pair;
@@ -57,7 +56,8 @@ class Device : public ::gloo::transport::Device,
   virtual bool hasGPUDirect() const override;
 
   virtual std::shared_ptr<::gloo::transport::Context> createContext(
-      int rank, int size) override;
+      int rank,
+      int size) override;
 
  protected:
   struct attr attr_;
@@ -76,6 +76,7 @@ class Device : public ::gloo::transport::Device,
 
   friend class Pair;
   friend class Buffer;
+  friend class UnboundBuffer;
 };
 
 } // namespace ibverbs

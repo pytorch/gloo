@@ -2,9 +2,9 @@
  * Copyright (c) Facebook, Inc. and its affiliates.
  */
 
+#include <array>
 #include <iostream>
 #include <memory>
-#include <array>
 #include <typeinfo>
 
 #include "gloo/reduce.h"
@@ -44,12 +44,10 @@ void mysum(void* c_, const void* a_, const void* b_, int n) {
 
 int main(void) {
   // Unrelated to the example: perform some sanity checks.
-  if (getenv("PREFIX") == nullptr ||
-      getenv("SIZE") == nullptr ||
+  if (getenv("PREFIX") == nullptr || getenv("SIZE") == nullptr ||
       getenv("RANK") == nullptr) {
-    std::cerr
-      << "Please set environment variables PREFIX, SIZE, and RANK."
-      << std::endl;
+    std::cerr << "Please set environment variables PREFIX, SIZE, and RANK."
+              << std::endl;
     return 1;
   }
 
@@ -72,7 +70,7 @@ int main(void) {
 
   // attr.ai_family = AF_INET;  // Force IPv4
   // attr.ai_family = AF_INET6; // Force IPv6
-  attr.ai_family = AF_UNSPEC;   // Use either (default)
+  attr.ai_family = AF_UNSPEC; // Use either (default)
 
   // A string is implicitly converted to an "attr" struct with its
   // hostname field populated. This will try to resolve the interface
@@ -120,8 +118,8 @@ int main(void) {
 
   // All connections are now established. We can now initialize some
   // test data, instantiate the collective algorithm, and run it.
-  int *inputPointers = reinterpret_cast<int*>(malloc(sizeof(int) * 4));
-  int *outputPointers = reinterpret_cast<int*>(malloc(sizeof(int) * 4));
+  int* inputPointers = reinterpret_cast<int*>(malloc(sizeof(int) * 4));
+  int* outputPointers = reinterpret_cast<int*>(malloc(sizeof(int) * 4));
   gloo::ReduceOptions opts(context);
   opts.setInput(inputPointers, 4);
   opts.setOutput(outputPointers, 4);

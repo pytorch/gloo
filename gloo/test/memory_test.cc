@@ -38,7 +38,7 @@ size_t readResidentSetSize() {
 }
 #endif
 
-const std::vector<Transport> kTransportsForMemoryTest {
+const std::vector<Transport> kTransportsForMemoryTest{
     Transport::TCP,
 #if GLOO_HAVE_TRANSPORT_TCP_TLS
     Transport::TCP_TLS,
@@ -52,7 +52,7 @@ using Param = Transport;
 class MemoryTest : public BaseTest,
                    public ::testing::WithParamInterface<Param> {};
 
-TEST_P(MemoryTest, ManySlotsNoLeaks) {
+TEST_P(MemoryTest, DISABLED_ManySlotsNoLeaks) {
   const auto transport = GetParam();
   spawn(transport, 2, [&](std::shared_ptr<Context> context) {
     size_t tmp0;

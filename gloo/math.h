@@ -88,7 +88,8 @@ inline uint32_t log2ceil(uint32_t value) {
     return 0;
   dim = 32 - __builtin_clz(value - 1);
 #else
-  for (uint32_t size = 1; size < value; ++dim, size <<= 1)  /* empty */;
+  for (uint32_t size = 1; size < value; ++dim, size <<= 1) /* empty */
+    ;
 #endif // defined(__GNUC__)
   return dim;
 }
@@ -97,23 +98,35 @@ inline uint32_t log2ceil(uint32_t value) {
 
 template <>
 void sum<float16>(void* c, const void* a, const void* b, size_t n);
-extern template void
-sum<float16>(void* c, const void* a, const void* b, size_t n);
+extern template void sum<float16>(
+    void* c,
+    const void* a,
+    const void* b,
+    size_t n);
 
 template <>
 void product<float16>(void* c, const void* a, const void* b, size_t n);
-extern template void
-product<float16>(void* c, const void* a, const void* b, size_t n);
+extern template void product<float16>(
+    void* c,
+    const void* a,
+    const void* b,
+    size_t n);
 
 template <>
 void max<float16>(void* c, const void* a, const void* b, size_t n);
-extern template void
-max<float16>(void* c, const void* a, const void* b, size_t n);
+extern template void max<float16>(
+    void* c,
+    const void* a,
+    const void* b,
+    size_t n);
 
 template <>
 void min<float16>(void* c, const void* a, const void* b, size_t n);
-extern template void
-min<float16>(void* c, const void* a, const void* b, size_t n);
+extern template void min<float16>(
+    void* c,
+    const void* a,
+    const void* b,
+    size_t n);
 
 #endif
 

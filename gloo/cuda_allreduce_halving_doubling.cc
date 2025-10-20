@@ -1,10 +1,10 @@
 /**
-* Copyright (c) 2017-present, Facebook, Inc.
-* All rights reserved.
-*
-* This source code is licensed under the BSD-style license found in the
-* LICENSE file in the root directory of this source tree.
-*/
+ * Copyright (c) 2017-present, Facebook, Inc.
+ * All rights reserved.
+ *
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree.
+ */
 
 #include "gloo/cuda_allreduce_halving_doubling.h"
 
@@ -28,7 +28,7 @@ uint32_t reverseLastNBits(uint32_t ctr, uint32_t n) {
   }
   return reversed;
 }
-}
+} // namespace
 
 template <typename T, typename W>
 void CudaAllreduceHalvingDoubling<T, W>::initBinaryBlocks() {
@@ -109,7 +109,7 @@ CudaAllreduceHalvingDoubling<T, W>::CudaAllreduceHalvingDoubling(
   init();
 
   if (this->contextSize_ == 1) {
-      return;
+    return;
   }
 
   // Reserve max needed number of context slots. Up to 2 slots per process
@@ -130,7 +130,8 @@ CudaAllreduceHalvingDoubling<T, W>::CudaAllreduceHalvingDoubling(
     auto& pair = this->context_->getPair(destRank);
     const auto myRank = this->context_->rank;
     auto slot = slotOffset_ +
-        2 * (std::min(myRank, destRank) * this->contextSize_ +
+        2 *
+            (std::min(myRank, destRank) * this->contextSize_ +
              std::max(myRank, destRank));
     sendOffsets_[i] = sendOffset + ((destRank & bitmask) ? stepChunkSize : 0);
     recvOffsets_[i] =
@@ -153,8 +154,7 @@ CudaAllreduceHalvingDoubling<T, W>::CudaAllreduceHalvingDoubling(
       }
     }
     recvDataBufs_.push_back(
-        pair->createRecvBuffer(
-            slot, &recvBuf_[bufferOffset], stepChunkBytes));
+        pair->createRecvBuffer(slot, &recvBuf_[bufferOffset], stepChunkBytes));
     bufferOffset += stepChunkSize;
     if (this->context_->rank & bitmask) {
       sendOffset += stepChunkSize;
@@ -179,10 +179,11 @@ CudaAllreduceHalvingDoubling<T, W>::CudaAllreduceHalvingDoubling(
     auto& destPair = this->context_->getPair(destRank);
     const auto myRank = this->context_->rank;
     const auto slot = slotOffset_ +
-        2 * (std::min(myRank, destRank) * this->contextSize_ +
+        2 *
+            (std::min(myRank, destRank) * this->contextSize_ +
              std::max(myRank, destRank));
-    smallerBlockSendDataBuf_ = destPair->createSendBuffer(
-        slot, *scratch_, bytes_);
+    smallerBlockSendDataBuf_ =
+        destPair->createSendBuffer(slot, *scratch_, bytes_);
     const auto itemCount = recvCounts_[stepsWithinBlock_ - 1];
     if (itemCount > 0) {
       smallerBlockRecvDataBuf_ = destPair->createRecvBuffer(
@@ -218,7 +219,8 @@ CudaAllreduceHalvingDoubling<T, W>::CudaAllreduceHalvingDoubling(
       auto& destPair = this->context_->getPair(destRank);
       const auto myRank = this->context_->rank;
       const auto slot = slotOffset_ +
-          2 * (std::min(myRank, destRank) * this->contextSize_ +
+          2 *
+              (std::min(myRank, destRank) * this->contextSize_ +
                std::max(myRank, destRank));
       largerBlockSendDataBufs_.push_back(
           destPair->createSendBuffer(slot, *scratch_, bytes_));
@@ -226,9 +228,8 @@ CudaAllreduceHalvingDoubling<T, W>::CudaAllreduceHalvingDoubling(
         const auto toSend = std::min(
             sendCountToLargerBlock_,
             totalItemsToSend - sendCountToLargerBlock_ * i);
-        largerBlockRecvDataBufs_.push_back(
-            destPair->createRecvBuffer(
-                slot, &recvBuf_[bufferOffset], toSend * sizeof(T)));
+        largerBlockRecvDataBufs_.push_back(destPair->createRecvBuffer(
+            slot, &recvBuf_[bufferOffset], toSend * sizeof(T)));
         bufferOffset += toSend;
       }
       destOrdinal++;
@@ -256,8 +257,9 @@ void CudaAllreduceHalvingDoubling<T, W>::run() {
   }
 
   if (this->contextSize_ == 1) {
-    GLOO_ENFORCE(localBroadcastOp_,
-            "localBroadcastOp must be initialized for single machine");
+    GLOO_ENFORCE(
+        localBroadcastOp_,
+        "localBroadcastOp must be initialized for single machine");
     localBroadcastOp_->run();
     return;
   }
@@ -654,5 +656,10 @@ INSTANTIATE_TEMPLATE(uint64_t);
 INSTANTIATE_TEMPLATE(float);
 INSTANTIATE_TEMPLATE(double);
 INSTANTIATE_TEMPLATE(float16);
+
+#if GLOO_USE_TORCH_DTYPES
+INSTANTIATE_TEMPLATE(c10::BFloat16);
+INSTANTIATE_TEMPLATE(c10::Half);
+#endif
 
 } // namespace gloo

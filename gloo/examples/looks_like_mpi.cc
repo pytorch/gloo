@@ -16,11 +16,11 @@
 #include <gloo/rendezvous/prefix_store.h>
 #include <gloo/transport/tcp/device.h>
 
-#define ASSERT(expr)                                            \
-  do {                                                          \
-    if (!(expr)) {                                              \
-      throw std::runtime_error("Assertion failed: " #expr);     \
-    }                                                           \
+#define ASSERT(expr)                                        \
+  do {                                                      \
+    if (!(expr)) {                                          \
+      throw std::runtime_error("Assertion failed: " #expr); \
+    }                                                       \
   } while (0);
 
 // Global context
@@ -63,21 +63,20 @@ int MPI_Barrier(MPI_Comm comm) {
 
 // Same prototype
 int MPI_Allreduce(
-    const void *sendbuf,
-    void *recvbuf,
+    const void* sendbuf,
+    void* recvbuf,
     int count,
     MPI_Datatype datatype,
     MPI_Op op,
-    MPI_Comm comm)
-{
+    MPI_Comm comm) {
   ASSERT(datatype == MPI_INT);
   ASSERT(op == MPI_SUM);
   ASSERT(comm == MPI_COMM_WORLD);
   gloo::AllreduceOptions opts(kContext);
-  opts.setInput(const_cast<int*>((const int*) sendbuf), count);
-  opts.setOutput((int*) recvbuf, count);
+  opts.setInput(const_cast<int*>((const int*)sendbuf), count);
+  opts.setOutput((int*)recvbuf, count);
   opts.setReduceFunction(
-      static_cast<void(*)(void*, const void*, const void*, size_t)>(
+      static_cast<void (*)(void*, const void*, const void*, size_t)>(
           &gloo::sum<int>));
   gloo::allreduce(opts);
 }
@@ -98,13 +97,7 @@ int MPI_Allreduce(
 //   - doesn't take MPI_Comm argument but uses global
 //   - doesn't return an MPI_Status object
 //
-int MPI_Recv(
-    void *buf,
-    ssize_t bytes,
-    int source,
-    int tag,
-    MPI_Comm comm)
-{
+int MPI_Recv(void* buf, ssize_t bytes, int source, int tag, MPI_Comm comm) {
   auto ubuf = kContext->createUnboundBuffer(buf, bytes);
   ubuf->recv(source, tag);
   ubuf->waitRecv();
@@ -124,12 +117,11 @@ int MPI_Recv(
 //   - doesn't use MPI_Datatype
 //
 int MPI_Send(
-    const void *cbuf,
+    const void* cbuf,
     ssize_t bytes,
     int dest,
     int tag,
-    MPI_Comm comm)
-{
+    MPI_Comm comm) {
   // Argument is logically const if we're only sending.
   auto ubuf = kContext->createUnboundBuffer(const_cast<void*>(cbuf), bytes);
   ubuf->send(dest, tag);
@@ -167,7 +159,8 @@ int run() {
     const int input = 1;
     int output = -1;
     MPI_Allreduce(&input, &output, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-    std::cout << "Result of allreduce on " <<  input << ": " << output << std::endl;
+    std::cout << "Result of allreduce on " << input << ": " << output
+              << std::endl;
   }
 
   // Barrier before exit
@@ -176,12 +169,10 @@ int run() {
 
 // See example1.cc in this directory for a walkthrough of initialization.
 void init(const std::string& path) {
-  if (getenv("PREFIX") == nullptr ||
-      getenv("SIZE") == nullptr ||
+  if (getenv("PREFIX") == nullptr || getenv("SIZE") == nullptr ||
       getenv("RANK") == nullptr) {
-    std::cerr
-      << "Please set environment variables PREFIX, SIZE, and RANK."
-      << std::endl;
+    std::cerr << "Please set environment variables PREFIX, SIZE, and RANK."
+              << std::endl;
     exit(1);
   }
 

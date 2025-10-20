@@ -19,14 +19,14 @@
 
 namespace gloo {
 
-template <typename T, typename W = CudaHostWorkspace<T> >
+template <typename T, typename W = CudaHostWorkspace<T>>
 class CudaAllreduceHalvingDoubling : public Algorithm {
  public:
   CudaAllreduceHalvingDoubling(
       const std::shared_ptr<Context>& context,
       const std::vector<T*>& ptrs,
       const int count,
-      const std::vector<cudaStream_t>& streams  = std::vector<cudaStream_t>(),
+      const std::vector<cudaStream_t>& streams = std::vector<cudaStream_t>(),
       bool pipelineBroadcastAndReduce = false);
 
   virtual ~CudaAllreduceHalvingDoubling() = default;
@@ -34,32 +34,35 @@ class CudaAllreduceHalvingDoubling : public Algorithm {
   virtual void run() override;
 
  protected:
-
   void initBinaryBlocks();
   void devicePointerInit();
 
   // Both workspace types have their own initialization function.
   template <typename U = W>
   void init(
-      typename std::enable_if<std::is_same<U, CudaHostWorkspace<T> >::value,
-                              typename U::Pointer>::type* = nullptr);
+      typename std::enable_if<
+          std::is_same<U, CudaHostWorkspace<T>>::value,
+          typename U::Pointer>::type* = nullptr);
 
   template <typename U = W>
   void init(
-      typename std::enable_if<std::is_same<U, CudaDeviceWorkspace<T> >::value,
-                              typename U::Pointer>::type* = nullptr);
+      typename std::enable_if<
+          std::is_same<U, CudaDeviceWorkspace<T>>::value,
+          typename U::Pointer>::type* = nullptr);
 
   template <typename U = W>
   void initReductionsAndBroadcasts(
-      typename std::enable_if<std::is_same<U, CudaHostWorkspace<T> >::value,
-                              typename U::Pointer>::type* = nullptr);
+      typename std::enable_if<
+          std::is_same<U, CudaHostWorkspace<T>>::value,
+          typename U::Pointer>::type* = nullptr);
 
   template <typename U = W>
   void initReductionsAndBroadcasts(
-      typename std::enable_if<std::is_same<U, CudaDeviceWorkspace<T> >::value,
-                              typename U::Pointer>::type* = 0);
+      typename std::enable_if<
+          std::is_same<U, CudaDeviceWorkspace<T>>::value,
+          typename U::Pointer>::type* = NULL);
 
-  std::vector<CudaDevicePointer<T> > devicePtrs_;
+  std::vector<CudaDevicePointer<T>> devicePtrs_;
   std::vector<CudaStream> streams_;
   typename W::Pointer scratch_;
   CudaStream* scratchStream_;
@@ -102,8 +105,8 @@ class CudaAllreduceHalvingDoubling : public Algorithm {
   std::unique_ptr<LocalOp<T>> reduceBeforeFirstSend_;
   std::unique_ptr<LocalOp<T>> reduceBeforeFirstRecv_;
 
-  std::unique_ptr<LocalOp<T> > localReduceOp_;
-  std::unique_ptr<LocalOp<T> > localBroadcastOp_;
+  std::unique_ptr<LocalOp<T>> localReduceOp_;
+  std::unique_ptr<LocalOp<T>> localBroadcastOp_;
 
   // buffer where data is received prior to being reduced
   typename W::Pointer recvBuf_;

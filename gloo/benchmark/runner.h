@@ -33,8 +33,8 @@ class RunnerThread;
 // function (which is typically equal to the benchmark function).
 class RunnerJob {
  public:
-  explicit RunnerJob(std::function<void()> fn, int i) :
-    done_(false), fn_(fn), iterations_(i) {}
+  explicit RunnerJob(std::function<void()> fn, int i)
+      : done_(false), fn_(fn), iterations_(i) {}
 
   const Samples& getSamples() const {
     return samples_;
@@ -102,9 +102,8 @@ class Runner {
 
   template <typename T>
   Samples createAndRun(
-    std::vector<std::unique_ptr<Benchmark<T>>> &benchmarks,
-    int niters
-  );
+      std::vector<std::unique_ptr<Benchmark<T>>>& benchmarks,
+      int niters);
 
  protected:
 #if GLOO_USE_REDIS

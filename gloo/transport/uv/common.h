@@ -10,7 +10,7 @@
 
 #include <stdio.h>
 
-#include <uv.h>
+#include <uv.h> // @manual
 
 #define UV_CHECK(rv, prefix)  \
   {                           \

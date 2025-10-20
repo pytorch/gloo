@@ -30,11 +30,15 @@ class Pair {
 
   virtual void setSync(bool enable, bool busyPoll) = 0;
 
-  virtual std::unique_ptr<Buffer>
-  createSendBuffer(int slot, void* ptr, size_t size) = 0;
+  virtual std::unique_ptr<Buffer> createSendBuffer(
+      int slot,
+      void* ptr,
+      size_t size) = 0;
 
-  virtual std::unique_ptr<Buffer>
-  createRecvBuffer(int slot, void* ptr, size_t size) = 0;
+  virtual std::unique_ptr<Buffer> createRecvBuffer(
+      int slot,
+      void* ptr,
+      size_t size) = 0;
 
   virtual bool isConnected() = 0;
 
@@ -51,6 +55,26 @@ class Pair {
       uint64_t tag,
       size_t offset = 0,
       size_t nbytes = 0) = 0;
+
+  virtual void put(
+      transport::UnboundBuffer* tbuf,
+      const transport::RemoteKey& key,
+      uint64_t slot,
+      size_t offset,
+      size_t roffset,
+      size_t nbytes) {
+    throw std::runtime_error("put() not implemented");
+  }
+
+  virtual void get(
+      transport::UnboundBuffer* tbuf,
+      const transport::RemoteKey& key,
+      uint64_t slot,
+      size_t offset,
+      size_t roffset,
+      size_t nbytes) {
+    throw std::runtime_error("get() not implemented");
+  }
 
   // Sets the local rank of the process to be localRank
   // (See below for description of local rank)

@@ -81,7 +81,11 @@ void FileStore::set(const std::string& key, const std::vector<char>& data) {
     std::ofstream ofs(tmp.c_str(), std::ios::out | std::ios::trunc);
     GLOO_ENFORCE(
         ofs.is_open(),
-        "File cannot be created: ", tmp, " (", ofs.rdstate(), ")");
+        "File cannot be created: ",
+        tmp,
+        " (",
+        ofs.rdstate(),
+        ")");
     ofs.write(data.data(), data.size());
   }
 

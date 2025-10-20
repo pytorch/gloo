@@ -8,8 +8,8 @@
 
 #include "gloo/reduce.h"
 
-#include <array>
 #include <algorithm>
+#include <array>
 #include <cstring>
 
 #include "gloo/common/logging.h"

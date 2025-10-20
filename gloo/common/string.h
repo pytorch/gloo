@@ -28,8 +28,10 @@ inline void MakeStringInternal(
 }
 
 template <typename T, typename... Args>
-inline void
-MakeStringInternal(std::stringstream& ss, const T& t, const Args&... args) {
+inline void MakeStringInternal(
+    std::stringstream& ss,
+    const T& t,
+    const Args&... args) {
   MakeStringInternal(ss, t);
   MakeStringInternal(ss, args...);
 }
@@ -42,7 +44,9 @@ std::string MakeString(const Args&... args) {
 }
 
 template <typename T>
-std::string MakeString(const std::vector<T>& v, const std::string& delim=" ") {
+std::string MakeString(
+    const std::vector<T>& v,
+    const std::string& delim = " ") {
   std::stringstream ss;
   for (auto it = v.begin(); it < v.end(); it++) {
     if (it != v.begin()) {

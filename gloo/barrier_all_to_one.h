@@ -17,65 +17,42 @@ class BarrierAllToOne : public Barrier {
   explicit BarrierAllToOne(
       const std::shared_ptr<Context>& context,
       int rootRank = 0)
-      : Barrier(context), rootRank_(rootRank) {
+      : Barrier(context), rootRank_(rootRank) {}
+
+  void run() {
     auto slot = this->context_->nextSlot();
+    auto timeout = this->context_->getTimeout();
+
+    auto buffer = this->context_->createUnboundBuffer(nullptr, 0);
+
     if (this->contextRank_ == rootRank_) {
-      // Create send/recv buffers for every peer
       for (int i = 0; i < this->contextSize_; i++) {
         // Skip self
         if (i == this->contextRank_) {
           continue;
         }
+        buffer->recv(i, slot);
+        buffer->waitRecv(timeout);
+      }
+      for (int i = 0; i < this->contextSize_; i++) {
+        // Skip self
+        if (i == this->contextRank_) {
+          continue;
+        }
+        buffer->send(i, slot);
+        buffer->waitSend(timeout);
+      }
 
-        auto& pair = this->getPair(i);
-        auto sdata = std::unique_ptr<int>(new int);
-        auto sbuf = pair->createSendBuffer(slot, sdata.get(), sizeof(int));
-        sendBuffersData_.push_back(std::move(sdata));
-        sendBuffers_.push_back(std::move(sbuf));
-        auto rdata = std::unique_ptr<int>(new int);
-        auto rbuf = pair->createRecvBuffer(slot, rdata.get(), sizeof(int));
-        recvBuffersData_.push_back(std::move(rdata));
-        recvBuffers_.push_back(std::move(rbuf));
-      }
     } else {
-      // Create send/recv buffers to/from the root
-      auto& pair = this->getPair(rootRank_);
-      auto sdata = std::unique_ptr<int>(new int);
-      auto sbuf = pair->createSendBuffer(slot, sdata.get(), sizeof(int));
-      sendBuffersData_.push_back(std::move(sdata));
-      sendBuffers_.push_back(std::move(sbuf));
-      auto rdata = std::unique_ptr<int>(new int);
-      auto rbuf = pair->createRecvBuffer(slot, rdata.get(), sizeof(int));
-      recvBuffersData_.push_back(std::move(rdata));
-      recvBuffers_.push_back(std::move(rbuf));
-    }
-  }
-
-  void run() {
-    if (this->contextRank_ == rootRank_) {
-      // Wait for message from all peers
-      for (auto& b : recvBuffers_) {
-        b->waitRecv();
-      }
-      // Notify all peers
-      for (auto& b : sendBuffers_) {
-        b->send();
-      }
-    } else {
-      // Send message to root
-      sendBuffers_[0]->send();
-      // Wait for acknowledgement from root
-      recvBuffers_[0]->waitRecv();
+      buffer->send(rootRank_, slot);
+      buffer->waitSend(timeout);
+      buffer->recv(rootRank_, slot);
+      buffer->waitRecv(timeout);
     }
   }
 
  protected:
   const int rootRank_;
-
-  std::vector<std::unique_ptr<int>> sendBuffersData_;
-  std::vector<std::unique_ptr<transport::Buffer>> sendBuffers_;
-  std::vector<std::unique_ptr<int>> recvBuffersData_;
-  std::vector<std::unique_ptr<transport::Buffer>> recvBuffers_;
 };
 
 } // namespace gloo

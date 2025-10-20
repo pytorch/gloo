@@ -171,9 +171,19 @@ target_link_libraries(gloo PRIVATE ${gloo_DEPENDENCY_LIBS})
 target_include_directories(gloo INTERFACE $<INSTALL_INTERFACE:include>)
 if(USE_CUDA)
   target_include_directories(gloo_cuda INTERFACE $<INSTALL_INTERFACE:include>)
+
+  message(STATUS "GLOO_USE_TORCH_DTYPES : ${GLOO_USE_TORCH_DTYPES} ${GLOO_TORCH_DIR}")
+  if(GLOO_USE_TORCH_DTYPES)
+    target_include_directories(gloo_cuda PRIVATE ${GLOO_TORCH_DIR})
+  endif()
 endif()
 if(USE_ROCM)
   target_include_directories(gloo_hip INTERFACE $<INSTALL_INTERFACE:include>)
+
+  message(STATUS "GLOO_USE_TORCH_DTYPES : ${GLOO_USE_TORCH_DTYPES} ${GLOO_TORCH_DIR}")
+  if(GLOO_USE_TORCH_DTYPES)
+    target_include_directories(gloo_hip PRIVATE ${GLOO_TORCH_DIR})
+  endif()
 endif()
 
 # Install if necessary.

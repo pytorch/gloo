@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <iostream>
 
 #ifdef __CUDA_ARCH__
@@ -30,7 +31,7 @@
 #include "gloo/common/common.h"
 
 #ifdef _WIN32
-#include <BaseTsd.h>
+#include <basetsd.h>
 typedef SSIZE_T ssize_t;
 #endif
 
@@ -98,7 +99,7 @@ struct alignas(2) float16 {
 
   float16() : x(0) {}
 
-  float16(const float16 &) = default;
+  float16(const float16&) = default;
 
   explicit float16(int val) {
     float16 res = cpu_float2half_rn(static_cast<float>(val));

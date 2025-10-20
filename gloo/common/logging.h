@@ -11,12 +11,23 @@
 #include <climits>
 #include <exception>
 #include <functional>
+#include <iostream>
 #include <limits>
 #include <vector>
 
+#include "gloo/common/error.h"
 #include "gloo/common/string.h"
 
 namespace gloo {
+
+#define GLOO_LOG_MSG(level, ...)   \
+  std::cerr << ::gloo::MakeString( \
+      "[", __FILE__, ":", __LINE__, "] ", level, " ", __VA_ARGS__, "\n")
+
+#define GLOO_INFO(...) GLOO_LOG_MSG("INFO", __VA_ARGS__)
+#define GLOO_ERROR(...) GLOO_LOG_MSG("ERROR", __VA_ARGS__)
+#define GLOO_WARN(...) GLOO_LOG_MSG("WARN", __VA_ARGS__)
+#define GLOO_DEBUG(...) // GLOO_LOG_MSG("DEBUG", __VA_ARGS__)
 
 class EnforceNotMet : public std::exception {
  public:
@@ -39,15 +50,12 @@ class EnforceNotMet : public std::exception {
   std::string full_msg_;
 };
 
-#define GLOO_ENFORCE(condition, ...)        \
-  do {                                      \
-    if (!(condition)) {                     \
-      throw ::gloo::EnforceNotMet(          \
-          __FILE__,                         \
-          __LINE__,                         \
-          #condition,                       \
-          ::gloo::MakeString(__VA_ARGS__)); \
-    }                                       \
+#define GLOO_ENFORCE(condition, ...)                                        \
+  do {                                                                      \
+    if (!(condition)) {                                                     \
+      throw ::gloo::EnforceNotMet(                                          \
+          __FILE__, __LINE__, #condition, ::gloo::MakeString(__VA_ARGS__)); \
+    }                                                                       \
   } while (false)
 
 /**
@@ -141,7 +149,7 @@ BINARY_COMP_HELPER(LessEquals, <=)
           r.get_message_and_free(MakeString(__VA_ARGS__))); \
     }                                                       \
   } while (false)
-}
+} // namespace enforce_detail
 
 #define GLOO_ENFORCE_THAT(condition, ...) \
   GLOO_ENFORCE_THAT_IMPL((condition), #condition, __VA_ARGS__)

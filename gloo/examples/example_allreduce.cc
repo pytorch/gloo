@@ -2,9 +2,9 @@
  * Copyright (c) Facebook, Inc. and its affiliates.
  */
 
+#include <array>
 #include <iostream>
 #include <memory>
-#include <array>
 #include <typeinfo>
 
 #include "gloo/allreduce.h"
@@ -44,12 +44,10 @@ void mysum(void* c_, const void* a_, const void* b_, int n) {
 }
 
 int main(void) {
-  if (getenv("PREFIX") == nullptr ||
-      getenv("SIZE") == nullptr ||
+  if (getenv("PREFIX") == nullptr || getenv("SIZE") == nullptr ||
       getenv("RANK") == nullptr) {
-    std::cerr
-      << "Please set environment variables PREFIX, SIZE, and RANK."
-      << std::endl;
+    std::cerr << "Please set environment variables PREFIX, SIZE, and RANK."
+              << std::endl;
     return 1;
   }
 
@@ -72,7 +70,7 @@ int main(void) {
 
   // attr.ai_family = AF_INET; // Force IPv4
   // attr.ai_family = AF_INET6; // Force IPv6
-  attr.ai_family = AF_UNSPEC;  // Use either (default)
+  attr.ai_family = AF_UNSPEC; // Use either (default)
 
   // A string is implicitly converted to an "attr" struct with its
   // hostname field populated. This will try to resolve the interface
@@ -124,10 +122,10 @@ int main(void) {
   std::vector<int*> inputPointers;
   std::vector<int*> outputPointers;
   for (size_t i = 0; i < elements; i++) {
-    int *value = reinterpret_cast<int*>(malloc(sizeof(int)));
+    int* value = reinterpret_cast<int*>(malloc(sizeof(int)));
     *value = i * (rank + 1);
     inputPointers.push_back(value);
-    int *value1 = reinterpret_cast<int*>(malloc(sizeof(int)));
+    int* value1 = reinterpret_cast<int*>(malloc(sizeof(int)));
     *value1 = 0;
     outputPointers.push_back(value1);
   }

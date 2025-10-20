@@ -23,22 +23,30 @@ std::string Error::what() const {
 
 std::string SystemError::what() const {
   std::ostringstream ss;
-  ss << syscall_ << ": " << strerror(error_);
+  ss << syscall_ << ": " << strerror(error_) << ", remote=" << remote_.str();
   return ss.str();
 }
 
 std::string ShortReadError::what() const {
   std::ostringstream ss;
   ss << "short read: got " << actual_ << " bytes while expecting to read "
-     << expected_ << " bytes";
+     << expected_ << " bytes, remote=" << remote_.str();
   return ss.str();
 }
 
 std::string ShortWriteError::what() const {
   std::ostringstream ss;
   ss << "short write: wrote " << actual_ << " bytes while expecting to write "
-     << expected_ << " bytes";
+     << expected_ << " bytes, remote=" << remote_.str();
   return ss.str();
+}
+
+std::string TimeoutError::what() const {
+  return msg_;
+}
+
+std::string LoopError::what() const {
+  return msg_;
 }
 
 } // namespace tcp

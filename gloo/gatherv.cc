@@ -47,9 +47,8 @@ void GathervOptions::setOutput(
     std::unique_ptr<transport::UnboundBuffer> buf,
     std::vector<size_t> elementsPerRank_2,
     size_t elementSize_2) {
-  const auto totalElements =
-      std::accumulate(
-          elementsPerRank_2.begin(), elementsPerRank_2.end(), size_t(0));
+  const auto totalElements = std::accumulate(
+      elementsPerRank_2.begin(), elementsPerRank_2.end(), size_t(0));
   this->setElementSize(elementSize_2);
   GLOO_ENFORCE_EQ(elementsPerRank_2.size(), context->size);
   this->elementsPerRank = std::move(elementsPerRank_2);
@@ -61,9 +60,8 @@ void GathervOptions::setOutput(
     void* ptr,
     std::vector<size_t> elementsPerRank_2,
     size_t elementSize_2) {
-  const auto totalElements =
-      std::accumulate(
-          elementsPerRank_2.begin(), elementsPerRank_2.end(), size_t(0));
+  const auto totalElements = std::accumulate(
+      elementsPerRank_2.begin(), elementsPerRank_2.end(), size_t(0));
   this->setElementSize(elementSize_2);
   GLOO_ENFORCE_EQ(elementsPerRank_2.size(), context->size);
   this->elementsPerRank = std::move(elementsPerRank_2);
@@ -91,10 +89,7 @@ void gatherv(GathervOptions& opts) {
         // Local memory copy
         GLOO_ENFORCE_EQ(copyLength, in->size);
         if (copyLength > 0) {
-          memcpy(
-              static_cast<char*>(out->ptr) + offset,
-              in->ptr,
-              in->size);
+          memcpy(static_cast<char*>(out->ptr) + offset, in->ptr, in->size);
         }
       }
       offset += copyLength;

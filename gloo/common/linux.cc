@@ -43,15 +43,15 @@ const std::set<std::string>& kernelModules() {
   static std::once_flag once;
   static std::set<std::string> modules;
 
-  std::call_once(once, [](){
-      std::ifstream ifs("/proc/modules");
-      std::string line;
-      while (std::getline(ifs, line)) {
-        auto sep = line.find(' ');
-        GLOO_ENFORCE_NE(sep, std::string::npos);
-        modules.insert(line.substr(0, sep));
-      }
-    });
+  std::call_once(once, []() {
+    std::ifstream ifs("/proc/modules");
+    std::string line;
+    while (std::getline(ifs, line)) {
+      auto sep = line.find(' ');
+      GLOO_ENFORCE_NE(sep, std::string::npos);
+      modules.insert(line.substr(0, sep));
+    }
+  });
 
   return modules;
 }
@@ -113,7 +113,7 @@ static std::string pciPath(const std::string& id) {
   return std::string(buf.data(), rv);
 }
 
-template<typename Out>
+template <typename Out>
 void split(const std::string& s, char delim, Out result) {
   std::stringstream ss;
   ss.str(s);
@@ -155,15 +155,15 @@ const std::string& interfaceToBusID(const std::string& name) {
   static std::map<std::string, std::string> map;
   static std::string default_busid;
 
-  std::call_once(once, [](){
-      for (const auto& device : pciDevices(kPCIClassNetwork)) {
-        // Register interfaces for this devices
-        const auto path = kSysfsPath + device + "/net";
-        for (const auto& interface : listDir(path)) {
-          map[interface] = device;
-        }
+  std::call_once(once, []() {
+    for (const auto& device : pciDevices(kPCIClassNetwork)) {
+      // Register interfaces for this devices
+      const auto path = kSysfsPath + device + "/net";
+      for (const auto& interface : listDir(path)) {
+        map[interface] = device;
       }
-    });
+    }
+  });
 
   auto it = map.find(name);
   if (it != map.end()) {
@@ -176,21 +176,21 @@ const std::string& infinibandToBusID(const std::string& name) {
   static std::once_flag once;
   static std::map<std::string, std::string> map;
 
-  std::call_once(once, [](){
-      for (const auto& device : pciDevices(kPCIClassNetwork)) {
-        // Register interfaces for this devices
-        const auto path = kSysfsPath + device + "/infiniband";
-        for (const auto& interface : listDir(path)) {
-          map[interface] = device;
-        }
+  std::call_once(once, []() {
+    for (const auto& device : pciDevices(kPCIClassNetwork)) {
+      // Register interfaces for this devices
+      const auto path = kSysfsPath + device + "/infiniband";
+      for (const auto& interface : listDir(path)) {
+        map[interface] = device;
       }
-    });
+    }
+  });
 
   return map[name];
 }
 
 static int getInterfaceSpeedGLinkSettings(int sock, struct ifreq* ifr) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,6,0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
   constexpr auto link_mode_data_nwords = 3 * 127;
   union {
     struct ethtool_link_settings req;

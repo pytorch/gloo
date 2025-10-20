@@ -34,15 +34,17 @@ class CudaBroadcastOneToAll : public Algorithm {
   // Both workspace types have their own initialization function.
   template <typename U = W>
   void init(
-      typename std::enable_if<std::is_same<U, CudaHostWorkspace<T> >::value,
-                              typename U::Pointer>::type* = 0);
+      typename std::enable_if<
+          std::is_same<U, CudaHostWorkspace<T>>::value,
+          typename U::Pointer>::type* = nullptr);
 
   template <typename U = W>
   void init(
-      typename std::enable_if<std::is_same<U, CudaDeviceWorkspace<T> >::value,
-                              typename U::Pointer>::type* = 0);
+      typename std::enable_if<
+          std::is_same<U, CudaDeviceWorkspace<T>>::value,
+          typename U::Pointer>::type* = nullptr);
 
-  std::vector<CudaDevicePointer<T> > devicePtrs_;
+  std::vector<CudaDevicePointer<T>> devicePtrs_;
   std::vector<CudaStream> streams_;
   typename W::Pointer scratch_;
   const int count_;
@@ -70,7 +72,7 @@ class CudaBroadcastOneToAll : public Algorithm {
   std::unique_ptr<forReceiver> receiver_;
 
   // For local broadcast
-  std::unique_ptr<LocalOp<T> > localBroadcastOp_;
+  std::unique_ptr<LocalOp<T>> localBroadcastOp_;
 };
 
 } // namespace gloo

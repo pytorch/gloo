@@ -8,9 +8,9 @@
 
 #include "runner.h"
 
+#include <cstdio>
 #include <iomanip>
 #include <iostream>
-#include <cstdio>
 
 #include "gloo/barrier_all_to_one.h"
 #include "gloo/broadcast_one_to_all.h"
@@ -80,15 +80,21 @@ Runner::Runner(const options& options) : options_(options) {
   if (options_.transport == "tls") {
     if (options_.tcpDevice.empty()) {
       transport::tcp::attr attr;
-      transportDevices_.push_back(
-          transport::tcp::tls::CreateDevice(attr, options_.pkey, options_.cert,
-                                            options_.caFile, options_.caPath));
+      transportDevices_.push_back(transport::tcp::tls::CreateDevice(
+          attr,
+          options_.pkey,
+          options_.cert,
+          options_.caFile,
+          options_.caPath));
     } else {
-      for (const auto &name : options_.tcpDevice) {
+      for (const auto& name : options_.tcpDevice) {
         transport::tcp::attr attr;
         attr.iface = name;
         transportDevices_.push_back(transport::tcp::tls::CreateDevice(
-            attr, options_.pkey, options_.cert, options_.caFile,
+            attr,
+            options_.pkey,
+            options_.cert,
+            options_.caFile,
             options_.caPath));
       }
     }
@@ -114,9 +120,7 @@ Runner::Runner(const options& options) : options_(options) {
 #endif
 
   GLOO_ENFORCE(
-      !transportDevices_.empty(),
-      "Unknown transport: ",
-      options_.transport);
+      !transportDevices_.empty(), "Unknown transport: ", options_.transport);
 
   // Spawn threads that run the actual benchmark loop
   for (auto i = 0; i < options_.threads; i++) {
@@ -143,7 +147,7 @@ Runner::Runner(const options& options) : options_(options) {
 
   // Create broadcast algorithm to synchronize between participants
   broadcast_.reset(
-    new BroadcastOneToAll<long>(newContext(), {&broadcastValue_}, 1));
+      new BroadcastOneToAll<long>(newContext(), {&broadcastValue_}, 1));
 
   // Create barrier for run-to-run synchronization
   barrier_.reset(new BarrierAllToOne(newContext()));
@@ -155,7 +159,8 @@ Runner::~Runner() {
   for (auto path : keyFilePaths_) {
     if (remove(path.c_str()) != 0) {
       std::cout << "Failed to delete rendezvous file at " << path;
-      std::cout << " please delete manually before running the benchmark again.";
+      std::cout
+          << " please delete manually before running the benchmark again.";
       std::cout << std::endl;
     }
   }
@@ -182,13 +187,15 @@ void Runner::rendezvousRedis() {
     return;
   }
 
-  rendezvous::RedisStore redisStore(options_.redisHost, options_.redisPort);
-  rendezvous::PrefixStore prefixStore(options_.prefix, redisStore);
+  auto redisStore = std::make_shared<rendezvous::RedisStore>(
+      options_.redisHost, options_.redisPort);
+  auto prefixStore =
+      std::make_shared<rendezvous::PrefixStore>(options_.prefix, redisStore);
   auto backingContext = std::make_shared<rendezvous::Context>(
       options_.contextRank, options_.contextSize);
   backingContext->connectFullMesh(prefixStore, transportDevices_.front());
-  contextFactory_ = std::make_shared<rendezvous::ContextFactory>(
-      backingContext);
+  contextFactory_ =
+      std::make_shared<rendezvous::ContextFactory>(backingContext);
 }
 #endif
 
@@ -205,8 +212,8 @@ void Runner::rendezvousMPI() {
   MPI_Comm_size(MPI_COMM_WORLD, &options_.contextSize);
   auto backingContext = std::make_shared<::gloo::mpi::Context>(MPI_COMM_WORLD);
   backingContext->connectFullMesh(transportDevices_.front());
-  contextFactory_ = std::make_shared<rendezvous::ContextFactory>(
-      backingContext);
+  contextFactory_ =
+      std::make_shared<rendezvous::ContextFactory>(backingContext);
 }
 #endif
 
@@ -216,16 +223,17 @@ void Runner::rendezvousFileSystem() {
     return;
   }
 
-  rendezvous::FileStore fileStore(options_.sharedPath);
-  rendezvous::PrefixStore prefixStore(options_.prefix, fileStore);
+  auto fileStore = std::make_shared<rendezvous::FileStore>(options_.sharedPath);
+  auto prefixStore =
+      std::make_shared<rendezvous::PrefixStore>(options_.prefix, fileStore);
   auto backingContext = std::make_shared<rendezvous::Context>(
-    options_.contextRank, options_.contextSize);
+      options_.contextRank, options_.contextSize);
   backingContext->connectFullMesh(prefixStore, transportDevices_.front());
   // After connectFullMesh is called, the rendezvous files will have been
   // generated so we need to fetch them from the FileStore
-  keyFilePaths_ = fileStore.getAllKeyFilePaths();
-  contextFactory_ = std::make_shared<rendezvous::ContextFactory>(
-    backingContext);
+  keyFilePaths_ = fileStore->getAllKeyFilePaths();
+  contextFactory_ =
+      std::make_shared<rendezvous::ContextFactory>(backingContext);
 }
 
 long Runner::broadcast(long value) {
@@ -301,7 +309,8 @@ void Runner::run(BenchmarkFn<T>& fn, size_t n) {
   }
 
   // Create and run warmup jobs for every thread
-  Samples warmupResults = createAndRun(benchmarks, options_.warmupIterationCount);
+  Samples warmupResults =
+      createAndRun(benchmarks, options_.warmupIterationCount);
 
   // Iterations is the number of samples we will get.
   // If none specified, it will calculate an initial
@@ -310,8 +319,7 @@ void Runner::run(BenchmarkFn<T>& fn, size_t n) {
   auto iterations = options_.iterationCount;
   if (iterations <= 0) {
     GLOO_ENFORCE_GT(
-      options_.minIterationTimeNanos, 0,
-      "Iteration time must be positive");
+        options_.minIterationTimeNanos, 0, "Iteration time must be positive");
     // Sort warmup iteration times
     Distribution warmup(warmupResults);
     // Broadcast duration of median iteration during warmup,
@@ -359,8 +367,8 @@ void Runner::run(BenchmarkFn<T>& fn, size_t n) {
 
 template <typename T>
 Samples Runner::createAndRun(
-  std::vector<std::unique_ptr<Benchmark<T>>> &benchmarks,
-  int niters) {
+    std::vector<std::unique_ptr<Benchmark<T>>>& benchmarks,
+    int niters) {
   // Create jobs for every thread
   std::vector<std::unique_ptr<RunnerJob>> jobs;
   for (auto i = 0; i < options_.threads; i++) {
@@ -398,13 +406,14 @@ void Runner::printHeader() {
   }
   std::string line = std::string(kTotalWidth + 2, '=');
 
-  // ================================= ALGORITHM =================================
+  // ================================= ALGORITHM
+  // =================================
   std::cout << line << std::endl;
   std::string algo = options_.benchmark;
   // Add offset to header width to center text
   int algoOffset = algo.length() / 2;
   // Print out algorithm name in upper case
-  for (auto &c : algo) {
+  for (auto& c : algo) {
     c = std::toupper(c);
   }
   std::cout << std::right << std::setw(kHeaderWidth + algoOffset) << algo;
@@ -439,7 +448,8 @@ void Runner::printHeader() {
   std::cout << ", verify=" << options_.verify;
   std::cout << std::endl << std::endl;
 
-  // =============================== BENCHMARK RESULTS ===============================
+  // =============================== BENCHMARK RESULTS
+  // ===============================
   std::cout << line << std::endl;
   // Section title
   std::string benchmarkTitle = "BENCHMARK RESULTS";
@@ -471,7 +481,6 @@ void Runner::printDistribution(
     size_t elements,
     size_t elementSize,
     const Distribution& latency) {
-
   // Only output results for one rank
   if (options_.contextRank != 0) {
     return;

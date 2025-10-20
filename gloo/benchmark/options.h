@@ -54,7 +54,7 @@ struct options {
   int inputs = 1;
   bool gpuDirect = false;
   bool halfPrecision = false;
-  int destinations  = 1;
+  int destinations = 1;
   int threads = 1;
   int base = 2;
   int messages = 10000;

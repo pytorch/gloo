@@ -8,7 +8,6 @@
 
 #include <functional>
 #include <thread>
-#include <vector>
 
 #include "gloo/test/base_test.h"
 

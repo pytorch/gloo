@@ -178,6 +178,14 @@ Address Socket::peerName() const {
   return Address::fromPeerName(fd_);
 }
 
+Address Socket::safePeerName() const {
+  try {
+    return Address::fromPeerName(fd_);
+  } catch (const EnforceNotMet&) {
+    return Address();
+  }
+}
+
 } // namespace tcp
 } // namespace transport
 } // namespace gloo

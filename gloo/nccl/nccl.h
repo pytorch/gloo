@@ -35,9 +35,10 @@ namespace nccl {
   } while (0)
 
 #define NCCL_VERSION_MIN(major, minor, patch) \
-  ((NCCL_MAJOR > major) || \
-    ((NCCL_MAJOR == major) && ((NCCL_MINOR > minor) || \
-      ((NCCL_MINOR == minor) && (NCCL_PATCH >= patch)) )))
+  ((NCCL_MAJOR > major) ||                    \
+   ((NCCL_MAJOR == major) &&                  \
+    ((NCCL_MINOR > minor) ||                  \
+     ((NCCL_MINOR == minor) && (NCCL_PATCH >= patch)))))
 
 template <typename T>
 struct NCCLElement {
@@ -127,15 +128,15 @@ template <typename T>
 class ReduceOp : public NCCLOp<T> {
  public:
   ReduceOp(
-    NCCLExecution<T>&& execution,
-    const CudaReductionFunction<T>* fn,
-    const int root)
+      NCCLExecution<T>&& execution,
+      const CudaReductionFunction<T>* fn,
+      const int root)
       : NCCLOp<T>(std::move(execution)), op_(toReductionOp(fn)), root_(root) {
     for (const auto& element : execution.elements) {
       GLOO_ENFORCE_EQ(
-        element.src.getCount(),
-        element.dst.getCount(),
-        "NCCL source and destination must be the same size");
+          element.src.getCount(),
+          element.dst.getCount(),
+          "NCCL source and destination must be the same size");
     }
   }
 
@@ -149,15 +150,13 @@ class ReduceOp : public NCCLOp<T> {
 template <typename T>
 class AllreduceOp : public NCCLOp<T> {
  public:
-  AllreduceOp(
-    NCCLExecution<T>&& execution,
-    const CudaReductionFunction<T>* fn)
+  AllreduceOp(NCCLExecution<T>&& execution, const CudaReductionFunction<T>* fn)
       : NCCLOp<T>(std::move(execution)), op_(toReductionOp(fn)) {
     for (const auto& element : execution.elements) {
       GLOO_ENFORCE_EQ(
-        element.src.getCount(),
-        element.dst.getCount(),
-        "NCCL source and destination must be the same size");
+          element.src.getCount(),
+          element.dst.getCount(),
+          "NCCL source and destination must be the same size");
     }
   }
 
@@ -171,16 +170,16 @@ template <typename T>
 class ReduceScatterOp : public NCCLOp<T> {
  public:
   ReduceScatterOp(
-    NCCLExecution<T>&& execution,
-    const CudaReductionFunction<T>* fn)
+      NCCLExecution<T>&& execution,
+      const CudaReductionFunction<T>* fn)
       : NCCLOp<T>(std::move(execution)), op_(toReductionOp(fn)) {
     for (const auto& element : execution.elements) {
       GLOO_ENFORCE_EQ(
-        element.src.getCount() / execution.elements.size(),
-        element.dst.getCount(),
-        "NCCL source must be ",
-        execution.elements.size(),
-        " times as big as the destination");
+          element.src.getCount() / execution.elements.size(),
+          element.dst.getCount(),
+          "NCCL source must be ",
+          execution.elements.size(),
+          " times as big as the destination");
     }
   }
 
@@ -197,9 +196,9 @@ class BroadcastOp : public NCCLOp<T> {
       : NCCLOp<T>(std::move(execution)), root_(root) {
     for (const auto& element : execution.elements) {
       GLOO_ENFORCE_EQ(
-        element.src.getCount(),
-        element.dst.getCount(),
-        "NCCL source and destination must be the same size");
+          element.src.getCount(),
+          element.dst.getCount(),
+          "NCCL source and destination must be the same size");
     }
   }
 
@@ -216,11 +215,11 @@ class AllgatherOp : public NCCLOp<T> {
       : NCCLOp<T>(std::move(execution)) {
     for (const auto& element : execution.elements) {
       GLOO_ENFORCE_EQ(
-        element.src.getCount(),
-        element.dst.getCount() / execution.elements.size(),
-        "NCCL destination must be ",
-        execution.elements.size(),
-        " times as big as the source");
+          element.src.getCount(),
+          element.dst.getCount() / execution.elements.size(),
+          "NCCL destination must be ",
+          execution.elements.size(),
+          " times as big as the source");
     }
   }
 

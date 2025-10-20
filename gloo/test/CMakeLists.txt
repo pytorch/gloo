@@ -1,4 +1,4 @@
-find_package(OpenSSL 1.1 REQUIRED EXACT)
+find_package(OpenSSL 1.1.1 EXACT)
 
 set(GLOO_TEST_SRCS
   "${CMAKE_CURRENT_SOURCE_DIR}/allgather_test.cc"
@@ -13,10 +13,9 @@ set(GLOO_TEST_SRCS
   "${CMAKE_CURRENT_SOURCE_DIR}/gatherv_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/main.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/memory_test.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/openssl_utils.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/reduce_test.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/remote_key_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/send_recv_test.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/tls_tcp_test.cc"
   )
 set(GLOO_TEST_LIBRARIES)
 
@@ -25,12 +24,21 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     "${CMAKE_CURRENT_SOURCE_DIR}/linux_test.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/multiproc_test.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/transport_test.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/tcp_test.cc"
     )
   list(APPEND GLOO_TEST_LIBRARIES rt)
 endif()
 
+if(${OpenSSL_FOUND})
+  list(APPEND GLOO_TEST_SRCS
+  "${CMAKE_CURRENT_SOURCE_DIR}/openssl_utils.cc"
+  )
+  list(APPEND GLOO_TEST_LIBRARIES OpenSSL::SSL OpenSSL::Crypto)
+endif()
+
+
 add_executable(gloo_test ${GLOO_TEST_SRCS})
-target_link_libraries(gloo_test gloo gtest ${GLOO_TEST_LIBRARIES} OpenSSL::SSL OpenSSL::Crypto)
+target_link_libraries(gloo_test gloo gtest ${GLOO_TEST_LIBRARIES})
 
 if(MSVC AND USE_LIBUV)
   add_custom_command(TARGET gloo_test POST_BUILD

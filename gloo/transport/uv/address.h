@@ -9,7 +9,7 @@
 #pragma once
 
 #ifdef _WIN32
-#include "gloo/common/win.h"
+#include "gloo/common/win.h" // @manual
 #else
 #include <sys/socket.h>
 #endif

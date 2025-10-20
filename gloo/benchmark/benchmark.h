@@ -15,9 +15,9 @@
 
 #include "gloo/algorithm.h"
 #include "gloo/benchmark/options.h"
-#include "gloo/context.h"
 #include "gloo/common/aligned_allocator.h"
 #include "gloo/common/common.h"
+#include "gloo/context.h"
 
 namespace gloo {
 namespace benchmark {
@@ -25,11 +25,8 @@ namespace benchmark {
 template <typename T>
 class Benchmark {
  public:
-  Benchmark(
-    std::shared_ptr<::gloo::Context>& context,
-    struct options& options)
-      : context_(context),
-        options_(options) {}
+  Benchmark(std::shared_ptr<::gloo::Context>& context, struct options& options)
+      : context_(context), options_(options) {}
 
   virtual ~Benchmark() {}
 
@@ -39,8 +36,8 @@ class Benchmark {
     algorithm_->run();
   }
 
-  virtual void verify() {}  // Leaving this for cuda_main for now
-  virtual void verify(std::vector<std::string> &errors) {
+  virtual void verify() {} // Leaving this for cuda_main for now
+  virtual void verify(std::vector<std::string>& errors) {
     // To temporarily silence clang warning
     // TO-DO: implement missing verify functions so we can
     //        change this to a pure virtual function (T85537432)
@@ -50,6 +47,7 @@ class Benchmark {
   const options& getOptions() const {
     return options_;
   }
+
  protected:
   virtual std::vector<T*> allocate(int inputs, size_t elements) {
     std::vector<T*> ptrs;
@@ -85,8 +83,7 @@ class Benchmark {
   std::shared_ptr<::gloo::Context> context_;
   struct options options_;
   std::unique_ptr<::gloo::Algorithm> algorithm_;
-  std::vector<std::vector<T, aligned_allocator<T, kBufferAlignment>>>
-      inputs_;
+  std::vector<std::vector<T, aligned_allocator<T, kBufferAlignment>>> inputs_;
 };
 
 } // namespace benchmark

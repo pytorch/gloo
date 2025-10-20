@@ -30,7 +30,7 @@ class Context : public ::gloo::Context {
   virtual ~Context();
 
   void connectFullMesh(
-      Store& store,
+      std::shared_ptr<Store> store,
       std::shared_ptr<transport::Device>& dev);
 
  protected:
@@ -45,7 +45,7 @@ class ContextFactory {
   explicit ContextFactory(std::shared_ptr<::gloo::Context> backingContext);
 
   std::shared_ptr<::gloo::Context> makeContext(
-    std::shared_ptr<transport::Device>& dev);
+      std::shared_ptr<transport::Device>& dev);
 
  protected:
   std::shared_ptr<::gloo::Context> backingContext_;
@@ -62,7 +62,6 @@ class ContextFactory {
   std::vector<int> sendNotificationData_;
   std::vector<std::unique_ptr<transport::Buffer>> sendNotificationBuffers_;
 };
-
 
 } // namespace rendezvous
 

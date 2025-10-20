@@ -27,9 +27,9 @@
 
 #ifdef TSAN_ENABLED
 #define TSAN_ANNOTATE_HAPPENS_BEFORE(addr) \
-    AnnotateHappensBefore(__FILE__, __LINE__, (void*)(addr))
+  AnnotateHappensBefore(__FILE__, __LINE__, (void*)(addr))
 #define TSAN_ANNOTATE_HAPPENS_AFTER(addr) \
-    AnnotateHappensAfter(__FILE__, __LINE__, (void*)(addr))
+  AnnotateHappensAfter(__FILE__, __LINE__, (void*)(addr))
 extern "C" void AnnotateHappensBefore(const char* f, int l, void* addr);
 extern "C" void AnnotateHappensAfter(const char* f, int l, void* addr);
 #else
@@ -73,7 +73,7 @@ void Deferrables::defer(function_t fn) {
   }
 }
 
-void Deferrables::handleEvents(int /* unused */) {
+void Deferrables::handleEvents(Loop&, int /* events */) {
   decltype(functions_) localFunctions;
 
   {
@@ -106,17 +106,50 @@ Loop::Loop() {
   registerDescriptor(deferrables_.rfd_, EPOLLIN, &deferrables_);
 }
 
-Loop::~Loop() {
-  if (loop_) {
-    done_ = true;
-    loop_->join();
+void Loop::shutdown() {
+  if (done_) {
+    return;
   }
+
+  {
+    std::lock_guard<std::mutex> guard(m_);
+    done_ = true;
+  }
+  loop_->join();
   if (fd_ >= 0) {
     close(fd_);
   }
+
+  std::lock_guard<std::mutex> guard(m_);
+  handlers_.clear();
+}
+
+Loop::~Loop() {
+  shutdown();
+}
+
+void Loop::registerDescriptor(int fd, int events, std::shared_ptr<Handler> h) {
+  std::lock_guard<std::mutex> guard(m_);
+  registerDescriptorLocked(guard, fd, events, h.get());
+
+  handlers_.emplace(fd, std::move(h));
 }
 
 void Loop::registerDescriptor(int fd, int events, Handler* h) {
+  std::lock_guard<std::mutex> guard(m_);
+
+  registerDescriptorLocked(guard, fd, events, h);
+}
+
+void Loop::registerDescriptorLocked(
+    std::lock_guard<std::mutex>&,
+    int fd,
+    int events,
+    Handler* h) {
+  if (done_) {
+    return;
+  }
+
   struct epoll_event ev;
   ev.events = events;
   ev.data.ptr = h;
@@ -126,19 +159,27 @@ void Loop::registerDescriptor(int fd, int events, Handler* h) {
     rv = epoll_ctl(fd_, EPOLL_CTL_MOD, fd, &ev);
   }
   GLOO_ENFORCE_NE(rv, -1, "epoll_ctl: ", strerror(errno));
+
+  handlers_.erase(fd);
 }
 
 void Loop::unregisterDescriptor(int fd, Handler* h) {
+  std::unique_lock<std::mutex> lock(m_);
+  if (done_) {
+    return;
+  }
+
   auto rv = epoll_ctl(fd_, EPOLL_CTL_DEL, fd, nullptr);
   GLOO_ENFORCE_NE(rv, -1, "epoll_ctl: ", strerror(errno));
 
   // Wait for loop to tick before returning, to make sure the handler
   // for this fd is not called once this function returns.
   if (std::this_thread::get_id() != loop_->get_id()) {
-    std::unique_lock<std::mutex> lock(m_);
     cv_.wait(lock);
     TSAN_ANNOTATE_HAPPENS_AFTER(h);
   }
+
+  handlers_.erase(fd);
 }
 
 void Loop::defer(std::function<void()> fn) {
@@ -149,12 +190,16 @@ void Loop::run() {
   std::array<struct epoll_event, capacity_> events;
   int nfds;
 
-  while (!done_) {
+  while (true) {
     // Wakeup everyone waiting for a loop tick to finish.
     cv_.notify_all();
 
-    // Wait for something to happen
+    // Wait for something to happen, timeout 10ms
     nfds = epoll_wait(fd_, events.data(), events.size(), 10);
+    if (done_ && nfds <= 0) {
+      // break only on timeout to allow for pending work to flush
+      break;
+    }
     if (nfds == 0) {
       continue;
     }
@@ -166,7 +211,7 @@ void Loop::run() {
 
     for (int i = 0; i < nfds; i++) {
       Handler* h = reinterpret_cast<Handler*>(events[i].data.ptr);
-      h->handleEvents(events[i].events);
+      h->handleEvents(*this, events[i].events);
       TSAN_ANNOTATE_HAPPENS_BEFORE(h);
     }
   }

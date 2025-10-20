@@ -54,10 +54,9 @@ class CudaBenchmark : public Benchmark<T> {
       CudaDeviceScope scope(device);
       allocations_.push_back(CudaMemory<T>(elements));
       streams_.push_back(CudaStream(device));
-      hostPtrs_.push_back(
-        CudaHostPointer<T>::create(rawHostPtrs[i], elements));
+      hostPtrs_.push_back(CudaHostPointer<T>::create(rawHostPtrs[i], elements));
       devicePtrs_.push_back(
-        CudaDevicePointer<T>::create(*allocations_[i], elements));
+          CudaDevicePointer<T>::create(*allocations_[i], elements));
     }
 
     // Copy initialized inputs to device
@@ -97,15 +96,14 @@ template <typename T, typename Algorithm>
 class CudaAllreduceBenchmark : public CudaBenchmark<T> {
  public:
   CudaAllreduceBenchmark(
-    std::shared_ptr<::gloo::Context>& context,
-    struct options& options)
-      : CudaBenchmark<T>(context, options) {
-  }
+      std::shared_ptr<::gloo::Context>& context,
+      struct options& options)
+      : CudaBenchmark<T>(context, options) {}
 
   void initialize(size_t elements) override {
     auto ptrs = this->allocate(this->options_.inputs, elements);
-    this->algorithm_ = gloo::make_unique<Algorithm>(
-      this->context_, ptrs, elements);
+    this->algorithm_ =
+        gloo::make_unique<Algorithm>(this->context_, ptrs, elements);
   }
 
   void verify() override {
@@ -131,18 +129,18 @@ class CudaAllreduceBenchmark : public CudaBenchmark<T> {
 template <typename T, typename Algorithm>
 class CudaBroadcastBenchmark : public CudaBenchmark<T> {
   using CudaBenchmark<T>::CudaBenchmark;
+
  public:
-   CudaBroadcastBenchmark(
-     std::shared_ptr<::gloo::Context>& context,
-     struct options& options)
-       : CudaBenchmark<T>(context, options) {
-   }
+  CudaBroadcastBenchmark(
+      std::shared_ptr<::gloo::Context>& context,
+      struct options& options)
+      : CudaBenchmark<T>(context, options) {}
 
  public:
   void initialize(size_t elements) override {
     auto ptrs = this->allocate(this->options_.inputs, elements);
     this->algorithm_ = gloo::make_unique<Algorithm>(
-      this->context_, ptrs, elements, rootRank_, rootPointerRank_);
+        this->context_, ptrs, elements, rootRank_, rootPointerRank_);
   }
 
   void verify() override {
@@ -168,8 +166,8 @@ class CudaBroadcastBenchmark : public CudaBenchmark<T> {
 
 template <class TC>
 bool beginsWith(const TC& input, const TC& match) {
-  return input.size() >= match.size()
-    && equal(match.begin(), match.end(), input.begin());
+  return input.size() >= match.size() &&
+      equal(match.begin(), match.end(), input.begin());
 }
 
 template <typename T>
@@ -179,31 +177,31 @@ void runBenchmark(options& x) {
   if (x.benchmark == "cuda_broadcast_one_to_all") {
     fn = [&x](std::shared_ptr<Context>& context) {
       return std::unique_ptr<Benchmark<T>>(
-        new CudaBroadcastBenchmark<T, CudaBroadcastOneToAll<T>>(context, x));
+          new CudaBroadcastBenchmark<T, CudaBroadcastOneToAll<T>>(context, x));
     };
   } else if (x.benchmark == "cuda_allreduce_halving_doubling") {
     fn = [&x](std::shared_ptr<Context>& context) {
       return std::unique_ptr<Benchmark<T>>(
-        new CudaAllreduceBenchmark<
-          T,
-          CudaAllreduceHalvingDoubling<T>>(context, x));
+          new CudaAllreduceBenchmark<T, CudaAllreduceHalvingDoubling<T>>(
+              context, x));
     };
   } else if (x.benchmark == "cuda_allreduce_halving_doubling_pipelined") {
     fn = [&x](std::shared_ptr<Context>& context) {
       return std::unique_ptr<Benchmark<T>>(
-        new CudaAllreduceBenchmark<
-          T,
-          CudaAllreduceHalvingDoublingPipelined<T>>(context, x));
+          new CudaAllreduceBenchmark<
+              T,
+              CudaAllreduceHalvingDoublingPipelined<T>>(context, x));
     };
   } else if (x.benchmark == "cuda_allreduce_bcube") {
     fn = [&x](std::shared_ptr<Context>& context) {
       return std::unique_ptr<Benchmark<T>>(
-        new CudaAllreduceBenchmark<T, CudaAllreduceBcube<T>>(context, x));
+          new CudaAllreduceBenchmark<T, CudaAllreduceBcube<T>>(context, x));
     };
   } else if (x.benchmark == "cuda_allreduce_ring_chunked") {
     fn = [&x](std::shared_ptr<Context>& context) {
       return std::unique_ptr<Benchmark<T>>(
-        new CudaAllreduceBenchmark<T, CudaAllreduceRingChunked<T>>(context, x));
+          new CudaAllreduceBenchmark<T, CudaAllreduceRingChunked<T>>(
+              context, x));
     };
   }
 

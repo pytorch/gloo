@@ -26,9 +26,9 @@
 namespace gloo {
 
 template <typename T, typename Dst>
-std::unique_ptr<LocalOp<T> > cudaDeviceReduce(
+std::unique_ptr<LocalOp<T>> cudaDeviceReduce(
     std::vector<CudaStream>& streams,
-    std::vector<CudaDevicePointer<T> >& devicePtrs,
+    std::vector<CudaDevicePointer<T>>& devicePtrs,
     Dst& targetPtr,
     const CudaReductionFunction<T>* fn,
     size_t offset,
@@ -37,28 +37,23 @@ std::unique_ptr<LocalOp<T> > cudaDeviceReduce(
 
   // Simple copy operation if there is only a single device pointer.
   if (devicePtrs.size() == 1) {
-    return make_unique<
-      CudaLocalMemcpy<T, CudaDevicePointer<T>, Dst> >(
-          streams[0],
-          devicePtrs[0],
-          targetPtr,
-          offset,
-          count);
+    return make_unique<CudaLocalMemcpy<T, CudaDevicePointer<T>, Dst>>(
+        streams[0], devicePtrs[0], targetPtr, offset, count);
   }
 
 #if GLOO_USE_NCCL
-  return make_unique<CudaLocalNCCLReduce<T, Dst> >(
+  return make_unique<CudaLocalNCCLReduce<T, Dst>>(
       streams, devicePtrs, targetPtr, fn, offset, count);
 #else
-  return make_unique<CudaLocalNativeReduce<T, Dst> >(
+  return make_unique<CudaLocalNativeReduce<T, Dst>>(
       streams, devicePtrs, targetPtr, fn, offset, count);
 #endif
 }
 
 template <typename T, typename Src>
-std::unique_ptr<LocalOp<T> > cudaDeviceBroadcast(
+std::unique_ptr<LocalOp<T>> cudaDeviceBroadcast(
     std::vector<CudaStream>& streams,
-    std::vector<CudaDevicePointer<T> >& devicePtrs,
+    std::vector<CudaDevicePointer<T>>& devicePtrs,
     Src& sourcePtr,
     size_t offset,
     size_t count) {
@@ -66,20 +61,15 @@ std::unique_ptr<LocalOp<T> > cudaDeviceBroadcast(
 
   // Simple copy operation if there is only a single device pointer.
   if (devicePtrs.size() == 1) {
-    return make_unique<
-      CudaLocalMemcpy<T, Src, CudaDevicePointer<T> > >(
-          streams[0],
-          sourcePtr,
-          devicePtrs[0],
-          offset,
-          count);
+    return make_unique<CudaLocalMemcpy<T, Src, CudaDevicePointer<T>>>(
+        streams[0], sourcePtr, devicePtrs[0], offset, count);
   }
 
 #if GLOO_USE_NCCL
-  return make_unique<CudaLocalNCCLBroadcast<T, Src> >(
+  return make_unique<CudaLocalNCCLBroadcast<T, Src>>(
       streams, devicePtrs, sourcePtr, offset, count);
 #else
-  return make_unique<CudaLocalNativeBroadcast<T, Src> >(
+  return make_unique<CudaLocalNativeBroadcast<T, Src>>(
       streams, devicePtrs, sourcePtr, offset, count);
 #endif
 }

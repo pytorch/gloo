@@ -52,9 +52,9 @@ class AllreduceRing : public Algorithm {
     // into. No need for a global barrier.
     auto notificationSlot = this->context_->nextSlot();
     sendNotificationBuf_ =
-      leftPair->createSendBuffer(notificationSlot, &dummy_, sizeof(dummy_));
+        leftPair->createSendBuffer(notificationSlot, &dummy_, sizeof(dummy_));
     recvNotificationBuf_ =
-      rightPair->createRecvBuffer(notificationSlot, &dummy_, sizeof(dummy_));
+        rightPair->createRecvBuffer(notificationSlot, &dummy_, sizeof(dummy_));
   }
 
   virtual ~AllreduceRing() {

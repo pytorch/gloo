@@ -76,6 +76,11 @@ TEST_F(GatherTest, TestTimeout) {
     opts.setInput(input.getPointer(), 1);
     opts.setOutput(output.getPointer(), context->size);
     opts.setRoot(0);
+
+    // Run one operation first so we're measuring the operation timeout not
+    // connection timeout.
+    gather(opts);
+
     opts.setTimeout(std::chrono::milliseconds(10));
     if (context->rank == 0) {
       try {

@@ -1,6 +1,28 @@
-# Gloo
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./media/gloo_100k_dark.svg">
+    <img width="55%" src="./media/gloo_100k_light.svg" alt="Gloo">
+  </picture>
+</p>
 
-[![Support Ukraine](https://img.shields.io/badge/Support-Ukraine-FFD500?style=flat&labelColor=005BBB)](https://opensource.fb.com/support-ukraine) [![CircleCI](https://circleci.com/gh/facebookincubator/gloo/tree/master.svg?style=svg)](https://circleci.com/gh/facebookincubator/gloo/tree/master)
+<h3 align="center">
+Collective communications library with various primitives for multi-machine training.
+</h3>
+
+<p align="center">
+  | <a href="https://github.com/facebookincubator/gloo/tree/main/docs"><b>Gloo Documentation</b></a>
+  | <a href="https://pytorch.org/docs/stable/distributed.html"><b>PyTorch Distributed Documentation</b></a>
+  | <a href="https://docs.google.com/presentation/d/1BX4o0ggV0-1MLwlLYcFkZHgNThyZX1-IJM3qbm0cmaA/edit?usp=sharing"><b>Introduction to Gloo Presentation</b></a>
+  |
+</p>
+<p align="center">
+  <a href="https://opensource.fb.com/support-ukraine"><img alt="Support Ukraine" src="https://img.shields.io/badge/Support-Ukraine-FFD500?style=flat&labelColor=005BBB"></a>
+  <a href="https://github.com/facebookincubator/gloo/actions/workflows/build-linux.yml"><img src="https://github.com/facebookincubator/gloo/actions/workflows/build-linux.yml/badge.svg" alt="CI-Linux"></a>
+
+</p>
+
+---
+
 
 Gloo is a collective communications library. It comes with a number of
 collective algorithms useful for machine learning applications. These

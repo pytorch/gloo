@@ -13,7 +13,6 @@
 #include <string.h>
 
 #include <algorithm>
-#include <array>
 
 #include "gloo/common/error.h"
 #include "gloo/common/linux.h"
@@ -24,6 +23,15 @@
 namespace gloo {
 namespace transport {
 namespace ibverbs {
+
+namespace {
+bool hasNvPeerMem() {
+  const auto& modules = kernelModules();
+  return modules.count("nv_peer_mem") > 0 ||
+      // Newer nvidia drivers use a different module name
+      modules.count("nvidia_peermem") > 0;
+}
+} // namespace
 
 // Scope guard for ibverbs device list.
 class IbvDevices {
@@ -72,21 +80,33 @@ std::shared_ptr<::gloo::transport::Device> CreateDevice(
   // Default to using the first device if not specified
   if (attr.name.empty()) {
     if (devices.size() == 0) {
-      GLOO_THROW_INVALID_OPERATION_EXCEPTION(
-        "No ibverbs devices present");
+      GLOO_THROW_INVALID_OPERATION_EXCEPTION("No ibverbs devices present");
     }
     std::vector<std::string> names;
     for (auto i = 0; i < devices.size(); i++) {
+      GLOO_DEBUG(
+          "found candidate device ",
+          devices[i]->name,
+          " dev=",
+          devices[i]->dev_name);
       names.push_back(devices[i]->name);
     }
     std::sort(names.begin(), names.end());
     attr.name = names[0];
   }
 
+  GLOO_INFO(
+      "Using ibverbs device=",
+      attr.name,
+      " port=",
+      attr.port,
+      " index=",
+      attr.index);
+
   // Look for specified device name
   ibv_context* context = nullptr;
   for (int i = 0; i < devices.size(); i++) {
-    if (attr.name == devices[i]->name) {
+    if (attr.name == devices[i]->name || attr.name == devices[i]->dev_name) {
       context = ibv_open_device(devices[i]);
       break;
     }
@@ -101,7 +121,7 @@ std::shared_ptr<::gloo::transport::Device> CreateDevice(
 Device::Device(const struct attr& attr, ibv_context* context)
     : attr_(attr),
       pciBusID_(infinibandToBusID(attr.name)),
-      hasNvPeerMem_(kernelModules().count("nv_peer_mem") > 0),
+      hasNvPeerMem_(hasNvPeerMem()),
       context_(context) {
   int rv;
 
@@ -134,13 +154,13 @@ Device::~Device() {
   loop_->join();
 
   rv = ibv_destroy_comp_channel(comp_channel_);
-  GLOO_ENFORCE_EQ(rv, 0);
+  GLOO_ENFORCE_EQ(rv, 0, strerror(errno));
 
   rv = ibv_dealloc_pd(pd_);
-  GLOO_ENFORCE_EQ(rv, 0);
+  GLOO_ENFORCE_EQ(rv, 0, strerror(errno));
 
   rv = ibv_close_device(context_);
-  GLOO_ENFORCE_EQ(rv, 0);
+  GLOO_ENFORCE_EQ(rv, 0, strerror(errno));
 }
 
 std::string Device::str() const {
@@ -167,8 +187,7 @@ bool Device::hasGPUDirect() const {
   return hasNvPeerMem_;
 }
 
-std::shared_ptr<transport::Context> Device::createContext(
-    int rank, int size) {
+std::shared_ptr<transport::Context> Device::createContext(int rank, int size) {
   return std::shared_ptr<transport::Context>(
       new ibverbs::Context(shared_from_this(), rank, size));
 }
@@ -202,10 +221,15 @@ void Device::loop() {
     rv = ibv_get_cq_event(comp_channel_, &cq, &cqContext);
     GLOO_ENFORCE_EQ(rv, 0, "ibv_get_cq_event");
 
-    // Completion queue context is a Pair*.
-    // Delegate handling of this event to the pair itself.
-    Pair* pair = static_cast<Pair*>(cqContext);
-    pair->handleCompletionEvent();
+    try {
+      // Completion queue context is a Pair*.
+      // Delegate handling of this event to the pair itself.
+      Pair* pair = static_cast<Pair*>(cqContext);
+      pair->handleCompletionEvent();
+    } catch (const std::exception& ex) {
+      GLOO_ERROR("Exception while handling completion event: ", ex.what());
+      throw;
+    }
   }
 }
 } // namespace ibverbs

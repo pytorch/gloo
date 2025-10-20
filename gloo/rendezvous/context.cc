@@ -11,25 +11,24 @@
 #include <memory>
 
 #include "gloo/common/logging.h"
+#include "gloo/rendezvous/store.h"
 #include "gloo/transport/address.h"
 
 namespace gloo {
 namespace rendezvous {
 
 Context::Context(int rank, int size, int base)
-    : ::gloo::Context(rank, size, base) {
-}
+    : ::gloo::Context(rank, size, base) {}
 
-Context::~Context() {
-}
+Context::~Context() {}
 
 void Context::connectFullMesh(
-    rendezvous::Store& store,
+    std::shared_ptr<rendezvous::Store> store,
     std::shared_ptr<transport::Device>& dev) {
   auto transportContext = dev->createContext(rank, size);
   transportContext->setTimeout(getTimeout());
 
-  transportContext->createAndConnectAllPairs(store);
+  transportContext->createAndConnectAllPairs(std::move(store));
 
   device_ = dev;
   transportContext_ = std::move(transportContext);
@@ -44,9 +43,9 @@ ContextFactory::ContextFactory(std::shared_ptr<::gloo::Context> backingContext)
     }
     try {
       GLOO_ENFORCE(
-        backingContext_->getPair(i) != nullptr,
-        "Missing pair in backing context");
-    } catch(std::out_of_range&) {
+          backingContext_->getPair(i) != nullptr,
+          "Missing pair in backing context");
+    } catch (std::out_of_range&) {
       GLOO_THROW("Backing context not fully connected");
     }
   }
@@ -90,20 +89,19 @@ ContextFactory::ContextFactory(std::shared_ptr<::gloo::Context> backingContext)
       auto recvPtr = &recvNotificationData_[i];
       auto recvSize = sizeof(*recvPtr);
       recvNotificationBuffers_[i] =
-        pair->createRecvBuffer(notificationSlot, recvPtr, recvSize);
+          pair->createRecvBuffer(notificationSlot, recvPtr, recvSize);
       auto sendPtr = &sendNotificationData_[i];
       auto sendSize = sizeof(*sendPtr);
       sendNotificationBuffers_[i] =
-        pair->createSendBuffer(notificationSlot, sendPtr, sendSize);
+          pair->createSendBuffer(notificationSlot, sendPtr, sendSize);
     }
   }
 }
 
 std::shared_ptr<::gloo::Context> ContextFactory::makeContext(
     std::shared_ptr<transport::Device>& dev) {
-  auto context = std::make_shared<Context>(
-      backingContext_->rank,
-      backingContext_->size);
+  auto context =
+      std::make_shared<Context>(backingContext_->rank, backingContext_->size);
   context->setTimeout(backingContext_->getTimeout());
 
   // Assume it's the same for all pairs on a device

@@ -110,4 +110,4 @@ class AllgatherRing : public Algorithm {
   std::unique_ptr<transport::Buffer> recvNotificationBuf_;
 };
 
-}  // namespace gloo
+} // namespace gloo

@@ -98,7 +98,8 @@ CudaAllreduceBcube<T, W>::CudaAllreduceBcube(
           getNumElemsPerStep(destRank, step));
       auto& pair = this->context_->getPair(destRank);
       auto slot = slotOffset_ +
-          2 * (std::min(myRank_, destRank) * nodes_ +
+          2 *
+              (std::min(myRank_, destRank) * nodes_ +
                std::max(myRank_, destRank));
       sendDataBufs_[destRank] = pair->createSendBuffer(slot, *scratch_, bytes_);
       recvBufs_[bufIdx] = W::Pointer::alloc(recvSize);
@@ -267,9 +268,8 @@ void CudaAllreduceBcube<T, W>::printStepBuffer(
     int count,
     int start) {
   if (printCheck(myRank_)) {
-    std::cout << stage << ": step (" << step << ") "
-              << "srcRank (" << srcRank << ") -> "
-              << "destRank (" << destRank << "): ";
+    std::cout << stage << ": step (" << step << ") " << "srcRank (" << srcRank
+              << ") -> " << "destRank (" << destRank << "): ";
     printElems(p, count, start);
     std::cout << std::endl;
   }
@@ -513,5 +513,10 @@ INSTANTIATE_TEMPLATE(uint64_t);
 INSTANTIATE_TEMPLATE(float);
 INSTANTIATE_TEMPLATE(double);
 INSTANTIATE_TEMPLATE(float16);
+
+#if GLOO_USE_TORCH_DTYPES
+INSTANTIATE_TEMPLATE(c10::BFloat16);
+INSTANTIATE_TEMPLATE(c10::Half);
+#endif
 
 } // namespace gloo

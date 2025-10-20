@@ -14,13 +14,13 @@
 #include <iostream>
 #include <sstream>
 
-#include <uv.h>
+#include <uv.h> // @manual
 
 #include <gloo/common/error.h>
 #ifndef _WIN32
 #include <gloo/common/linux.h>
 #else
-#include <gloo/common/win.h>
+#include <gloo/common/win.h> // @manual
 #endif
 #include <gloo/common/logging.h>
 #include <gloo/transport/uv/common.h>
@@ -180,8 +180,6 @@ std::shared_ptr<transport::Device> CreateDevice(struct attr attr) {
 }
 
 Device::Device(const struct attr& attr) : attr_(attr) {
-  int rv;
-
   loop_ = libuv::Loop::create();
 
   // Use async handle to trigger the event loop to
@@ -195,7 +193,7 @@ Device::Device(const struct attr& attr) : attr_(attr) {
   // Initialize server handle and wait for incoming connections.
   listener_ = loop_->resource<libuv::TCP>();
   listener_->on<libuv::ErrorEvent>(
-      [this](const libuv::ErrorEvent& event, const libuv::TCP&) {
+      [](const libuv::ErrorEvent& event, const libuv::TCP&) {
         // Nothing we can do about errors on the listener socket...
         GLOO_ENFORCE(!event, "Error on listener socket: ", event.what());
       });
@@ -261,16 +259,16 @@ void Device::connect(
   if (family == AF_INET) {
     const struct sockaddr_in* sa = (struct sockaddr_in*)&ss1;
     const struct sockaddr_in* sb = (struct sockaddr_in*)&ss2;
-    const auto addrlen = sizeof(struct sockaddr_in);
-    rv = memcmp(&sa->sin_addr, &sb->sin_addr, sizeof(struct in_addr));
+    const auto addrlen = sizeof(struct in_addr);
+    rv = memcmp(&sa->sin_addr, &sb->sin_addr, addrlen);
     if (rv == 0) {
       rv = sa->sin_port - sb->sin_port;
     }
   } else if (family == AF_INET6) {
     const struct sockaddr_in6* sa = (struct sockaddr_in6*)&ss1;
     const struct sockaddr_in6* sb = (struct sockaddr_in6*)&ss2;
-    const auto addrlen = sizeof(struct sockaddr_in6);
-    rv = memcmp(&sa->sin6_addr, &sb->sin6_addr, sizeof(struct in6_addr));
+    const auto addrlen = sizeof(struct in6_addr);
+    rv = memcmp(&sa->sin6_addr, &sb->sin6_addr, addrlen);
     if (rv == 0) {
       rv = sa->sin6_port - sb->sin6_port;
     }

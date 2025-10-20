@@ -204,7 +204,7 @@ void NCCLOp<T>::runNCCL(F&& f) {
   // Synchronize memory allocation with NCCL operations
   std::lock_guard<std::mutex> lock(CudaShared::getMutex());
 
-#if NCCL_VERSION_MIN(2,0,0)
+#if NCCL_VERSION_MIN(2, 0, 0)
   NCCL_CHECK(ncclGroupStart());
 #endif
   // Kick off the NCCL operation on each device
@@ -229,7 +229,7 @@ void NCCLOp<T>::runNCCL(F&& f) {
     // Run the operation
     f(element, comms[i], ncclStream);
   }
-#if NCCL_VERSION_MIN(2,0,0)
+#if NCCL_VERSION_MIN(2, 0, 0)
   NCCL_CHECK(ncclGroupEnd());
 #endif
   for (auto i = 0; i < elements.size(); ++i) {
@@ -251,101 +251,105 @@ template <typename T>
 void ReduceOp<T>::runAsync() {
   const auto op = op_;
   const auto root = root_;
-  this->runNCCL([op, root](
-      const NCCLElement<T>& element, ncclComm_t comm, cudaStream_t stream) {
-    NCCL_CHECK(ncclReduce(
-        *element.src,
-        *element.dst,
-        element.src.getCount(),
-        ncclTypeWrapper<T>::type,
-        op,
-        root,
-        comm,
-        stream));
-  });
+  this->runNCCL(
+      [op, root](
+          const NCCLElement<T>& element, ncclComm_t comm, cudaStream_t stream) {
+        NCCL_CHECK(ncclReduce(
+            *element.src,
+            *element.dst,
+            element.src.getCount(),
+            ncclTypeWrapper<T>::type,
+            op,
+            root,
+            comm,
+            stream));
+      });
 }
 
 template <typename T>
 void AllreduceOp<T>::runAsync() {
   const auto op = op_;
-  this->runNCCL([op](
-      const NCCLElement<T>& element, ncclComm_t comm, cudaStream_t stream) {
-    NCCL_CHECK(ncclAllReduce(
-        *element.src,
-        *element.dst,
-        element.src.getCount(),
-        ncclTypeWrapper<T>::type,
-        op,
-        comm,
-        stream));
-  });
+  this->runNCCL(
+      [op](
+          const NCCLElement<T>& element, ncclComm_t comm, cudaStream_t stream) {
+        NCCL_CHECK(ncclAllReduce(
+            *element.src,
+            *element.dst,
+            element.src.getCount(),
+            ncclTypeWrapper<T>::type,
+            op,
+            comm,
+            stream));
+      });
 }
 
 template <typename T>
 void ReduceScatterOp<T>::runAsync() {
   const auto op = op_;
-  this->runNCCL([op](
-      const NCCLElement<T>& element, ncclComm_t comm, cudaStream_t stream) {
-    NCCL_CHECK(ncclReduceScatter(
-        *element.src,
-        *element.dst,
-        element.dst.getCount(),
-        ncclTypeWrapper<T>::type,
-        op,
-        comm,
-        stream));
-  });
+  this->runNCCL(
+      [op](
+          const NCCLElement<T>& element, ncclComm_t comm, cudaStream_t stream) {
+        NCCL_CHECK(ncclReduceScatter(
+            *element.src,
+            *element.dst,
+            element.dst.getCount(),
+            ncclTypeWrapper<T>::type,
+            op,
+            comm,
+            stream));
+      });
 }
 
 template <typename T>
 void BroadcastOp<T>::runAsync() {
   const int root = root_;
-  this->runNCCL([root](
-      const NCCLElement<T>& element, ncclComm_t comm, cudaStream_t stream) {
-    NCCL_CHECK(ncclBcast(
-        *element.dst,
-        element.dst.getCount(),
-        ncclTypeWrapper<T>::type,
-        root,
-        comm,
-        stream));
-  });
+  this->runNCCL(
+      [root](
+          const NCCLElement<T>& element, ncclComm_t comm, cudaStream_t stream) {
+        NCCL_CHECK(ncclBcast(
+            *element.dst,
+            element.dst.getCount(),
+            ncclTypeWrapper<T>::type,
+            root,
+            comm,
+            stream));
+      });
 }
 
 template <typename T>
 void AllgatherOp<T>::runAsync() {
-  this->runNCCL([](
-      const NCCLElement<T>& element, ncclComm_t comm, cudaStream_t stream) {
-#if NCCL_VERSION_MIN(2,0,0)
-    NCCL_CHECK(ncclAllGather(
-        *element.src,
-        *element.dst,
-        element.src.getCount(),
-        ncclTypeWrapper<T>::type,
-        comm,
-        stream));
+  this->runNCCL(
+      [](const NCCLElement<T>& element, ncclComm_t comm, cudaStream_t stream) {
+#if NCCL_VERSION_MIN(2, 0, 0)
+        NCCL_CHECK(ncclAllGather(
+            *element.src,
+            *element.dst,
+            element.src.getCount(),
+            ncclTypeWrapper<T>::type,
+            comm,
+            stream));
 #else
-    NCCL_CHECK(ncclAllGather(
-        *element.src,
-        element.src.getCount(),
-        ncclTypeWrapper<T>::type,
-        *element.dst,
-        comm,
-        stream));
+        NCCL_CHECK(ncclAllGather(
+            *element.src,
+            element.src.getCount(),
+            ncclTypeWrapper<T>::type,
+            *element.dst,
+            comm,
+            stream));
 #endif
-  });
+      });
 }
 
-#define DEFINE_NCCL_TYPES_AND_OPS(T)                                    \
-template class NCCLExecution<T>;                                        \
-template class NCCLContext<T>;                                          \
-template class NCCLOp<T>;                                               \
-                                                                        \
-template class ReduceOp<T>;                                             \
-template class AllreduceOp<T>;                                          \
-template class ReduceScatterOp<T>;                                      \
-template class BroadcastOp<T>;                                          \
-template class AllgatherOp<T>;
+#define DEFINE_NCCL_TYPES_AND_OPS(T) \
+  template class NCCLExecution<T>;   \
+  template class NCCLContext<T>;     \
+  template class NCCLOp<T>;          \
+                                     \
+  template class ReduceOp<T>;        \
+  template class AllreduceOp<T>;     \
+  template class ReduceScatterOp<T>; \
+  template class BroadcastOp<T>;     \
+  template class AllgatherOp<T>;
 
 DEFINE_NCCL_TYPES_AND_OPS(int8_t);
 DEFINE_NCCL_TYPES_AND_OPS(uint8_t);

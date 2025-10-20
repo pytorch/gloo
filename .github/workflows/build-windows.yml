@@ -1,0 +1,86 @@
+---
+# This runs the windows CI
+name: Windows CI
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  windows_build:
+    runs-on: windows-latest
+    env:
+      gtest_lib_path: c:/googletest
+      libuv_path: c:/libuv
+    steps:
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniconda-version: "latest"
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v2
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Add conda to system path
+        run: |
+          # $CONDA is an environment variable pointing to the root of the
+          # miniconda directory
+          echo $CONDA/bin >> $GITHUB_PATH
+      - name: Conda info
+        shell: bash -l {0}
+        run: conda info
+      - name: Setup build environment
+        run: |
+          conda create -n py376_build python=3.7.6
+          conda activate py376_build
+          conda install cmake
+      - name: Install libuv
+        run: |
+          conda activate py376_build
+          curl https://dist.libuv.org/dist/v1.38.0/libuv-v1.38.0.tar.gz --output libuv-v1.38.0.tar.gz
+          tar xzvf libuv-v1.38.0.tar.gz
+          cd libuv-v1.38.0
+          mkdir -p build
+          cd build
+          mkdir -p ${{ env.libuv_path }}
+          cmake .. -DCMAKE_INSTALL_PREFIX=${{ env.libuv_path }}
+          msbuild INSTALL.vcxproj
+      - name: Install googletest
+        run: |
+          conda activate py376_build
+          curl -L https://github.com/google/googletest/releases/download/v1.15.2/googletest-1.15.2.tar.gz `
+            --output googletest-1.15.2.tar.gz
+          tar xzvf googletest-1.15.2.tar.gz
+          cd googletest-1.15.2
+          mkdir -p build
+          cd build
+          if (Test-Path -Path ${{ env.gtest_lib_path }}) {
+            echo "Directory already exists"
+          } else {
+            mkdir -p ${{ env.gtest_lib_path }}
+          }
+          cmake ..  -DCMAKE_INSTALL_PREFIX=${{ env.gtest_lib_path }}  -Dgtest_force_shared_crt=ON
+          msbuild INSTALL.vcxproj
+      - name: Build
+        run: |
+          conda activate py376_build
+          git submodule sync
+          git submodule update --init --recursive
+          mkdir -p build
+          cd build
+          cmake ..  -DBUILD_TEST=ON `
+            -DUSE_LIBUV=ON -Dlibuv_ROOT=${{ env.libuv_path }} `
+            -DGTEST_LIBRARY=${{ env.gtest_lib_path }}/lib/gtest.lib `
+            -DGTEST_INCLUDE_DIR=${{ env.gtest_lib_path }}/include `
+            -DGTEST_MAIN_LIBRARY=${{ env.gtest_lib_path }}/lib/gtest_main.lib
+          msbuild ALL_BUILD.vcxproj
+      - name: Test
+        run: |
+          build/gloo/test/Debug/gloo_test.exe

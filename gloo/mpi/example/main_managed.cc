@@ -9,9 +9,9 @@
 #include <cassert>
 #include <iostream>
 
+#include "gloo/allreduce_ring.h"
 #include "gloo/mpi/context.h"
 #include "gloo/transport/tcp/device.h"
-#include "gloo/allreduce_ring.h"
 
 int main(int /*argc*/, char** /*argv*/) {
   // We'll use the TCP transport in this example

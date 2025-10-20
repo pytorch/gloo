@@ -8,8 +8,6 @@
 
 #include "gloo/transport/tcp/unbound_buffer.h"
 
-#include <stdexcept>
-
 #include "gloo/common/error.h"
 #include "gloo/common/logging.h"
 #include "gloo/transport/tcp/context.h"
@@ -77,11 +75,10 @@ bool UnboundBuffer::waitRecv(int* rank, std::chrono::milliseconds timeout) {
       // be sure to look for the actual cause (seen below).
       context_->signalException("Application timeout caused pair closure");
 
-      throw ::gloo::IoException(
-              GLOO_ERROR_MSG(
-                  "Timed out waiting ",
-                  timeout.count(),
-                  "ms for recv operation to complete"));
+      throw ::gloo::IoException(GLOO_ERROR_MSG(
+          "Timed out waiting ",
+          timeout.count(),
+          "ms for recv operation to complete"));
     }
   }
   if (abortWaitRecv_) {
@@ -111,9 +108,9 @@ bool UnboundBuffer::waitSend(int* rank, std::chrono::milliseconds timeout) {
 
   if (sendCompletions_ == 0) {
     auto done = sendCv_.wait_for(lock, timeout, [&] {
-        throwIfException();
-        return abortWaitSend_ || sendCompletions_ > 0;
-      });
+      throwIfException();
+      return abortWaitSend_ || sendCompletions_ > 0;
+    });
     if (!done) {
       // Below, we let all pairs in the transport context know about this
       // application side timeout. This in turn will call into all pending
@@ -129,11 +126,10 @@ bool UnboundBuffer::waitSend(int* rank, std::chrono::milliseconds timeout) {
       // be sure to look for the actual cause (seen below).
       context_->signalException("Application timeout caused pair closure");
 
-      throw ::gloo::IoException(
-          GLOO_ERROR_MSG(
-              "Timed out waiting ",
-              timeout.count(),
-              "ms for send operation to complete"));
+      throw ::gloo::IoException(GLOO_ERROR_MSG(
+          "Timed out waiting ",
+          timeout.count(),
+          "ms for send operation to complete"));
     }
   }
 

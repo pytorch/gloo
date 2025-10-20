@@ -11,11 +11,14 @@
 #include <math.h>
 #include <stddef.h>
 #include <string.h>
+#include <algorithm>
 #include <cstring>
 #include <iomanip>
 #include <iostream>
+#include <memory>
+#include <string>
 #include <unordered_map>
-#include <algorithm>
+#include <vector>
 
 #include "gloo/algorithm.h"
 #include "gloo/common/error.h"
@@ -214,8 +217,11 @@ class Group {
    * @count The total number of elements to be processed by this node
    * @return The number of elements to be processed by this group
    */
-  static int
-  computeNumElems(int step, const Node& firstNode, int peers, int count) {
+  static int computeNumElems(
+      int step,
+      const Node& firstNode,
+      int peers,
+      int count) {
     int groupCount =
         (0 == step) ? count : firstNode.getNumElemsPerStep(step - 1);
     return std::max(groupCount, peers);
@@ -226,8 +232,11 @@ class Group {
    *   group
    * @return List of ranks of nodes in the group
    */
-  std::vector<int>
-  getNodeRanks(int firstNodeRank, int peerDistance, int base, int nodes) const {
+  std::vector<int> getNodeRanks(
+      int firstNodeRank,
+      int peerDistance,
+      int base,
+      int nodes) const {
     std::vector<int> groupPeers;
     for (int i = 0; i < base; ++i) {
       int peerRank = firstNodeRank + i * peerDistance;
@@ -291,7 +300,8 @@ class AllreduceBcube : public Algorithm {
             getNumElemsPerStep(destRank, step));
         auto& pair = this->context_->getPair(destRank);
         auto slot = slotOffset_ +
-            2 * (std::min(myRank_, destRank) * nodes_ +
+            2 *
+                (std::min(myRank_, destRank) * nodes_ +
                  std::max(myRank_, destRank));
         sendDataBufs_[destRank] =
             pair->createSendBuffer(slot, ptrs_[0], bytes_);
@@ -588,9 +598,8 @@ class AllreduceBcube : public Algorithm {
       int count,
       int start = 0) {
     if (printCheck(myRank_)) {
-      std::cout << stage << ": step (" << step << ") "
-                << "srcRank (" << srcRank << ") -> "
-                << "destRank (" << destRank << "): ";
+      std::cout << stage << ": step (" << step << ") " << "srcRank (" << srcRank
+                << ") -> " << "destRank (" << destRank << "): ";
       printElems(p, count, start);
       std::cout << std::endl;
     }

@@ -33,9 +33,10 @@ class AllreduceRingChunked : public Algorithm {
     constexpr unsigned long minSize = 256;
     chunks_ = this->contextSize_ * 2;
 #ifdef _WIN32
-  chunkSize_ = std::max((size_t)minSize, (size_t)((count_ + chunks_ - 1) / chunks_));
+    chunkSize_ =
+        std::max((size_t)minSize, (size_t)((count_ + chunks_ - 1) / chunks_));
 #else
-  chunkSize_ = std::max(minSize, (count_ + chunks_ - 1) / chunks_);
+    chunkSize_ = std::max(minSize, (count_ + chunks_ - 1) / chunks_);
 #endif
     chunkBytes_ = chunkSize_ * sizeof(T);
 
@@ -54,11 +55,10 @@ class AllreduceRingChunked : public Algorithm {
       auto slot = this->context_->nextSlot();
 
       // Buffer to send to (rank+1).
-      sendDataBuf_[i] =
-        rightPair->createSendBuffer(slot, ptrs_[0], bytes_);
+      sendDataBuf_[i] = rightPair->createSendBuffer(slot, ptrs_[0], bytes_);
       // Buffer that (rank-1) writes to.
       recvDataBuf_[i] =
-        leftPair->createRecvBuffer(slot, inbox_[i], chunkBytes_);
+          leftPair->createRecvBuffer(slot, inbox_[i], chunkBytes_);
     }
 
     // Dummy buffers for localized barrier.
@@ -67,9 +67,9 @@ class AllreduceRingChunked : public Algorithm {
     // into. No need for a global barrier.
     auto notificationSlot = this->context_->nextSlot();
     sendNotificationBuf_ =
-      leftPair->createSendBuffer(notificationSlot, &dummy_, sizeof(dummy_));
+        leftPair->createSendBuffer(notificationSlot, &dummy_, sizeof(dummy_));
     recvNotificationBuf_ =
-      rightPair->createRecvBuffer(notificationSlot, &dummy_, sizeof(dummy_));
+        rightPair->createRecvBuffer(notificationSlot, &dummy_, sizeof(dummy_));
   }
 
   virtual ~AllreduceRingChunked() {

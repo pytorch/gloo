@@ -28,8 +28,8 @@ namespace tcp {
 
 struct attr CreateDeviceAttr(const struct attr& src);
 
-std::shared_ptr<::gloo::transport::Device> CreateDevice(
-    const struct attr&);
+std::shared_ptr<::gloo::transport::Device> CreateDevice(const struct attr&);
+std::shared_ptr<::gloo::transport::Device> CreateLazyDevice(const struct attr&);
 
 // Forward declarations
 class Pair;
@@ -38,7 +38,7 @@ class Buffer;
 class Device : public ::gloo::transport::Device,
                public std::enable_shared_from_this<Device> {
  public:
-  explicit Device(const struct attr& attr);
+  explicit Device(const struct attr& attr, bool lazyInit);
   virtual ~Device();
 
   virtual std::string str() const override;
@@ -48,19 +48,25 @@ class Device : public ::gloo::transport::Device,
   virtual int getInterfaceSpeed() const override;
 
   virtual std::shared_ptr<::gloo::transport::Context> createContext(
-      int rank, int size) override;
+      int rank,
+      int size) override;
 
   void registerDescriptor(int fd, int events, Handler* h);
   void unregisterDescriptor(int fd, Handler* h);
 
   // TCP is bidirectional so when we connect two ends of a pair,
   // one side is the connection initiator and the other is the listener.
-  bool isInitiator(
-      const Address& local,
-      const Address& remote) const;
+  bool isInitiator(const Address& local, const Address& remote) const;
+
+  void shutdown();
+
+  bool isLazyInit() {
+    return lazyInit_;
+  }
 
  protected:
   const struct attr attr_;
+  const bool lazyInit_;
 
   // Return a new `Address` instance.
   //
@@ -69,6 +75,15 @@ class Device : public ::gloo::transport::Device,
   // uses a shared listening socket.
   //
   Address nextAddress();
+
+  // Return a new `Address` instance using the provided sequence number.
+  //
+  // This is called by the constructor of the `Pair` class. It gives
+  // the pair a uniquely identifying address even though the device
+  // uses a shared listening socket. Caller must provide a unique sequence
+  // number
+  //
+  Address nextAddress(int);
 
   // Connect a pair to a remote.
   //
@@ -84,11 +99,13 @@ class Device : public ::gloo::transport::Device,
   // connection is cached in a map, using the sequence number.
   //
   using connect_callback_t =
-      std::function<void(std::shared_ptr<Socket> socket, Error error)>;
+      std::function<void(std::shared_ptr<Socket> socket, const Error& error)>;
 
   void connect(
       const Address& local,
       const Address& remote,
+      const int rank,
+      const int size,
       std::chrono::milliseconds timeout,
       connect_callback_t fn);
 
@@ -99,6 +116,8 @@ class Device : public ::gloo::transport::Device,
 
   void connectAsInitiator(
       const Address& remote,
+      const int rank,
+      const int size,
       std::chrono::milliseconds timeout,
       connect_callback_t fn);
 

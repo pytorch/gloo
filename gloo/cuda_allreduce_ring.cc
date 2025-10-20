@@ -16,10 +16,10 @@ namespace gloo {
 
 template <typename T, typename W>
 CudaAllreduceRing<T, W>::CudaAllreduceRing(
-  const std::shared_ptr<Context>& context,
-  const std::vector<T*>& ptrs,
-  const int count,
-  const std::vector<cudaStream_t>& streams)
+    const std::shared_ptr<Context>& context,
+    const std::vector<T*>& ptrs,
+    const int count,
+    const std::vector<cudaStream_t>& streams)
     : Algorithm(context),
       count_(count),
       bytes_(count_ * sizeof(T)),
@@ -45,7 +45,7 @@ CudaAllreduceRing<T, W>::CudaAllreduceRing(
   init();
 
   if (this->contextSize_ == 1) {
-      return;
+    return;
   }
 
   auto& leftPair = this->getLeftPair();
@@ -64,9 +64,9 @@ CudaAllreduceRing<T, W>::CudaAllreduceRing(
   // into. No need for a global barrier.
   auto notificationSlot = this->context_->nextSlot();
   sendNotificationBuf_ =
-    leftPair->createSendBuffer(notificationSlot, &dummy_, sizeof(dummy_));
+      leftPair->createSendBuffer(notificationSlot, &dummy_, sizeof(dummy_));
   recvNotificationBuf_ =
-    rightPair->createRecvBuffer(notificationSlot, &dummy_, sizeof(dummy_));
+      rightPair->createRecvBuffer(notificationSlot, &dummy_, sizeof(dummy_));
 }
 
 template <typename T, typename W>
@@ -122,9 +122,9 @@ void CudaAllreduceRing<T, W>::run() {
 
 template <typename T, typename W>
 template <typename U>
-void CudaAllreduceRing<T, W>::init(
-    typename std::enable_if<std::is_same<U, CudaHostWorkspace<T> >::value,
-                            typename U::Pointer>::type*) {
+void CudaAllreduceRing<T, W>::init(typename std::enable_if<
+                                   std::is_same<U, CudaHostWorkspace<T>>::value,
+                                   typename U::Pointer>::type*) {
   // Since reduction is executed on the CPU, the scratch space
   // where they are accumulated is a new host side buffer.
   scratch_ = W::Pointer::alloc(count_);
@@ -134,9 +134,9 @@ void CudaAllreduceRing<T, W>::init(
   // If devicePtrs_.size() == 1 these functions construct an op that
   // executes a memcpy such that scratch_ always holds the result.
   localReduceOp_ =
-    cudaHostReduce(streams_, devicePtrs_, scratch_, fn_, 0, count_);
+      cudaHostReduce(streams_, devicePtrs_, scratch_, fn_, 0, count_);
   localBroadcastOp_ =
-    cudaHostBroadcast(streams_, devicePtrs_, scratch_, 0, count_);
+      cudaHostBroadcast(streams_, devicePtrs_, scratch_, 0, count_);
 
   inbox_ = W::Pointer::alloc(count_);
   outbox_ = W::Pointer::alloc(count_);
@@ -145,8 +145,9 @@ void CudaAllreduceRing<T, W>::init(
 template <typename T, typename W>
 template <typename U>
 void CudaAllreduceRing<T, W>::init(
-    typename std::enable_if<std::is_same<U, CudaDeviceWorkspace<T> >::value,
-                            typename U::Pointer>::type*) {
+    typename std::enable_if<
+        std::is_same<U, CudaDeviceWorkspace<T>>::value,
+        typename U::Pointer>::type*) {
   // The networking adapter does DMA to/from GPU memory, so we should reduce
   // onto the device that's closest to the networking adapter bound
   // to our context. This uses PCI distance to find closest GPU.
@@ -159,9 +160,9 @@ void CudaAllreduceRing<T, W>::init(
   // When running with a device workspace we intend to never leave the device.
   if (devicePtrs_.size() > 1) {
     localReduceOp_ =
-      cudaDeviceReduce(streams_, devicePtrs_, scratch_, fn_, 0, count_);
+        cudaDeviceReduce(streams_, devicePtrs_, scratch_, fn_, 0, count_);
     localBroadcastOp_ =
-      cudaDeviceBroadcast(streams_, devicePtrs_, scratch_, 0, count_);
+        cudaDeviceBroadcast(streams_, devicePtrs_, scratch_, 0, count_);
   }
 
   // Inbox/outbox must be colocated with scratch buffer to avoid
@@ -174,9 +175,9 @@ void CudaAllreduceRing<T, W>::init(
 }
 
 // Instantiate templates
-#define INSTANTIATE_TEMPLATE(T)                                         \
-template class CudaAllreduceRing<T, CudaHostWorkspace<T> >;             \
-template class CudaAllreduceRing<T, CudaDeviceWorkspace<T> >;
+#define INSTANTIATE_TEMPLATE(T)                              \
+  template class CudaAllreduceRing<T, CudaHostWorkspace<T>>; \
+  template class CudaAllreduceRing<T, CudaDeviceWorkspace<T>>;
 
 INSTANTIATE_TEMPLATE(int8_t);
 INSTANTIATE_TEMPLATE(uint8_t);
@@ -186,5 +187,10 @@ INSTANTIATE_TEMPLATE(uint64_t);
 INSTANTIATE_TEMPLATE(float);
 INSTANTIATE_TEMPLATE(double);
 INSTANTIATE_TEMPLATE(float16);
+
+#if GLOO_USE_TORCH_DTYPES
+INSTANTIATE_TEMPLATE(c10::BFloat16);
+INSTANTIATE_TEMPLATE(c10::Half);
+#endif
 
 } // namespace gloo

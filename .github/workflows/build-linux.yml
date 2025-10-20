@@ -1,0 +1,73 @@
+---
+name: CI-Linux
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  build-linux:
+    name: build on ubuntu
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        cmake_args:
+          - ""
+          - "-DUSE_IBVERBS=ON -DUSE_LIBUV=ON -DUSE_TCP_OPENSSL_LINK=ON"
+          - "-DUSE_TCP_OPENSSL_LOAD=ON"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup environment
+        run: |
+          sudo apt-get install -y libssl-dev
+      - name: Install apt packages
+        run: |
+          sudo apt-get install -y wget perl build-essential cmake libibverbs-dev libssl-dev
+      # TODO: upgrade to latest
+      - name: Install openssl
+        run: |
+          sudo wget -q https://www.openssl.org/source/openssl-1.1.1b.tar.gz
+          sudo tar -xzf openssl-1.1.1b.tar.gz
+          cd openssl-1.1.1b
+          sudo ./config --prefix=/opt/openssl --openssldir=/opt/openssl/ssl
+          sudo make -j 2
+          sudo make install
+      - name: Install libuv
+        run: |
+          sudo apt-get install -y wget pkg-config
+          wget -q -O libuv-v1.49.2.tar.gz https://dist.libuv.org/dist/v1.49.2/libuv-v1.49.2.tar.gz
+          tar xf libuv-v1.49.2.tar.gz
+          cd libuv-v1.49.2
+          mkdir -p build
+          cd build
+          cmake ../ -DCMAKE_INSTALL_PREFIX=/usr/local
+          sudo make install
+      - name: Install googletest
+        run: |
+          wget -q -O googletest-release-1.15.2.tar.gz \
+            https://github.com/google/googletest/releases/download/v1.15.2/googletest-1.15.2.tar.gz
+          tar xf googletest-release-1.15.2.tar.gz
+          cd googletest-1.15.2
+          mkdir -p build
+          cd build
+          cmake ../ -DCMAKE_INSTALL_PREFIX=/usr/local
+          sudo make install
+      - name: Build
+        run: |
+          sudo add-apt-repository universe
+          sudo apt-get update
+          sudo apt install build-essential
+          sudo apt-get install -y gcc g++
+          mkdir -p build
+          cd build
+          cmake ../ -DCMAKE_VERBOSE_MAKEFILE=ON -DBUILD_TEST=ON ${{matrix.cmake_args}} -DOPENSSL_ROOT_DIR=/opt/openssl/
+          make
+      - name: Test
+        run: |
+          LD_LIBRARY_PATH=/opt/openssl:/opt/openssl/lib:$LD_LIBRARY_PATH ./build/gloo/test/gloo_test

@@ -85,6 +85,9 @@ class Socket final : public std::enable_shared_from_this<Socket> {
   // Return address for getpeername(2).
   Address peerName() const;
 
+  // Return address for getpeername(2) if possible, else an empty Address.
+  Address safePeerName() const;
+
  private:
   int fd_;
 

@@ -46,11 +46,9 @@ class UnboundBuffer : public ::gloo::transport::UnboundBuffer {
   // Aborts a pending waitSend call.
   void abortWaitSend() override;
 
-  void send(int dstRank, uint64_t slot, size_t offset, size_t nbytes)
-      override;
+  void send(int dstRank, uint64_t slot, size_t offset, size_t nbytes) override;
 
-  void recv(int srcRank, uint64_t slot, size_t offset, size_t nbytes)
-      override;
+  void recv(int srcRank, uint64_t slot, size_t offset, size_t nbytes) override;
 
   void recv(
       std::vector<int> srcRanks,

@@ -19,6 +19,7 @@
 // * No way to pass externally managed memory to the read functions.
 //
 
+#include <stdio.h>
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -31,9 +32,8 @@
 #include <tuple>
 #include <utility>
 #include <vector>
-#include <stdio.h>
 
-#include <uv.h>
+#include <uv.h> // @manual
 
 #define UV_ASSERT(rv, prefix) \
   {                           \
@@ -65,7 +65,7 @@ struct BaseHandle {};
 struct BaseRequest {};
 
 // Event type for errors.
-struct ErrorEvent {
+class ErrorEvent {
  public:
   explicit ErrorEvent(int error) : error_(error) {}
 
@@ -326,7 +326,7 @@ class Resource : public Emitter<T>, public std::enable_shared_from_this<T> {
   std::shared_ptr<T> leak_;
 };
 
-struct CloseEvent {};
+class CloseEvent {};
 
 template <typename T, typename U>
 class Handle : public Resource<T, U>, public BaseHandle {
@@ -440,11 +440,11 @@ class Timer : public Handle<Timer, uv_timer_t> {
   }
 };
 
-struct EndEvent {};
+class EndEvent {};
 
-struct ListenEvent {};
+class ListenEvent {};
 
-struct ConnectEvent {};
+class ConnectEvent {};
 
 class ReadEvent {
  public:
@@ -466,7 +466,7 @@ class ReadEvent {
   }
 };
 
-struct WriteEvent {};
+class WriteEvent {};
 
 namespace detail {
 

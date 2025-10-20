@@ -12,8 +12,6 @@
 #include <array>
 #include <unordered_set>
 
-#include "gloo/transport/tcp/unbound_buffer.h"
-
 namespace gloo {
 namespace test {
 namespace {
@@ -515,7 +513,7 @@ INSTANTIATE_TEST_CASE_P(
     SendRecvDefault,
     SendRecvTest,
     ::testing::Combine(
-        ::testing::Values(Transport::TCP, Transport::UV),
+        ::testing::ValuesIn(kTransportsForFunctionAlgorithms),
         ::testing::Values(2, 3, 4, 5, 6, 7, 8),
         ::testing::Values(1)));
 

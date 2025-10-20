@@ -16,6 +16,7 @@
 #include <functional>
 #include <list>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <tuple>
@@ -95,7 +96,8 @@ class Pair : public ::gloo::transport::Pair, public Handler {
       Context* context,
       Device* device,
       int rank,
-      std::chrono::milliseconds timeout);
+      std::chrono::milliseconds timeout,
+      bool useRankAsSeqNumber = false);
 
   virtual ~Pair();
 
@@ -142,7 +144,7 @@ class Pair : public ::gloo::transport::Pair, public Handler {
       size_t offset,
       size_t nbytes);
 
-  void handleEvents(int events) override;
+  void handleEvents(Loop& loop, int events) override;
 
   void close() override;
 
@@ -193,7 +195,7 @@ class Pair : public ::gloo::transport::Pair, public Handler {
   void sendNotifyRecvReady(uint64_t slot, size_t nbytes);
   void sendNotifySendReady(uint64_t slot, size_t nbytes);
 
-  void connectCallback(std::shared_ptr<Socket> socket, Error error);
+  void connectCallback(std::shared_ptr<Socket> socket, const Error& error);
 
   Buffer* getBuffer(int slot);
   void registerBuffer(Buffer* buf);
@@ -248,8 +250,10 @@ class Pair : public ::gloo::transport::Pair, public Handler {
   //
   virtual bool write(Op& op);
 
-  void writeComplete(const Op &op, NonOwningPtr<UnboundBuffer> &buf,
-                     const Op::Opcode &opcode) const;
+  void writeComplete(
+      const Op& op,
+      NonOwningPtr<UnboundBuffer>& buf,
+      const Op::Opcode& opcode) const;
 
   // Helper function for the `read` function below.
   ssize_t prepareRead(
@@ -263,7 +267,7 @@ class Pair : public ::gloo::transport::Pair, public Handler {
   //
   virtual bool read();
 
-  void readComplete(NonOwningPtr<UnboundBuffer> &buf);
+  void readComplete(NonOwningPtr<UnboundBuffer>& buf);
 
   // Helper function that is called from the `read` function.
   void handleRemotePendingSend(const Op& op);
@@ -286,9 +290,11 @@ class Pair : public ::gloo::transport::Pair, public Handler {
   //
   virtual void changeState(state nextState) noexcept;
 
-  template<typename pred_t>
-  void waitUntil(pred_t pred, std::unique_lock<std::mutex>& lock,
-                 bool useTimeout) {
+  template <typename pred_t>
+  void waitUntil(
+      pred_t pred,
+      std::unique_lock<std::mutex>& lock,
+      bool useTimeout) {
     auto timeoutSet = timeout_ != kNoTimeout;
     if (useTimeout && timeoutSet) {
       // Use a longer timeout when waiting for initial connect
@@ -296,11 +302,13 @@ class Pair : public ::gloo::transport::Pair, public Handler {
       // relTime must be small enough not to overflow when
       // added to std::chrono::steady_clock::now()
       auto relTime = std::min(
-        timeout_ * 5,
-        std::chrono::duration_cast<std::chrono::milliseconds>(kLargeTimeDuration));
+          timeout_ * 5,
+          std::chrono::duration_cast<std::chrono::milliseconds>(
+              kLargeTimeDuration));
       auto done = cv_.wait_for(lock, relTime, pred);
       if (!done) {
-        signalAndThrowException(GLOO_ERROR_MSG("Connect timeout ", peer_.str()));
+        signalAndThrowException(
+            GLOO_ERROR_MSG("Connect timeout ", peer_.str()));
       }
     } else {
       cv_.wait(lock, pred);
@@ -310,10 +318,11 @@ class Pair : public ::gloo::transport::Pair, public Handler {
   // Helper function to block execution until the pair has advanced to
   // the `CONNECTED` state. Expected to be called from `Pair::connect`.
   virtual void waitUntilConnected(
-      std::unique_lock<std::mutex>& lock, bool useTimeout);
+      std::unique_lock<std::mutex>& lock,
+      bool useTimeout);
 
   // Helper function to assert the current state is `CONNECTED`.
-  virtual void verifyConnected();
+  virtual void verifyConnected(std::unique_lock<std::mutex>& lock);
 
   // Throws if an exception if set.
   void throwIfException();

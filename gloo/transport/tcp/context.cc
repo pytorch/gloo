@@ -8,10 +8,12 @@
 
 #include "gloo/transport/tcp/context.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <iostream>
+#include <string>
 
-#include "gloo/common/error.h"
 #include "gloo/common/logging.h"
 #include "gloo/common/utils.h"
 #include "gloo/transport/tcp/device.h"
@@ -22,17 +24,28 @@ namespace gloo {
 namespace transport {
 namespace tcp {
 
+constexpr int kDefaultBatchSize = 128;
+
 Context::Context(std::shared_ptr<Device> device, int rank, int size)
-    : ::gloo::transport::Context(rank, size), device_(std::move(device)) {}
+    : ::gloo::transport::Context(rank, size), device_(std::move(device)) {
+  connecting_.resize(size);
+}
 
 Context::~Context() {
+  if (device_->isLazyInit()) {
+    // We need to shutdown the loop thread prior to freeing the pairs as
+    // connection callbacks may be called after we free the pairs leading to
+    // invalid memory accesses.
+    device_->shutdown();
+  }
+
   // Pairs refer to device by raw pointer.
   // Ensure they are destructed before the device.
   pairs_.clear();
   device_.reset();
 }
 
-void Context::createAndConnectAllPairs(IStore &store) {
+void Context::createAndConnectAllPairs(std::shared_ptr<IStore> store) {
   // Here instead of sending N addresses to store,
   // we send only 1 device address (since they are all the same)
   // and N sequence numbers to differentiate them.
@@ -46,18 +59,21 @@ void Context::createAndConnectAllPairs(IStore &store) {
   // it's not super straightforward so left for folks having more bandwidth
   // later on.
 
-  int localRank = 0;
-  bool localRankSet = false;
   auto localHostName = getHostname();
+  bool useRankAsSeqNum = useRankAsSeqNumber();
 
   // We will create all the pairs including self
   // the self pair will not be connected
   // it's just to keep the later seq num matching logic simple
   std::vector<ssize_t> pairIdentifiers;
   for (int i = 0; i < size; i++) {
-    auto& pair = createPair(i);
-    pairIdentifiers.emplace_back(
-        static_cast<Pair*>(pair.get())->address().getSeq());
+    const auto& pair = createPair(i, useRankAsSeqNum);
+    if (!useRankAsSeqNum && !device_->isLazyInit()) {
+      // Need to preserve the order of the pair identifiers if we are not using
+      // the rank as seq number
+      pairIdentifiers.emplace_back(
+          static_cast<Pair*>(pair.get())->address().getSeq());
+    }
   }
 
   // Obtain the pair object for this rank
@@ -73,58 +89,123 @@ void Context::createAndConnectAllPairs(IStore &store) {
   // which does not have the rank info hosted at a higher `Pair` level).
   // So better safe than sorry for now we try to minimize the changeset needed.
   const auto& currentRankPair = getPair(rank);
-  auto deviceAddress = Address(
+  const auto& deviceAddress = Address(
       static_cast<const Pair*>(currentRankPair.get())->address().getSockaddr());
   Rank currentRankInfo(
       localHostName, deviceAddress.bytes(), std::move(pairIdentifiers));
-  store.set(std::to_string(rank), currentRankInfo.bytes());
+  store->set(std::to_string(rank), currentRankInfo.bytes());
 
-  // Connect every pair
-  for (int i = 0; i < size; i++) {
-    if (i == rank) {
-      // at this point we have enumerated all the ranks located on this host
-      // up to the current rank, so the current `localRank` number is
-      // what we'll set to the pairs.
-      localRankSet = true;
-      // We are not going to connect self.
-      continue;
+  store_ = store;
+
+  if (!device_->isLazyInit()) {
+    int localRank = 0;
+    bool localRankSet = false;
+    std::vector<std::vector<char>> remoteRankInfos;
+    int key = 0;
+    if (isStoreExtendedApiEnabled() && store->has_v2_support()) {
+      auto sizeRemaining = size;
+      while (sizeRemaining > 0) {
+        const auto batchKeys = std::min(kDefaultBatchSize, sizeRemaining);
+        std::vector<std::string> keys(batchKeys);
+        std::generate_n(
+            keys.begin(), batchKeys, [&] { return std::to_string(key++); });
+        const auto& batchRemoteInfos = store->multi_get(keys);
+        remoteRankInfos.insert(
+            remoteRankInfos.end(),
+            batchRemoteInfos.begin(),
+            batchRemoteInfos.end());
+        sizeRemaining -= batchKeys;
+      }
+    } else {
+      std::generate_n(std::back_inserter(remoteRankInfos), size, [&] {
+        const auto& keyStr = std::to_string(key++);
+        return store->wait_get(keyStr, getTimeout());
+      });
     }
 
-    // Wait for address of other side of this pair to become available
-    std::ostringstream key;
-    key << i;
-    store.wait({key.str()}, getTimeout());
+    // Connect every pair
+    for (int i = 0; i < size; i++) {
+      if (i == rank) {
+        // at this point we have enumerated all the ranks located on this host
+        // up to the current rank, so the current `localRank` number is
+        // what we'll set to the pairs.
+        localRankSet = true;
+        // We are not going to connect self.
+        continue;
+      }
 
-    // Connect to other side of this pair
-    std::vector<char> rankInfoBytes = store.get(key.str());
-    Rank remoteRankInfo(rankInfoBytes);
-    const auto& remoteHostname = remoteRankInfo.hostname;
-    if (!localRankSet && remoteHostname == localHostName) {
-      ++localRank;
+      Rank remoteRankInfo(remoteRankInfos[i]);
+
+      if (!localRankSet && remoteRankInfo.hostname == localHostName) {
+        ++localRank;
+      }
+
+      const auto& pair = pairs_[i];
+      auto remoteDeviceAddr =
+          Address(remoteRankInfo.addressBytes).getSockaddr();
+      auto remoteAddr = Address(
+          remoteDeviceAddr,
+          useRankAsSeqNum ? (sequence_number_t)rank
+                          : remoteRankInfo.pairIdentifiers[rank]);
+      pair->connect(remoteAddr.bytes());
+      connecting_[i] = true;
     }
 
-    const auto& pair = getPair(i);
-    auto remoteDeviceAddr = Address(remoteRankInfo.addressBytes).getSockaddr();
-    auto remoteAddr =
-        Address(remoteDeviceAddr, remoteRankInfo.pairIdentifiers[rank]);
-    pair->connect(remoteAddr.bytes());
-  }
-
-  // Set the local rank info for all mesh pairs involving current rank
-  for (int i = 0; i < size; i++) {
-    if (i == rank) {
-      continue;
+    // Set the local rank info for all mesh pairs involving current rank
+    for (int i = 0; i < size; i++) {
+      if (i == rank) {
+        continue;
+      }
+      const auto& pair = getPair(i);
+      pair->setLocalRank(localRank);
     }
-    const auto& pair = getPair(i);
-    pair->setLocalRank(localRank);
   }
 
   printConnectivityInfo();
 }
 
+std::unique_ptr<transport::Pair>& Context::getPair(int rank) {
+  auto& pair = pairs_[rank];
+
+  if (!store_) {
+    // Manual context creation without store to bootstrap.
+    return pair;
+  }
+
+  // don't connect to self
+  if (rank == this->rank) {
+    return pair;
+  }
+
+  std::lock_guard<std::mutex> lock(m_);
+
+  if (!connecting_[rank]) {
+    connecting_[rank] = true;
+
+    const auto& keyStr = std::to_string(rank);
+    auto remoteRankInfoBytes = store_->wait_get(keyStr, getTimeout());
+
+    Rank remoteRankInfo(remoteRankInfoBytes);
+
+    auto remoteDeviceAddr = Address(remoteRankInfo.addressBytes).getSockaddr();
+    auto remoteAddr = Address(remoteDeviceAddr, this->rank);
+    // Actual connection happens asynchronously.
+    pair->connect(remoteAddr.bytes());
+  }
+  return pair;
+}
+
 std::unique_ptr<transport::Pair>& Context::createPair(int rank) {
   pairs_[rank] = std::unique_ptr<transport::Pair>(
-      new tcp::Pair(this, device_.get(), rank, getTimeout()));
+      new tcp::Pair(this, device_.get(), rank, getTimeout(), false));
+  return pairs_[rank];
+}
+
+std::unique_ptr<transport::Pair>& Context::createPair(
+    int rank,
+    bool useRankAsSeqNumber = false) {
+  pairs_[rank] = std::unique_ptr<transport::Pair>(new tcp::Pair(
+      this, device_.get(), rank, getTimeout(), useRankAsSeqNumber));
   return pairs_[rank];
 }
 
@@ -159,22 +240,18 @@ std::vector<int> Context::getUnConnectedPeerRanks() const {
 
 void Context::printConnectivityInfo() const {
   int numConnectedPeers = getConnectedPeerRanks().size();
-  std::cout << "[Gloo] Rank "  << rank << " is connected to "
-            << numConnectedPeers << " peer ranks. "
-            << "Expected number of connected peer ranks is : " << size - 1
-            << std::endl;
+  GLOO_INFO(
+      "Rank ",
+      rank,
+      " is connected to ",
+      numConnectedPeers,
+      ". Expected number of connected peers is: ",
+      size - 1);
 
   if (numConnectedPeers != size - 1) {
     std::vector<int> unConnectedPeers = getUnConnectedPeerRanks();
-    std::cout << "[Gloo] Rank " << rank << " is NOT connected to: [";
-    for (int i = 0; i < unConnectedPeers.size(); i++) {
-      if (i != unConnectedPeers.size() - 1) {
-        std::cout << unConnectedPeers[i] << ", ";
-      } else {
-        std::cout << unConnectedPeers[i];
-      }
-    }
-    std::cout << "]" << std::endl;
+    auto peerStrCat = ::gloo::MakeString<int>(unConnectedPeers, /*delim=*/", ");
+    GLOO_INFO("Rank ", rank, " is NOT connected to: [", peerStrCat, "]");
   }
 }
 
@@ -184,6 +261,11 @@ void Context::recvFromAny(
     size_t offset,
     size_t nbytes,
     std::vector<int> srcRanks) {
+  // Ensure all connections are established.
+  for (auto rank : srcRanks) {
+    getPair(rank);
+  }
+
   for (;;) {
     // Find rank of pair we can attempt a recv from
     auto rank = recvFromAnyFindRank(buf, slot, offset, nbytes, srcRanks);
@@ -305,13 +387,16 @@ Rank::Rank(const std::vector<char>& bytes) {
   bytesOffset += sizeof(addrSz) + addrSz;
   // pair identifiers
   size_t pairIdChunkSz = bytes.size() - bytesOffset;
-  GLOO_ENFORCE_EQ(
-      pairIdChunkSz % sizeof(ssize_t),
-      0,
-      "Remaining bytes do not map to entire chunk of pair identifiers");
-  size_t numPairs = pairIdChunkSz / sizeof(ssize_t);
-  pairIdentifiers.resize(numPairs);
-  std::memcpy(pairIdentifiers.data(), bytes.data() + bytesOffset, pairIdChunkSz);
+  if (pairIdChunkSz) {
+    GLOO_ENFORCE_EQ(
+        pairIdChunkSz % sizeof(ssize_t),
+        0,
+        "Remaining bytes do not map to entire chunk of pair identifiers");
+    size_t numPairs = pairIdChunkSz / sizeof(ssize_t);
+    pairIdentifiers.resize(numPairs);
+    std::memcpy(
+        pairIdentifiers.data(), bytes.data() + bytesOffset, pairIdChunkSz);
+  }
 }
 
 std::vector<char> Rank::bytes() const {
@@ -320,8 +405,8 @@ std::vector<char> Rank::bytes() const {
   size_t numPairIds = pairIdentifiers.size();
   size_t pairIdSz = sizeof(ssize_t);
   size_t pairIdChunkSz = pairIdSz * numPairIds;
-  size_t totalSz = sizeof(hostnameSz) + hostnameSz + sizeof(addrSz) + addrSz +
-      pairIdChunkSz;
+  size_t totalSz =
+      sizeof(hostnameSz) + hostnameSz + sizeof(addrSz) + addrSz + pairIdChunkSz;
   std::vector<char> buf(totalSz);
   auto bufOffset = buf.data();
   // hostname
@@ -335,7 +420,9 @@ std::vector<char> Rank::bytes() const {
   std::memcpy(bufOffset, addressBytes.data(), addressBytes.size());
   bufOffset += addrSz;
   // pair identifiers
-  std::memcpy(bufOffset, pairIdentifiers.data(), pairIdChunkSz);
+  if (pairIdChunkSz) {
+    std::memcpy(bufOffset, pairIdentifiers.data(), pairIdChunkSz);
+  }
   return buf;
 }
 

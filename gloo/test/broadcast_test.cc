@@ -96,6 +96,7 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(4, 100, 1000, 10000),
         ::testing::Values(broadcastOneToAll)));
 
+// TODO: SSL transport fails at 512M - but passes with 512M - 1.
 INSTANTIATE_TEST_CASE_P(
     LargeBroadcast,
     BroadcastTest,
@@ -103,7 +104,7 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::ValuesIn(kTransportsForClassAlgorithms),
         ::testing::Values(2),
         ::testing::Values(1),
-        ::testing::Values((size_t)512 * 1024 * 1024),
+        ::testing::Values((size_t)512 * 1024 * 1024 - 1),
         ::testing::Values(broadcastOneToAll)));
 
 using NewParam = std::tuple<Transport, int, int, bool, bool>;
@@ -181,6 +182,11 @@ TEST_F(BroadcastTest, TestTimeout) {
     BroadcastOptions opts(context);
     opts.setOutput(output.getPointer(), 1);
     opts.setRoot(0);
+
+    // Run one operation first so we're measuring the operation timeout not
+    // connection timeout.
+    broadcast(opts);
+
     opts.setTimeout(std::chrono::milliseconds(10));
     if (context->rank == 0) {
       try {

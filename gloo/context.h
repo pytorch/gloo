@@ -12,6 +12,7 @@
 #include <memory>
 #include <vector>
 
+#include <gloo/transport/context.h>
 #include <gloo/transport/pair.h>
 
 namespace gloo {
@@ -21,12 +22,12 @@ namespace transport {
 class Context;
 class Device;
 class UnboundBuffer;
-}
+} // namespace transport
 
 class Context {
  public:
   Context(int rank, int size, int base = 2);
-  virtual ~Context();
+  ~Context();
 
   const int rank;
   const int size;
@@ -40,7 +41,8 @@ class Context {
   // transport used for this context. Use this function to avoid tying
   // downstream code to a specific transport.
   std::unique_ptr<transport::UnboundBuffer> createUnboundBuffer(
-      void* ptr, size_t size);
+      void* ptr,
+      size_t size);
 
   int nextSlot(int numToSkip = 1);
 
@@ -49,6 +51,11 @@ class Context {
   void setTimeout(std::chrono::milliseconds timeout);
 
   std::chrono::milliseconds getTimeout() const;
+
+  std::unique_ptr<transport::RemoteKey> deserializeRemoteKey(
+      const std::string& serialized) {
+    return transportContext_->deserializeRemoteKey(serialized);
+  }
 
  protected:
   std::shared_ptr<transport::Device> device_;

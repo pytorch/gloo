@@ -18,7 +18,7 @@ using Param = std::tuple<Transport, int, size_t>;
 
 // Test fixture.
 class AlltoallTest : public BaseTest,
-                   public ::testing::WithParamInterface<Param> {};
+                     public ::testing::WithParamInterface<Param> {};
 
 TEST_P(AlltoallTest, Default) {
   const auto transport = std::get<0>(GetParam());

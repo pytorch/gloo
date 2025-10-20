@@ -15,20 +15,24 @@
 #include "gloo/transport/tcp/tls/device.h"
 #include "gloo/transport/tcp/unbound_buffer.h"
 
-#include <cstring>
 #include <poll.h>
+#include <cstring>
 
 namespace gloo {
 namespace transport {
 namespace tcp {
 namespace tls {
 
-Pair::Pair(Context *context, Device *device, int rank,
-           std::chrono::milliseconds timeout)
+Pair::Pair(
+    Context* context,
+    Device* device,
+    int rank,
+    std::chrono::milliseconds timeout)
     : ::gloo::transport::tcp::Pair(context, device, rank, timeout),
       ssl_(nullptr),
-      ssl_ctx_(dynamic_cast<Context *>(context_)->ssl_ctx_.get()),
-      is_ssl_connected_(false), fatal_error_occurred_(false) {}
+      ssl_ctx_(dynamic_cast<Context*>(context_)->ssl_ctx_.get()),
+      is_ssl_connected_(false),
+      fatal_error_occurred_(false) {}
 
 Pair::~Pair() {
   std::lock_guard<std::mutex> lock(m_);
@@ -59,7 +63,7 @@ int Pair::handshake() {
   return events;
 }
 
-bool Pair::write(Op &op) {
+bool Pair::write(Op& op) {
   NonOwningPtr<UnboundBuffer> buf;
   std::array<struct iovec, 2> iov;
   int ioc;
@@ -104,9 +108,15 @@ bool Pair::write(Op &op) {
 
         // Unexpected error
         signalException(GLOO_ERROR_MSG(
-            "SSL_write ", peer_.str(), " failed: ", "ssl error: ", err,
-            ", errno = ", strerror(errno),
-            ", ssl error message: ", getSSLErrorMessage()));
+            "SSL_write ",
+            peer_.str(),
+            " failed: ",
+            "ssl error: ",
+            err,
+            ", errno = ",
+            strerror(errno),
+            ", ssl error message: ",
+            getSSLErrorMessage()));
         return false;
       }
       total_rv += rv;
@@ -171,9 +181,15 @@ bool Pair::read() {
 
         // Unexpected error
         signalException(GLOO_ERROR_MSG(
-            "SSL_read ", peer_.str(), " failed: ", "ssl error: ", err,
-            ", errno = ", strerror(errno),
-            ", ssl error message: ", getSSLErrorMessage()));
+            "SSL_read ",
+            peer_.str(),
+            " failed: ",
+            "ssl error: ",
+            err,
+            ", errno = ",
+            strerror(errno),
+            ", ssl error message: ",
+            getSSLErrorMessage()));
         return false;
       }
       break;
@@ -225,8 +241,9 @@ void Pair::changeState(Pair::state nextState) noexcept {
   ::gloo::transport::tcp::Pair::changeState(nextState);
 }
 
-void Pair::waitUntilSSLConnected(std::unique_lock<std::mutex> &lock,
-                                 bool useTimeout) {
+void Pair::waitUntilSSLConnected(
+    std::unique_lock<std::mutex>& lock,
+    bool useTimeout) {
   auto pred = [&] {
     throwIfException();
     return is_ssl_connected_;
@@ -234,8 +251,9 @@ void Pair::waitUntilSSLConnected(std::unique_lock<std::mutex> &lock,
   waitUntil(pred, lock, useTimeout);
 }
 
-void Pair::waitUntilConnected(std::unique_lock<std::mutex> &lock,
-                              bool useTimeout) {
+void Pair::waitUntilConnected(
+    std::unique_lock<std::mutex>& lock,
+    bool useTimeout) {
   ::gloo::transport::tcp::Pair::waitUntilConnected(lock, useTimeout);
 
   if (!is_ssl_connected_) {
@@ -258,21 +276,37 @@ void Pair::waitUntilConnected(std::unique_lock<std::mutex> &lock,
           r = poll(&pfd, 1, 100);
         }
         // poll returns -1 on error
-        GLOO_ENFORCE(r == 1, "poll return ", r, ", error events: ", pfd.revents,
-                     ", errno ", errno, " ", strerror(errno));
+        GLOO_ENFORCE(
+            r == 1,
+            "poll return ",
+            r,
+            ", error events: ",
+            pfd.revents,
+            ", errno ",
+            errno,
+            " ",
+            strerror(errno));
       }
-      GLOO_ENFORCE(is_ssl_connected_, "handshake was not succeeded after ",
-                   maxAttempts, " attempts");
+      GLOO_ENFORCE(
+          is_ssl_connected_,
+          "handshake was not succeeded after ",
+          maxAttempts,
+          " attempts");
     } else {
       waitUntilSSLConnected(lock, useTimeout);
     }
   }
 }
 
-void Pair::verifyConnected() {
-  ::gloo::transport::tcp::Pair::verifyConnected();
-  GLOO_ENFORCE(is_ssl_connected_, "Pair is not SSL connected (", self_.str(),
-               " <--> ", peer_.str(), ")");
+void Pair::verifyConnected(std::unique_lock<std::mutex>& lock) {
+  ::gloo::transport::tcp::Pair::verifyConnected(lock);
+  GLOO_ENFORCE(
+      is_ssl_connected_,
+      "Pair is not SSL connected (",
+      self_.str(),
+      " <--> ",
+      peer_.str(),
+      ")");
 }
 
 } // namespace tls

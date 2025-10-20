@@ -20,33 +20,37 @@ class Context;
 class Device;
 
 class Pair : public ::gloo::transport::tcp::Pair {
-public:
-  explicit Pair(Context *context, Device *device, int rank,
-                std::chrono::milliseconds timeout);
+ public:
+  explicit Pair(
+      Context* context,
+      Device* device,
+      int rank,
+      std::chrono::milliseconds timeout);
 
   ~Pair() override;
 
   void handleReadWrite(int events) override;
 
-protected:
-  void waitUntilConnected(std::unique_lock<std::mutex> &lock,
-                          bool useTimeout) override;
+ protected:
+  void waitUntilConnected(std::unique_lock<std::mutex>& lock, bool useTimeout)
+      override;
 
   int handshake();
 
   bool read() override;
 
-  bool write(Op &op) override;
+  bool write(Op& op) override;
 
-  void waitUntilSSLConnected(std::unique_lock<std::mutex> &lock,
-                             bool useTimeout);
+  void waitUntilSSLConnected(
+      std::unique_lock<std::mutex>& lock,
+      bool useTimeout);
 
-  void verifyConnected() override;
+  void verifyConnected(std::unique_lock<std::mutex>& lock) override;
 
   void changeState(state nextState) noexcept override;
 
-  SSL *ssl_;
-  SSL_CTX *ssl_ctx_; // non-owning pointer
+  SSL* ssl_;
+  SSL_CTX* ssl_ctx_; // non-owning pointer
   bool is_ssl_connected_;
   bool fatal_error_occurred_;
 };

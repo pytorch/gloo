@@ -18,8 +18,8 @@ template <typename T, typename W>
 struct CudaAllreduceRingChunked<T, W>::ChunkContext {
   ChunkContext(
       typename W::Pointer&& scratch,
-      std::unique_ptr<LocalOp<T> >&& reduceOp,
-      std::unique_ptr<LocalOp<T> >&& broadcastOp)
+      std::unique_ptr<LocalOp<T>>&& reduceOp,
+      std::unique_ptr<LocalOp<T>>&& broadcastOp)
       : scratch(std::move(scratch)),
         length(this->scratch.getCount()),
         reduceOp(std::move(reduceOp)),
@@ -36,8 +36,8 @@ struct CudaAllreduceRingChunked<T, W>::ChunkContext {
 
   // The operations used for local device reduce before running the
   // algorithm and local device broadcast after.
-  std::unique_ptr<LocalOp<T> > reduceOp;
-  std::unique_ptr<LocalOp<T> > broadcastOp;
+  std::unique_ptr<LocalOp<T>> reduceOp;
+  std::unique_ptr<LocalOp<T>> broadcastOp;
 };
 
 template <typename T, typename W>
@@ -72,7 +72,8 @@ CudaAllreduceRingChunked<T, W>::CudaAllreduceRingChunked(
   constexpr unsigned long minSize = 256;
   chunks_ = this->contextSize_ * 2;
 #ifdef _WIN32
-  chunkSize_ = std::max((size_t)minSize, (size_t)((count_ + chunks_ - 1) / chunks_));
+  chunkSize_ =
+      std::max((size_t)minSize, (size_t)((count_ + chunks_ - 1) / chunks_));
 #else
   chunkSize_ = std::max(minSize, (count_ + chunks_ - 1) / chunks_);
 #endif
@@ -90,13 +91,10 @@ CudaAllreduceRingChunked<T, W>::CudaAllreduceRingChunked(
       length = count_ - offset;
     }
 
-    chunkContext_.push_back(
-        ChunkContext(
-            scratch_.range(offset, length),
-            cudaDeviceReduce(
-              streams_, devicePtrs_, scratch_, fn_, offset, length),
-            cudaDeviceBroadcast(
-              streams_, devicePtrs_, scratch_, offset, length)));
+    chunkContext_.push_back(ChunkContext(
+        scratch_.range(offset, length),
+        cudaDeviceReduce(streams_, devicePtrs_, scratch_, fn_, offset, length),
+        cudaDeviceBroadcast(streams_, devicePtrs_, scratch_, offset, length)));
   }
 
   if (this->contextSize_ == 1) {
@@ -109,11 +107,9 @@ CudaAllreduceRingChunked<T, W>::CudaAllreduceRingChunked(
     auto slot = this->context_->nextSlot();
 
     // Buffer to send to (rank+1).
-    sendDataBuf_[i] =
-      rightPair->createSendBuffer(slot, *scratch_, bytes_);
+    sendDataBuf_[i] = rightPair->createSendBuffer(slot, *scratch_, bytes_);
     // Buffer that (rank-1) writes to.
-    recvDataBuf_[i] =
-      leftPair->createRecvBuffer(slot, *inbox_[i], chunkBytes_);
+    recvDataBuf_[i] = leftPair->createRecvBuffer(slot, *inbox_[i], chunkBytes_);
   }
 
   // Dummy buffers for localized barrier.
@@ -122,14 +118,13 @@ CudaAllreduceRingChunked<T, W>::CudaAllreduceRingChunked(
   // into. No need for a global barrier.
   auto notificationSlot = this->context_->nextSlot();
   sendNotificationBuf_ =
-    leftPair->createSendBuffer(notificationSlot, &dummy_, sizeof(dummy_));
+      leftPair->createSendBuffer(notificationSlot, &dummy_, sizeof(dummy_));
   recvNotificationBuf_ =
-    rightPair->createRecvBuffer(notificationSlot, &dummy_, sizeof(dummy_));
+      rightPair->createRecvBuffer(notificationSlot, &dummy_, sizeof(dummy_));
 }
 
 template <typename T, typename W>
-CudaAllreduceRingChunked<T, W>::~CudaAllreduceRingChunked() {
-}
+CudaAllreduceRingChunked<T, W>::~CudaAllreduceRingChunked() {}
 
 template <typename T, typename W>
 void CudaAllreduceRingChunked<T, W>::run() {
@@ -148,7 +143,6 @@ void CudaAllreduceRingChunked<T, W>::run() {
   }
 
   if (this->contextSize_ == 1) {
-
     // Wait for the local reduction to complete then broadcast chunk to devices
     for (auto i = 0; i < chunks_; i++) {
       const auto chunkOffset = getChunkOffset(i);
@@ -322,8 +316,9 @@ void CudaAllreduceRingChunked<T, W>::copyChunkAtOffset(int chunkOffset) {
 template <typename T, typename W>
 template <typename U>
 void CudaAllreduceRingChunked<T, W>::init(
-    typename std::enable_if<std::is_same<U, CudaHostWorkspace<T> >::value,
-    typename U::Pointer>::type*) {
+    typename std::enable_if<
+        std::is_same<U, CudaHostWorkspace<T>>::value,
+        typename U::Pointer>::type*) {
   // Since reduction is executed on the CPU, the scratch space
   // where the reduction is accumulated is a new host side buffer.
   scratch_ = W::Pointer::alloc(count_);
@@ -338,8 +333,9 @@ void CudaAllreduceRingChunked<T, W>::init(
 template <typename T, typename W>
 template <typename U>
 void CudaAllreduceRingChunked<T, W>::init(
-    typename std::enable_if<std::is_same<U, CudaDeviceWorkspace<T> >::value,
-    typename U::Pointer>::type*) {
+    typename std::enable_if<
+        std::is_same<U, CudaDeviceWorkspace<T>>::value,
+        typename U::Pointer>::type*) {
   // The networking adapter does DMA to/from GPU memory, so we should reduce
   // onto the device that's closest to the networking adapter bound
   // to our context. This uses PCI distance to find closest GPU.
@@ -356,9 +352,9 @@ void CudaAllreduceRingChunked<T, W>::init(
 }
 
 // Instantiate templates
-#define INSTANTIATE_TEMPLATE(T)                                         \
-template class CudaAllreduceRingChunked<T, CudaHostWorkspace<T> >;      \
-template class CudaAllreduceRingChunked<T, CudaDeviceWorkspace<T> >;
+#define INSTANTIATE_TEMPLATE(T)                                     \
+  template class CudaAllreduceRingChunked<T, CudaHostWorkspace<T>>; \
+  template class CudaAllreduceRingChunked<T, CudaDeviceWorkspace<T>>;
 
 INSTANTIATE_TEMPLATE(int8_t);
 INSTANTIATE_TEMPLATE(uint8_t);
@@ -368,5 +364,10 @@ INSTANTIATE_TEMPLATE(uint64_t);
 INSTANTIATE_TEMPLATE(float);
 INSTANTIATE_TEMPLATE(double);
 INSTANTIATE_TEMPLATE(float16);
+
+#if GLOO_USE_TORCH_DTYPES
+INSTANTIATE_TEMPLATE(c10::BFloat16);
+INSTANTIATE_TEMPLATE(c10::Half);
+#endif
 
 } // namespace gloo

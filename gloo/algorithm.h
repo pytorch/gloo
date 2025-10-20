@@ -66,8 +66,7 @@ class ReductionFunction {
   static const ReductionFunction<T>* min;
   static const ReductionFunction<T>* max;
 
-  ReductionFunction(ReductionType type, Function* fn)
-      : type_(type), fn_(fn) {}
+  ReductionFunction(ReductionType type, Function* fn) : type_(type), fn_(fn) {}
 
   ReductionType type() const {
     return type_;
@@ -84,16 +83,16 @@ class ReductionFunction {
 
 template <typename T>
 const ReductionFunction<T>* ReductionFunction<T>::sum =
-  new ReductionFunction<T>(SUM, &::gloo::sum<T>);
+    new ReductionFunction<T>(SUM, &::gloo::sum<T>);
 template <typename T>
 const ReductionFunction<T>* ReductionFunction<T>::product =
-  new ReductionFunction<T>(PRODUCT, &::gloo::product<T>);
+    new ReductionFunction<T>(PRODUCT, &::gloo::product<T>);
 template <typename T>
 const ReductionFunction<T>* ReductionFunction<T>::min =
-  new ReductionFunction<T>(MIN, &::gloo::min<T>);
+    new ReductionFunction<T>(MIN, &::gloo::min<T>);
 template <typename T>
 const ReductionFunction<T>* ReductionFunction<T>::max =
-  new ReductionFunction<T>(MAX, &::gloo::max<T>);
+    new ReductionFunction<T>(MAX, &::gloo::max<T>);
 
 // Local operation.
 // If an algorithm uses multiple local pointers, local operations

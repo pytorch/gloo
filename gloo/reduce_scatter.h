@@ -67,12 +67,14 @@ class ReduceScatterHalvingDoubling : public Algorithm {
     size_t itemCount;
     DistributionMap(int dRank, size_t dOffset, size_t dItemCount)
         : rank(dRank), offset(dOffset), itemCount(dItemCount) {}
-
   };
 
   void getDistributionMap(
-      size_t srcOffset, size_t srcCount, const std::vector<int>& recvCounts,
-      bool reorder, std::vector<DistributionMap>& distributionMap) {
+      size_t srcOffset,
+      size_t srcCount,
+      const std::vector<int>& recvCounts,
+      bool reorder,
+      std::vector<DistributionMap>& distributionMap) {
     if (srcCount == 0) {
       return;
     }
@@ -82,7 +84,8 @@ class ReduceScatterHalvingDoubling : public Algorithm {
         reorder ? 1 << (int)log2(this->contextSize_) : this->contextSize_;
     int start = 0;
     for (; start < size; ++start) {
-      if (destOffset + recvCounts[start] > srcOffset) break;
+      if (destOffset + recvCounts[start] > srcOffset)
+        break;
       destOffset += recvCounts[start];
     }
     destOffset = srcOffset - destOffset;
@@ -94,8 +97,7 @@ class ReduceScatterHalvingDoubling : public Algorithm {
         recvCount -= destOffset;
         destOffset = 0;
       }
-      auto rank =
-          reorder ? reverseLastNBits(i, log2(this->contextSize_)) : i;
+      auto rank = reorder ? reverseLastNBits(i, log2(this->contextSize_)) : i;
       recvCount = recvCount < totalCount ? recvCount : totalCount;
       distributionMap.emplace_back(rank, srcOffset, recvCount);
       srcOffset += recvCount;
@@ -137,7 +139,7 @@ class ReduceScatterHalvingDoubling : public Algorithm {
         nextSmallerBlockSize_(0),
         nextLargerBlockSize_(0) {
     if (this->contextSize_ == 1) {
-        return;
+      return;
     }
 
     initBinaryBlocks();
@@ -172,7 +174,8 @@ class ReduceScatterHalvingDoubling : public Algorithm {
       }
       int myRank = this->context_->rank;
       auto slot = slotOffset_ +
-          2 * (std::min(myRank, destRank) * this->contextSize_ +
+          2 *
+              (std::min(myRank, destRank) * this->contextSize_ +
                std::max(myRank, destRank));
       sendDataBufs_.push_back(pair->createSendBuffer(slot, ptrs_[0], bytes_));
       if (recvOffsets_[i] < count_) {
@@ -183,9 +186,8 @@ class ReduceScatterHalvingDoubling : public Algorithm {
           recvCounts_[i] = stepChunkSize;
         }
       }
-      recvDataBufs_.push_back(
-          pair->createRecvBuffer(
-              slot, &recvBuf_[bufferOffset], stepChunkBytes));
+      recvDataBufs_.push_back(pair->createRecvBuffer(
+          slot, &recvBuf_[bufferOffset], stepChunkBytes));
       bufferOffset += stepChunkSize;
       if (this->context_->rank & bitmask) {
         sendOffset += stepChunkSize;
@@ -210,7 +212,8 @@ class ReduceScatterHalvingDoubling : public Algorithm {
           offsetToSmallerBlock + rankInBinaryBlock_ % nextSmallerBlockSize_;
       auto& destPair = this->context_->getPair(destRank);
       auto slot = slotOffset_ +
-          2 * (std::min(myRank, destRank) * this->contextSize_ +
+          2 *
+              (std::min(myRank, destRank) * this->contextSize_ +
                std::max(myRank, destRank));
       const auto itemCount = recvCounts_[stepsWithinBlock_ - 1];
       if (itemCount > 0) {
@@ -244,7 +247,8 @@ class ReduceScatterHalvingDoubling : public Algorithm {
             reverseLastNBits(destOrdinal, log2(nextLargerBlockSize_));
         auto& destPair = this->context_->getPair(destRank);
         auto slot = slotOffset_ +
-            2 * (std::min(myRank, destRank) * this->contextSize_ +
+            2 *
+                (std::min(myRank, destRank) * this->contextSize_ +
                  std::max(myRank, destRank));
         largerBlockSendDataBufs_.push_back(
             destPair->createSendBuffer(slot, ptrs[0], bytes_));
@@ -264,13 +268,16 @@ class ReduceScatterHalvingDoubling : public Algorithm {
       getDistributionMap(
           recvOffsets_[stepsWithinBlock_ - 1],
           recvCounts_[stepsWithinBlock_ - 1],
-          recvElems_, false, distMapForSend_);
+          recvElems_,
+          false,
+          distMapForSend_);
       for (const auto& distMap : distMapForSend_) {
         const int destRank = distMap.rank;
         if (myRank != destRank) {
           auto& destPair = this->context_->getPair(destRank);
           auto slot = slotOffset_ + 2 +
-              2 * (std::min(myRank, destRank) * this->contextSize_ +
+              2 *
+                  (std::min(myRank, destRank) * this->contextSize_ +
                    std::max(myRank, destRank));
           distSendDataBufs_.push_back(
               destPair->createSendBuffer(slot, ptrs_[0], bytes_));
@@ -298,25 +305,25 @@ class ReduceScatterHalvingDoubling : public Algorithm {
         offset += recvElems_[i];
       }
       getDistributionMap(
-        offset, recvElems_[myRank], srcCounts, true, distMapForRecv_);
+          offset, recvElems_[myRank], srcCounts, true, distMapForRecv_);
       for (const auto& distMap : distMapForRecv_) {
         const int srcRank = distMap.rank;
         if (myRank != srcRank) {
           auto& destPair = this->context_->getPair(srcRank);
           auto slot = slotOffset_ + 2 +
-              2 * (std::min(myRank, srcRank) * this->contextSize_ +
+              2 *
+                  (std::min(myRank, srcRank) * this->contextSize_ +
                    std::max(myRank, srcRank));
-          distRecvDataBufs_.push_back(
-              destPair->createRecvBuffer(
-                  slot, &recvBufDist_[distMap.offset],
-                  distMap.itemCount * sizeof(T)));
+          distRecvDataBufs_.push_back(destPair->createRecvBuffer(
+              slot,
+              &recvBufDist_[distMap.offset],
+              distMap.itemCount * sizeof(T)));
           ++slot;
           sendNotificationBufs_.push_back(
               destPair->createSendBuffer(slot, &dummy_, sizeof(dummy_)));
         }
       }
     }
-
   }
 
   void run() {
@@ -395,7 +402,7 @@ class ReduceScatterHalvingDoubling : public Algorithm {
       const int destRank = distMap.rank;
       if (myRank != destRank) {
         distSendDataBufs_[index++]->send(
-          distMap.offset * sizeof(T), distMap.itemCount * sizeof(T));
+            distMap.offset * sizeof(T), distMap.itemCount * sizeof(T));
       }
     }
     index = 0;

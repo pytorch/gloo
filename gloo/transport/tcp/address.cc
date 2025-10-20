@@ -9,9 +9,9 @@
 #include "gloo/transport/tcp/address.h"
 
 #include <arpa/inet.h>
+#include <string.h>
 #include <memory>
 #include <mutex>
-#include <string.h>
 
 #include "gloo/common/logging.h"
 
@@ -26,6 +26,29 @@ Address::Address(struct sockaddr_storage ss, sequence_number_t seq) {
 
 Address::Address(const struct sockaddr* addr, size_t addrlen) {
   memcpy(&impl_.ss, addr, addrlen);
+}
+
+Address::Address(const std::string& ip, uint16_t port, sequence_number_t seq) {
+  if (ip.empty()) {
+    throw std::invalid_argument("Invalid IP address");
+  }
+  sockaddr_in* addr4 = reinterpret_cast<sockaddr_in*>(&impl_.ss);
+  sockaddr_in6* addr6 = reinterpret_cast<sockaddr_in6*>(&impl_.ss);
+  // Check if the IP address is an IPv4 or IPv6 address
+  if (inet_pton(AF_INET, ip.c_str(), &addr4->sin_addr) == 1) {
+    // IPv4 address
+    addr4->sin_family = AF_INET;
+    addr4->sin_port = htons(port);
+  } else if (inet_pton(AF_INET6, ip.c_str(), &addr6->sin6_addr) == 1) {
+    // IPv6 address
+    addr6->sin6_family = AF_INET6;
+    addr6->sin6_port = htons(port);
+  } else {
+    throw std::invalid_argument("Invalid IP address");
+  }
+
+  // Store sequence number
+  impl_.seq = seq;
 }
 
 Address& Address::operator=(Address&& other) {

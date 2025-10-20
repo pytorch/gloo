@@ -10,7 +10,6 @@
 
 #include <errno.h>
 #include <string.h>
-#include <sys/types.h>
 #include <unistd.h>
 
 #include <iostream>
@@ -31,37 +30,49 @@ Buffer::Buffer(Pair* pair, int slot, void* ptr, size_t size)
       ex_(nullptr) {
   mr_ = ibv_reg_mr(
       pair_->dev_->pd_,
-      ptr_,
-      size_,
+      size == 0 ? static_cast<void*>(&emptyBuf_) : ptr,
+      size == 0 ? sizeof(emptyBuf_) : size,
       IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
 
   // Provide hint if the error is EFAULT and nv_peer_mem is not loaded
   if (mr_ == nullptr && errno == EFAULT) {
     if (!pair->dev_->hasNvPeerMem_) {
       GLOO_ENFORCE(
-        mr_ != nullptr,
-        "ibv_reg_mr: ",
-        strerror(errno),
-        " (kernel module 'nv_peer_mem' not loaded;"
-        " did you specify a pointer to GPU memory?)");
+          mr_ != nullptr,
+          "ibv_reg_mr: ",
+          strerror(errno),
+          " (kernel module 'nv_peer_mem' not loaded;"
+          " did you specify a pointer to GPU memory?)");
     }
   }
 
   // Provide hint if the error is ENOMEM
   if (mr_ == nullptr && errno == ENOMEM) {
     GLOO_ENFORCE(
-      mr_ != nullptr,
-      "ibv_reg_mr: ",
-      strerror(errno),
-      " (did you run into the locked memory limit?)");
+        mr_ != nullptr,
+        "ibv_reg_mr: ",
+        strerror(errno),
+        " (did you run into the locked memory limit?)");
   }
 
   GLOO_ENFORCE(mr_ != nullptr, "ibv_reg_mr: ", strerror(errno));
 }
 
 Buffer::~Buffer() {
-  GLOO_ENFORCE_EQ(sendPending_, 0, "Destructing buffer expecting completions");
-  ibv_dereg_mr(mr_);
+  {
+    std::lock_guard<std::mutex> lock(m_);
+    if (sendPending_ > 0) {
+      GLOO_WARN(
+          "Destructing buffer with pending sends, sendPending_=", sendPending_);
+    }
+
+    ibv_dereg_mr(mr_);
+  }
+  {
+    std::lock_guard<std::mutex> lock(pair_->m_);
+    pair_->sendCompletionHandlers_[slot_].clear();
+    pair_->recvCompletionHandlers_[slot_].clear();
+  }
 }
 
 // Wait for a receive operation to finish.
@@ -80,7 +91,7 @@ void Buffer::waitRecv() {
       if (timeout != kNoTimeout &&
           (std::chrono::steady_clock::now() - start) >= timeout) {
         pair_->signalIoFailure(
-          GLOO_ERROR_MSG("Read timeout ", pair_->peer().str()));
+            GLOO_ERROR_MSG("Read timeout ", pair_->peer().str()));
         GLOO_ENFORCE(false, "Unexpected code path");
       }
     }
@@ -88,7 +99,7 @@ void Buffer::waitRecv() {
   } else {
     // The device thread will signal completion. If the completion
     // hasn't arrived yet, wait until it does.
-    auto pred = [&]{
+    auto pred = [&] {
       checkErrorState();
       return recvCompletions_ > 0;
     };
@@ -104,7 +115,7 @@ void Buffer::waitRecv() {
         // reacquire.
         lock.unlock();
         pair_->signalIoFailure(
-          GLOO_ERROR_MSG("Read timeout ", pair_->peer().str()));
+            GLOO_ERROR_MSG("Read timeout ", pair_->peer().str()));
         GLOO_ENFORCE(false, "Unexpected code path");
       }
     }
@@ -130,7 +141,7 @@ void Buffer::waitSend() {
         if (timeout != kNoTimeout &&
             (std::chrono::steady_clock::now() - start) >= timeout) {
           pair_->signalIoFailure(
-            GLOO_ERROR_MSG("Send timeout ", pair_->peer().str()));
+              GLOO_ERROR_MSG("Send timeout ", pair_->peer().str()));
           GLOO_ENFORCE(false, "Unexpected code path");
         }
       }
@@ -143,7 +154,7 @@ void Buffer::waitSend() {
     checkErrorState();
     if (sendCompletions_ == 0) {
       GLOO_ENFORCE_GT(sendPending_, 0, "No send to wait for");
-      auto pred = [&]{
+      auto pred = [&] {
         checkErrorState();
         return sendCompletions_ > 0;
       };
@@ -158,7 +169,7 @@ void Buffer::waitSend() {
           // reacquire.
           lock.unlock();
           pair_->signalIoFailure(
-            GLOO_ERROR_MSG("Send timeout ", pair_->peer().str()));
+              GLOO_ERROR_MSG("Send timeout ", pair_->peer().str()));
           GLOO_ENFORCE(false, "Unexpected code path");
         }
       }
@@ -168,36 +179,40 @@ void Buffer::waitSend() {
 }
 
 void Buffer::send(size_t offset, size_t length, size_t roffset) {
-  // Can't assert on roffset, since we don't know the size of
-  // the remote buffer. Refactor of initialization code needed
-  // to support this.
-  GLOO_ENFORCE_LE(offset + length, size_);
-
   {
     std::unique_lock<std::mutex> lock(m_);
+
+    // Can't assert on roffset, since we don't know the size of
+    // the remote buffer. Refactor of initialization code needed
+    // to support this.
+    GLOO_ENFORCE_LE(offset + length, size_);
+
     checkErrorState();
+
+    if (debug_) {
+      std::cout << "[" << getpid() << "] ";
+      std::cout << "send " << length << " bytes";
+      std::cout << std::endl;
+    }
+
+    // Increment number of sends in flight
+    sendPending_++;
   }
 
-  if (debug_) {
-    std::cout << "[" << getpid() << "] ";
-    std::cout << "send " << length << " bytes";
-    std::cout << std::endl;
-  }
-
-  // Increment number of sends in flight
-  sendPending_++;
+  // Release lock before calling into the pair to avoid deadlock.
 
   pair_->send(this, offset, length, roffset);
 }
 
-void Buffer::handleCompletion(struct ibv_wc* wc) {
+void Buffer::handleCompletion(int rank, struct ibv_wc* wc) {
+  std::unique_lock<std::mutex> lock(m_);
+
   if (wc->opcode & IBV_WC_RECV) {
     if (debug_) {
       std::cout << "[" << getpid() << "] ";
       std::cout << "recv " << wc->byte_len << " bytes";
       std::cout << std::endl;
     }
-    std::unique_lock<std::mutex> lock(m_);
     recvCompletions_++;
     recvCv_.notify_one();
   } else if (wc->opcode == IBV_WC_RDMA_WRITE) {
@@ -206,7 +221,6 @@ void Buffer::handleCompletion(struct ibv_wc* wc) {
       std::cout << "send complete";
       std::cout << std::endl;
     }
-    std::unique_lock<std::mutex> lock(m_);
     sendCompletions_++;
     sendPending_--;
     sendCv_.notify_one();

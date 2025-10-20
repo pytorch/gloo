@@ -35,7 +35,7 @@
 
 namespace gloo {
 
-template<typename T>
+template <typename T>
 __global__ void initializeMemory(
     T* ptr,
     const int val,
@@ -47,40 +47,39 @@ __global__ void initializeMemory(
   }
 }
 
-template<>
+template <>
 __global__ void initializeMemory<float16>(
     float16* ptr,
     const int val,
     const size_t count,
     const size_t stride) {
   int i = blockIdx.x * blockDim.x + threadIdx.x;
-  half* ptrAsHalf = (half*) ptr;
+  half* ptrAsHalf = (half*)ptr;
   for (; i < count; i += blockDim.x) {
     ptrAsHalf[i] = __float2half(static_cast<float>((i * stride) + val));
   }
 }
 
-template<typename T>
+template <typename T>
 CudaMemory<T>::CudaMemory(size_t elements)
-    : elements(elements),
-      bytes(elements * sizeof(T)) {
+    : elements(elements), bytes(elements * sizeof(T)) {
   CUDA_CHECK(cudaGetDevice(&device_));
   // Sychronize memory allocation with NCCL operations
   std::lock_guard<std::mutex> lock(CudaShared::getMutex());
   CUDA_CHECK(cudaMalloc(&ptr_, bytes));
 }
 
-template<typename T>
+template <typename T>
 CudaMemory<T>::CudaMemory(CudaMemory<T>&& other) noexcept
-  : elements(other.elements),
-    bytes(other.bytes),
-    device_(other.device_),
-    ptr_(other.ptr_) {
+    : elements(other.elements),
+      bytes(other.bytes),
+      device_(other.device_),
+      ptr_(other.ptr_) {
   // Nullify pointer on move source
   other.ptr_ = nullptr;
 }
 
-template<typename T>
+template <typename T>
 CudaMemory<T>::~CudaMemory() noexcept(false) {
   CudaDeviceScope scope(device_);
   if (ptr_ != nullptr) {
@@ -101,7 +100,7 @@ const std::string& getCudaPCIBusID(int device) {
   static std::once_flag once;
   static std::vector<std::string> busIDs;
 
-  std::call_once(once, [](){
+  std::call_once(once, []() {
     std::array<char, 16> buf;
     auto count = getDeviceCount();
     busIDs.resize(count);

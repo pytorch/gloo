@@ -56,9 +56,9 @@ std::shared_ptr<MPIScope> getMPIScope() {
 
   // Create MPIScope only once
   std::call_once(once, [&]() {
-      sptr = std::make_shared<MPIScope>();
-      wptr = sptr;
-    });
+    sptr = std::make_shared<MPIScope>();
+    wptr = sptr;
+  });
 
   // Create shared_ptr<MPIScope> from weak_ptr
   sptr = wptr.lock();
@@ -108,7 +108,7 @@ void Context::connectFullMesh(std::shared_ptr<transport::Device>& dev) {
 
   // Agree on maximum length so we can prepare buffers
   rv = MPI_Allreduce(
-    MPI_IN_PLACE, &maxLength, 1, MPI_UNSIGNED_LONG, MPI_MAX, comm_);
+      MPI_IN_PLACE, &maxLength, 1, MPI_UNSIGNED_LONG, MPI_MAX, comm_);
   if (rv != MPI_SUCCESS) {
     GLOO_THROW_IO_EXCEPTION("MPI_Allreduce: ", rv);
   }
@@ -127,7 +127,7 @@ void Context::connectFullMesh(std::shared_ptr<transport::Device>& dev) {
 
   // Allgather to collect all addresses of all pairs
   rv = MPI_Allgather(
-    in.data(), in.size(), MPI_BYTE, out.data(), in.size(), MPI_BYTE, comm_);
+      in.data(), in.size(), MPI_BYTE, out.data(), in.size(), MPI_BYTE, comm_);
   if (rv != MPI_SUCCESS) {
     GLOO_THROW_IO_EXCEPTION("MPI_Allgather: ", rv);
   }
