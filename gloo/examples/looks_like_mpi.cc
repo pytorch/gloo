@@ -30,6 +30,8 @@ std::shared_ptr<gloo::Context> kContext;
 using MPI_Comm = int;
 const MPI_Comm MPI_COMM_WORLD = 0;
 
+static constexpr int MPI_SUCCESS = 0;
+
 enum MPI_Datatype {
   MPI_INT,
 };
@@ -44,6 +46,7 @@ int MPI_Comm_rank(MPI_Comm comm, int* rank) {
   if (rank) {
     *rank = kContext->rank;
   }
+  return MPI_SUCCESS;
 }
 
 // Same prototype as MPI API.
@@ -52,6 +55,7 @@ int MPI_Comm_size(MPI_Comm comm, int* size) {
   if (size) {
     *size = kContext->size;
   }
+  return MPI_SUCCESS;
 }
 
 // Same prototype as MPI API.
@@ -59,6 +63,7 @@ int MPI_Barrier(MPI_Comm comm) {
   ASSERT(comm == MPI_COMM_WORLD);
   gloo::BarrierOptions opts(kContext);
   gloo::barrier(opts);
+  return MPI_SUCCESS;
 }
 
 // Same prototype
@@ -79,6 +84,7 @@ int MPI_Allreduce(
       static_cast<void (*)(void*, const void*, const void*, size_t)>(
           &gloo::sum<int>));
   gloo::allreduce(opts);
+  return MPI_SUCCESS;
 }
 
 // Actual prototype:
@@ -101,6 +107,7 @@ int MPI_Recv(void* buf, ssize_t bytes, int source, int tag, MPI_Comm comm) {
   auto ubuf = kContext->createUnboundBuffer(buf, bytes);
   ubuf->recv(source, tag);
   ubuf->waitRecv();
+  return MPI_SUCCESS;
 }
 
 // Actual prototype:
@@ -126,6 +133,7 @@ int MPI_Send(
   auto ubuf = kContext->createUnboundBuffer(const_cast<void*>(cbuf), bytes);
   ubuf->send(dest, tag);
   ubuf->waitSend();
+  return MPI_SUCCESS;
 }
 
 // Entrypoint of this example.
@@ -165,6 +173,7 @@ int run() {
 
   // Barrier before exit
   MPI_Barrier(MPI_COMM_WORLD);
+  return MPI_SUCCESS;
 }
 
 // See example1.cc in this directory for a walkthrough of initialization.
@@ -181,8 +190,9 @@ void init(const std::string& path) {
   const int size = atoi(getenv("SIZE"));
 
   // Initialize store
-  auto fileStore = gloo::rendezvous::FileStore(path);
-  auto prefixStore = gloo::rendezvous::PrefixStore(prefix, fileStore);
+  auto fileStore = std::make_shared<gloo::rendezvous::FileStore>(path);
+  auto prefixStore =
+      std::make_shared<gloo::rendezvous::PrefixStore>(prefix, fileStore);
 
   // Initialize device
   gloo::transport::tcp::attr attr;
