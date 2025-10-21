@@ -44,9 +44,9 @@ jobs:
       - name: Install libuv
         run: |
           conda activate py376_build
-          curl https://dist.libuv.org/dist/v1.38.0/libuv-v1.38.0.tar.gz --output libuv-v1.38.0.tar.gz
-          tar xzvf libuv-v1.38.0.tar.gz
-          cd libuv-v1.38.0
+          curl https://dist.libuv.org/dist/v1.49.2/libuv-v1.49.2.tar.gz --output libuv-v1.49.2.tar.gz
+          tar xzvf libuv-v1.49.2.tar.gz
+          cd libuv-v1.49.2
           mkdir -p build
           cd build
           mkdir -p ${{ env.libuv_path }}

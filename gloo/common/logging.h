@@ -20,12 +20,12 @@
 
 namespace gloo {
 
-enum LogLevel {
-  ERROR,
-  WARN,
-  INFO,
-  DEBUG,
-  UNSET,
+enum class LogLevel {
+  ERROR = 0,
+  WARN = 1,
+  INFO = 2,
+  DEBUG = 3,
+  UNSET = -1,
 };
 
 LogLevel logLevel();
