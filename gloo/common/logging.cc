@@ -16,7 +16,7 @@ namespace gloo {
 
 // Initialize log level from environment variable, and return static value at
 // each inquiry.
-inline LogLevel logLevel() {
+LogLevel logLevel() {
   // Global log level. Initialized once.
   static LogLevel log_level = LogLevel::UNSET;
   if (log_level != LogLevel::UNSET) {

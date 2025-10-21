@@ -28,7 +28,7 @@ enum LogLevel {
   UNSET,
 };
 
-inline LogLevel logLevel();
+LogLevel logLevel();
 
 #define GLOO_LOG_MSG(level, ...)   \
   std::cerr << ::gloo::MakeString( \
