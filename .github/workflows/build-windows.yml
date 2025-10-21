@@ -38,15 +38,15 @@ jobs:
         run: conda info
       - name: Setup build environment
         run: |
-          conda create -n py376_build python=3.7.6
-          conda activate py376_build
+          conda create -n build python=3.12
+          conda activate build
           conda install cmake
       - name: Install libuv
         run: |
-          conda activate py376_build
-          curl https://dist.libuv.org/dist/v1.38.0/libuv-v1.38.0.tar.gz --output libuv-v1.38.0.tar.gz
-          tar xzvf libuv-v1.38.0.tar.gz
-          cd libuv-v1.38.0
+          conda activate build
+          curl https://dist.libuv.org/dist/v1.49.2/libuv-v1.49.2.tar.gz --output libuv-v1.49.2.tar.gz
+          tar xzvf libuv-v1.49.2.tar.gz
+          cd libuv-v1.49.2
           mkdir -p build
           cd build
           mkdir -p ${{ env.libuv_path }}
@@ -54,7 +54,7 @@ jobs:
           msbuild INSTALL.vcxproj
       - name: Install googletest
         run: |
-          conda activate py376_build
+          conda activate build
           curl -L https://github.com/google/googletest/releases/download/v1.15.2/googletest-1.15.2.tar.gz `
             --output googletest-1.15.2.tar.gz
           tar xzvf googletest-1.15.2.tar.gz
@@ -70,7 +70,7 @@ jobs:
           msbuild INSTALL.vcxproj
       - name: Build
         run: |
-          conda activate py376_build
+          conda activate build
           git submodule sync
           git submodule update --init --recursive
           mkdir -p build

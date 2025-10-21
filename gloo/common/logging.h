@@ -9,6 +9,7 @@
 #pragma once
 
 #include <climits>
+#include <cstdint>
 #include <exception>
 #include <functional>
 #include <iostream>
@@ -18,14 +19,20 @@
 #include "gloo/common/error.h"
 #include "gloo/common/string.h"
 
+#ifdef _WIN32
+#ifdef ERROR
+#undef ERROR
+#endif
+#endif
+
 namespace gloo {
 
-enum LogLevel {
-  ERROR,
-  WARN,
-  INFO,
-  DEBUG,
-  UNSET,
+enum class LogLevel : std::int8_t {
+  ERROR = 0,
+  WARN = 1,
+  INFO = 2,
+  DEBUG = 3,
+  UNSET = -1,
 };
 
 LogLevel logLevel();

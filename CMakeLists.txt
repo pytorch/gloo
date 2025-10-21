@@ -54,9 +54,9 @@ if(MSVC)
   message(STATUS "Set USE_NCCL OFF")
   set(USE_RCCL OFF)
   message(STATUS "Set USE_RCCL OFF")
-  set(USE_LIBUV OFF)
-  message(STATUS "Set USE_LIBUV OFF")
-  # message(STATUS "Only USE_LIBUV is supported on Windows")
+  set(USE_LIBUV ON)
+  message(STATUS "Set USE_LIBUV ON")
+  message(STATUS "Only USE_LIBUV is supported on Windows")
 
   if(BUILD_BENCHMARK)
     message(FATAL_ERROR "BUILD_BENCHMARK is not supported on Windows yet")
@@ -117,8 +117,9 @@ include_directories(${PROJECT_BINARY_DIR})
 
 # Compiler flags
 
+set (CMAKE_CXX_STANDARD 17)
 if(NOT MSVC)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++17 -fPIC")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
 endif()
 
 # Recurse into main project directory

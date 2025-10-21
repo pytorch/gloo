@@ -304,7 +304,7 @@ void Device::connectAsListener(
     const Address& local,
     std::chrono::milliseconds timeout,
     ConnectCallback connectCallback) {
-  defer([=, this] {
+  defer([=] {
     decltype(pendingConnections_)::mapped_type pendingConnection;
 
     // Find pending connection, or stash the connect callback.
@@ -360,7 +360,7 @@ void Device::connectAsInitiator(
     const Address& remote,
     std::chrono::milliseconds timeout,
     ConnectCallback fn) {
-  defer([=, this] {
+  defer([=] {
     auto tcp = loop_->resource<libuv::TCP>();
     auto timer = loop_->resource<libuv::Timer>();
 
@@ -458,7 +458,7 @@ void Device::listenCallback() {
 
   // Wait for remote side to write sequence number.
   handle->once<libuv::ReadEvent>(
-      [=, this](const libuv::ReadEvent& event, libuv::TCP& handle) {
+      [=](const libuv::ReadEvent& event, libuv::TCP& handle) {
         // Sequence number has been read. Either there is an existing
         // connection callback for this sequence number, or we'll hold
         // on to the handle while we wait for the pair to pass a
