@@ -24,6 +24,7 @@ jobs:
           # Full git history is needed to get a proper list of changed files
           # within `super-linter`
           fetch-depth: 0
+          submodules: true
       - name: Super-linter
         uses: super-linter/super-linter@v7.3.0 # x-release-please-version
         env:

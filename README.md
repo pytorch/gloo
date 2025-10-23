@@ -62,6 +62,23 @@ Optional dependencies are:
 
 Please refer to [docs/](docs/) for detailed documentation.
 
+## Cloning
+
+Gloo makes use of [Git submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules)
+for third-party build-time dependencies. When cloning, ensure that you
+initialize and sync submodules:
+
+``` shell
+git clone --recurse-submodules https://github.com/pytorch/gloo.git # or use SSH remote
+```
+
+Or, if you already cloned without submodules, run the following in the existing
+local repository:
+
+``` shell
+git submodule update --init --recursive
+```
+
 ## Building
 
 You can build Gloo using CMake.

@@ -28,7 +28,7 @@
 #include <map>
 #include <mutex>
 
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 
 #ifndef SPEED_UNKNOWN
 /* SPEED_UNKOWN is sometimes undefined, c.f.

@@ -12,8 +12,8 @@
 #include <cstring>
 #include <mutex>
 
+#include "gloo/common/enforce.h"
 #include "gloo/common/error.h"
-#include "gloo/common/logging.h"
 #include "gloo/transport/address.h"
 
 namespace gloo {

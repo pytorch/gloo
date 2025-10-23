@@ -13,15 +13,12 @@
 #include <string.h>
 #include <algorithm>
 #include <cstring>
-#include <iomanip>
-#include <iostream>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "gloo/algorithm.h"
-#include "gloo/common/error.h"
 #include "gloo/context.h"
 
 /**
@@ -538,47 +535,17 @@ class AllreduceBcube : public Algorithm {
     return false;
   }
   /**
-   * Prints a break given the offset of an element about to be printed
-   * @param p Pointer to the elements
-   * @param x The current offset to the pointer to words
-   */
-  static void printBreak(T* p, int x) {
-    if (0 == x % wordsPerLine) {
-      std::cout << std::endl
-                << &p[x] << " " << std::setfill('0') << std::setw(5) << x
-                << ": ";
-    } else if (0 == x % wordsPerSection) {
-      std::cout << "- ";
-    }
-  }
-  /**
    * Pretty prints a list of elements
    * @param p Pointer to the elements
    * @param count The number of elements to be printed
    * @param start The offset from which to print
    */
-  static void printElems(T* p, int count, int start = 0) {
-    auto alignedStart = (start / wordsPerLine) * wordsPerLine;
-    for (int x = alignedStart; x < start + count; ++x) {
-      printBreak(p, x);
-      if (x < start) {
-        std::cout << "..... ";
-      } else {
-        std::cout << std::setfill('0') << std::setw(5) << p[x] << " ";
-      }
-    }
-  }
+  static void printElems(T* p, int count, int start);
   /**
    * Prints contents in the ptrs array at a particular stage
    * @param msg Custom message to be printed
    */
-  void printStageBuffer(const std::string& msg) {
-    if (printCheck(myRank_)) {
-      std::cout << "rank (" << myRank_ << ") " << msg << ": ";
-      printElems(&ptrs_[0][0], totalNumElems_);
-      std::cout << std::endl;
-    }
-  }
+  void printStageBuffer(const std::string& msg);
 
   /**
    * Prints specified buffer during a step
@@ -596,14 +563,7 @@ class AllreduceBcube : public Algorithm {
       int destRank,
       T* p,
       int count,
-      int start = 0) {
-    if (printCheck(myRank_)) {
-      std::cout << stage << ": step (" << step << ") " << "srcRank (" << srcRank
-                << ") -> " << "destRank (" << destRank << "): ";
-      printElems(p, count, start);
-      std::cout << std::endl;
-    }
-  }
+      int start = 0);
   /**
    * Get all the peers of node with specified rank
    * @param rank Rank of the node for which peers are needed

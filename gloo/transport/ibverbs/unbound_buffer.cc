@@ -6,13 +6,13 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include "gloo/transport/ibverbs/unbound_buffer.h"
-
 #include <cstring>
 
+#include "gloo/common/enforce.h"
 #include "gloo/common/error.h"
-#include "gloo/common/logging.h"
+#include "gloo/common/log.h"
 #include "gloo/transport/ibverbs/context.h"
+#include "gloo/transport/ibverbs/unbound_buffer.h"
 
 namespace gloo {
 namespace transport {
@@ -106,9 +106,8 @@ void UnboundBuffer::handleCompletion(int rank, struct ibv_wc* wc) {
     sendCv_.notify_one();
 
     GLOO_DEBUG(
-        "send complete sendPending=",
+        "send complete sendPending={} sendCompletions={}",
         sendPending_,
-        " sendCompletions=",
         sendCompletions_);
   } else {
     GLOO_ENFORCE(false, "Unexpected completion (opcode: ", wc->opcode, ")");

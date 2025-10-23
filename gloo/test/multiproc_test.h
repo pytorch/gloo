@@ -15,7 +15,7 @@
 #include <chrono>
 #include <string>
 
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 #include "gloo/rendezvous/context.h"
 #include "gloo/rendezvous/file_store.h"
 #include "gloo/test/base_test.h"

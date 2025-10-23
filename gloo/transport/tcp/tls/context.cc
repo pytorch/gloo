@@ -8,7 +8,7 @@
 
 #include "gloo/transport/tcp/tls/context.h"
 
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 #include "gloo/transport/tcp/tls/device.h"
 #include "gloo/transport/tcp/tls/openssl.h"
 #include "gloo/transport/tcp/tls/pair.h"

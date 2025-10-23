@@ -11,7 +11,7 @@
 
 #include "gloo/benchmark/benchmark.h"
 #include "gloo/benchmark/runner.h"
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 #include "gloo/cuda_allreduce_bcube.h"
 #include "gloo/cuda_allreduce_halving_doubling.h"
 #include "gloo/cuda_allreduce_halving_doubling_pipelined.h"

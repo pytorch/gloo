@@ -15,9 +15,9 @@
 #include <array>
 #include <iostream>
 
+#include "gloo/common/enforce.h"
 #include "gloo/common/error.h"
 #include "gloo/common/linux.h"
-#include "gloo/common/logging.h"
 #include "gloo/common/utils.h"
 #include "gloo/transport/tcp/context.h"
 #include "gloo/transport/tcp/helpers.h"

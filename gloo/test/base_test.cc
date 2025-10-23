@@ -7,6 +7,7 @@
  */
 
 #include "gloo/test/base_test.h"
+#include "gloo/common/log.h"
 #include "gloo/test/openssl_utils.h"
 
 namespace gloo {
@@ -81,7 +82,7 @@ std::shared_ptr<::gloo::transport::Device> createDevice(Transport transport) {
     try {
       return ::gloo::transport::ibverbs::CreateDevice(attr);
     } catch (const InvalidOperationException& e) {
-      GLOO_INFO("IBVERBS not available: ", e.what());
+      GLOO_INFO("IBVERBS not available: {}", e.what());
     }
   }
 #endif

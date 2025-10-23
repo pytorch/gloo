@@ -6,16 +6,16 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include "gloo/transport/ibverbs/pair.h"
-#include "gloo/transport/ibverbs/buffer.h"
-#include "gloo/transport/ibverbs/unbound_buffer.h"
-
-#include <stdlib.h>
-#include <string.h>
+#include <cstdlib>
+#include <cstring>
 
 #include "gloo/common/common.h"
+#include "gloo/common/enforce.h"
 #include "gloo/common/error.h"
-#include "gloo/common/logging.h"
+#include "gloo/common/log.h"
+#include "gloo/transport/ibverbs/buffer.h"
+#include "gloo/transport/ibverbs/pair.h"
+#include "gloo/transport/ibverbs/unbound_buffer.h"
 
 namespace gloo {
 namespace transport {
@@ -231,7 +231,7 @@ void Pair::sendMemoryRegion(struct ibv_mr* src, int slot) {
   wr.imm_data = slot;
 
   GLOO_DEBUG(
-      "sendMemoryRegion slot=", slot, " addr=", src->addr, " lkey=", src->lkey);
+      "sendMemoryRegion slot={} addr={} lkey={}", slot, src->addr, src->lkey);
 
   // The work request is serialized and sent to the driver so it
   // doesn't need to be valid after the ibv_post_send call.
@@ -331,7 +331,7 @@ void Pair::send(
     size_t offset,
     size_t nbytes) {
   std::unique_lock<std::mutex> lock(m_);
-  GLOO_DEBUG("send tag=", slot, " offset=", offset, " nbytes=", nbytes);
+  GLOO_DEBUG("send tag={} offset={} nbytes={}", slot, offset, nbytes);
 
   GLOO_ENFORCE(!sync_, "Cannot send in sync mode");
 
@@ -364,15 +364,11 @@ void Pair::send(
         wr.wr.rdma.rkey = peer.rkey;
 
         GLOO_DEBUG(
-            "send UnboundBuffer async slot=",
+            "send UnboundBuffer async slot={} peer_addr={} remote_addr={:#x} "
+            "rkey={}",
             wr.wr_id,
-            " peer_addr=",
             peer.addr,
-            " remote_addr=",
-            std::hex,
             wr.wr.rdma.remote_addr,
-            std::dec,
-            " rkey=",
             wr.wr.rdma.rkey);
 
         struct ibv_send_wr* bad_wr;
@@ -391,7 +387,7 @@ void Pair::recv(
     size_t nbytes) {
   std::unique_lock<std::mutex> lock(m_);
 
-  GLOO_DEBUG("recv tag=", tag, " offset=", offset, " nbytes=", nbytes);
+  GLOO_DEBUG("recv tag={} offset={} nbytes={}", tag, offset, nbytes);
 
   GLOO_ENFORCE(!sync_, "Cannot recv in sync mode");
 
@@ -445,19 +441,13 @@ void Pair::put(
   wr.wr.rdma.rkey = key->rkey_;
 
   GLOO_DEBUG(
+      "{}->{}: put UnboundBuffer async slot={} peer_addr={} "
+      "remote_addr={:#x} rkey={}",
       self_.str(),
-      "->",
       peer_.str(),
-      ": ",
-      "put UnboundBuffer async slot=",
       wr.wr_id,
-      " peer_addr=",
       key->addr_,
-      " remote_addr=",
-      std::hex,
       wr.wr.rdma.remote_addr,
-      std::dec,
-      " rkey=",
       wr.wr.rdma.rkey);
 
   struct ibv_send_wr* bad_wr;
@@ -507,19 +497,13 @@ void Pair::get(
   wr.wr.rdma.rkey = key->rkey_;
 
   GLOO_DEBUG(
+      "{}->{}: get UnboundBuffer async slot={} peer_addr={} "
+      "remote_addr={:#x} rkey={}",
       self_.str(),
-      "->",
       peer_.str(),
-      ": ",
-      "get UnboundBuffer async slot=",
       wr.wr_id,
-      " peer_addr=",
       key->addr_,
-      " remote_addr=",
-      std::hex,
       wr.wr.rdma.remote_addr,
-      std::dec,
-      " rkey=",
       wr.wr.rdma.rkey);
 
   struct ibv_send_wr* bad_wr;
@@ -585,11 +569,9 @@ void Pair::pollCompletions() {
         handleCompletion(&wc[i]);
       } catch (const std::exception& ex) {
         GLOO_ERROR(
+            "{}->{}: Exception in handleCompletion: {}",
             self_.str(),
-            "->",
             peer_.str(),
-            ": ",
-            "Exception in handleCompletion: ",
             ex.what());
         throw;
       }
@@ -604,13 +586,11 @@ void Pair::pollCompletions() {
 
 void Pair::handleCompletion(struct ibv_wc* wc) {
   GLOO_DEBUG(
+      "{}->{}: handleCompletion id={} opcode={}",
       self_.str(),
-      "->",
       peer_.str(),
-      ": handleCompletion id=",
       wc->wr_id,
-      " opcode=",
-      wc->opcode);
+      fmt::underlying(wc->opcode));
 
   if (wc->opcode == IBV_WC_RECV_RDMA_WITH_IMM) {
     // Incoming RDMA write completed.
@@ -657,12 +637,10 @@ void Pair::handleCompletion(struct ibv_wc* wc) {
     }
   } else if (wc->opcode == IBV_WC_RECV) {
     GLOO_DEBUG(
+        "{}->{}: handleCompletion id={} opcode=IBV_WC_RECV slot={}",
         self_.str(),
-        "->",
         peer_.str(),
-        ": handleCompletion id=",
         wc->wr_id,
-        " opcode=IBV_WC_RECV slot=",
         wc->imm_data);
     // Memory region recv completed.
     //
@@ -706,12 +684,10 @@ void Pair::handleCompletion(struct ibv_wc* wc) {
     // Memory region send completed.
 
     GLOO_DEBUG(
+        "{}->{}: handleCompletion id={} opcode=IBV_WC_SEND",
         self_.str(),
-        "->",
         peer_.str(),
-        ": handleCompletion id=",
-        wc->wr_id,
-        " opcode=IBV_WC_SEND");
+        wc->wr_id);
 
     auto slot = wc->wr_id;
     GLOO_ENFORCE_EQ(
@@ -750,15 +726,10 @@ void Pair::send(Buffer* buffer, size_t offset, size_t length, size_t roffset) {
         wr.wr.rdma.rkey = peer.rkey;
 
         GLOO_DEBUG(
-            "send Buffer async slot=",
+            "send Buffer async slot={} peer_addr={} remote_addr={:#x} rkey={}",
             wr.wr_id,
-            " peer_addr=",
             peer.addr,
-            " remote_addr=",
-            std::hex,
             wr.wr.rdma.remote_addr,
-            std::dec,
-            " rkey=",
             wr.wr.rdma.rkey);
 
         struct ibv_send_wr* bad_wr;
@@ -781,7 +752,7 @@ void Pair::send(Buffer* buffer, size_t offset, size_t length, size_t roffset) {
 
 void Pair::signalIoFailure(const std::string& msg) {
   std::lock_guard<std::mutex> lock(m_);
-  GLOO_ERROR(msg);
+  GLOO_ERROR("{}", msg);
   auto ex = ::gloo::IoException(msg);
   if (ex_ == nullptr) {
     // If we haven't seen an error yet, store the exception to throw on future

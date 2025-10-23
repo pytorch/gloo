@@ -98,6 +98,9 @@ endif()
 set(GLOO_INSTALL ON CACHE BOOL "")
 mark_as_advanced(GLOO_INSTALL)
 
+# Compile definitions for Gloo
+set(GLOO_COMPILE_DEFS)
+
 # Build shared or static libraries (override from parent project)
 if(BUILD_SHARED_LIBS)
   set(GLOO_STATIC_OR_SHARED SHARED CACHE STRING "")

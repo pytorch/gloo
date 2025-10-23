@@ -10,7 +10,7 @@
 
 #include <memory>
 
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 #include "gloo/rendezvous/store.h"
 #include "gloo/transport/address.h"
 

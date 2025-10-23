@@ -9,7 +9,7 @@
 #pragma once
 
 #include "gloo/common/common.h"
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 #include "gloo/nccl/nccl.h"
 
 namespace gloo {

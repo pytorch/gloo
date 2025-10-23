@@ -5,7 +5,7 @@ set(GLOO_BENCHMARK_SRCS
   )
 
 add_executable(benchmark ${GLOO_BENCHMARK_SRCS})
-target_link_libraries(benchmark gloo)
+target_link_libraries(benchmark gloo ${gloo_ALL_TARGETS_DEPENDENCY_LIBS})
 
 if(GLOO_INSTALL)
   install(TARGETS benchmark DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)

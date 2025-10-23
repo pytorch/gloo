@@ -8,7 +8,7 @@
 
 #include "gloo/cuda_allreduce_local.h"
 
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 #include "gloo/cuda_collectives_device.h"
 #include "gloo/cuda_private.h"
 

@@ -8,11 +8,13 @@
 
 #include "gloo/cuda_allreduce_bcube.h"
 
+#include "gloo/common/log.h"
 #include "gloo/cuda_collectives_device.h"
 #include "gloo/cuda_collectives_host.h"
 #include "gloo/cuda_private.h"
 
 #include <sstream>
+#include <string_view>
 #ifndef _WIN32
 #include <unistd.h>
 #endif
@@ -227,34 +229,47 @@ bool CudaAllreduceBcube<T, W>::printCheck(int /* rank */) {
 }
 
 template <typename T, typename W>
-void CudaAllreduceBcube<T, W>::printBreak(T* p, int x) {
-  if (0 == x % wordsPerLine) {
-    std::cout << std::endl
-              << &p[x] << " " << std::setfill('0') << std::setw(5) << x << ": ";
-  } else if (0 == x % wordsPerSection) {
-    std::cout << "- ";
-  }
-}
-
-template <typename T, typename W>
 void CudaAllreduceBcube<T, W>::printElems(T* p, int count, int start) {
-  auto alignedStart = (start / wordsPerLine) * wordsPerLine;
-  for (int x = alignedStart; x < start + count; ++x) {
-    printBreak(p, x);
-    if (x < start) {
-      std::cout << "..... ";
-    } else {
-      std::cout << std::setfill('0') << std::setw(5) << p[x] << " ";
+  /* Early return if log level is not high enough, to prevent expensive code
+   * running. */
+  if (!spdlog::should_log(spdlog::level::trace))
+    return;
+
+  const std::size_t alignedStart = (start / wordsPerLine) * wordsPerLine;
+  fmt::memory_buffer line{};
+
+  /* Logs/flushes the line buffer - starting a new line */
+  auto printLine = [&]() {
+    if (!line.size())
+      return;
+    std::string_view sv{line.data(), line.size()};
+    GLOO_TRACE("{}", sv);
+    line.clear();
+  };
+
+  for (std::size_t x = alignedStart; x < start + count; ++x) {
+    if (x % wordsPerLine == 0) {
+      if (x != alignedStart)
+        printLine();
+      fmt::format_to(
+          std::back_inserter(line), "{} {:05}: ", fmt::ptr(&p[x]), x);
+    } else if (x % wordsPerSection == 0) {
+      fmt::format_to(std::back_inserter(line), "- ");
     }
+
+    if (x < start)
+      fmt::format_to(std::back_inserter(line), "..... ");
+    else
+      fmt::format_to(std::back_inserter(line), "{:05} ", p[x]);
   }
+  printLine();
 }
 
 template <typename T, typename W>
 void CudaAllreduceBcube<T, W>::printStageBuffer(const std::string& msg) {
   if (printCheck(myRank_)) {
-    std::cout << "rank (" << myRank_ << ") " << msg << ": ";
+    GLOO_TRACE("rank ({}) {}:", myRank_, msg);
     printElems(&scratch_[0], totalNumElems_);
-    std::cout << std::endl;
   }
 }
 
@@ -268,10 +283,13 @@ void CudaAllreduceBcube<T, W>::printStepBuffer(
     int count,
     int start) {
   if (printCheck(myRank_)) {
-    std::cout << stage << ": step (" << step << ") " << "srcRank (" << srcRank
-              << ") -> " << "destRank (" << destRank << "): ";
+    GLOO_TRACE(
+        "{}: step ({}) srcRank ({}) -> destRank ({}):",
+        stage,
+        step,
+        srcRank,
+        destRank);
     printElems(p, count, start);
-    std::cout << std::endl;
   }
 }
 

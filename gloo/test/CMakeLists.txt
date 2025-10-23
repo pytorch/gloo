@@ -17,7 +17,7 @@ set(GLOO_TEST_SRCS
   "${CMAKE_CURRENT_SOURCE_DIR}/remote_key_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/send_recv_test.cc"
   )
-set(GLOO_TEST_LIBRARIES)
+set(GLOO_TEST_LIBRARIES ${gloo_ALL_TARGETS_DEPENDENCY_LIBS})
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
   list(APPEND GLOO_TEST_SRCS
@@ -64,7 +64,7 @@ if(USE_CUDA)
     else()
       cuda_add_executable(gloo_test_cuda ${GLOO_TEST_CUDA_SRCS})
     endif()
-    target_link_libraries(gloo_test_cuda gloo_cuda gtest OpenSSL::SSL OpenSSL::Crypto ${GLOO_CUDA_LIBRARIES})
+    target_link_libraries(gloo_test_cuda gloo_cuda gtest ${GLOO_TEST_LIBRARIES} ${GLOO_CUDA_LIBRARIES})
   endif()
 endif()
 
@@ -79,5 +79,5 @@ if(USE_ROCM)
     )
 
   gloo_hip_add_executable(gloo_test_hip ${GLOO_TEST_HIP_SRCS})
-  target_link_libraries(gloo_test_hip gloo_hip gtest OpenSSL::SSL OpenSSL::Crypto)
+  target_link_libraries(gloo_test_hip gloo_hip gtest ${GLOO_TEST_LIBRARIES})
 endif()

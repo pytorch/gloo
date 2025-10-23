@@ -13,7 +13,7 @@
 #include <random>
 
 #include "gloo/common/common.h"
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 #include "gloo/cuda.h"
 #include "gloo/cuda_private.h"
 

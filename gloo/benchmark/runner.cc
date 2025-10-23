@@ -15,7 +15,7 @@
 #include "gloo/barrier_all_to_one.h"
 #include "gloo/broadcast_one_to_all.h"
 #include "gloo/common/common.h"
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 #include "gloo/rendezvous/context.h"
 #include "gloo/rendezvous/file_store.h"
 #include "gloo/rendezvous/prefix_store.h"

@@ -11,8 +11,8 @@
 #include <cstring>
 #include <iostream>
 
+#include <gloo/common/enforce.h>
 #include <gloo/common/error.h>
-#include <gloo/common/logging.h>
 #include <gloo/transport/uv/common.h>
 #include <gloo/transport/uv/context.h>
 #include <gloo/transport/uv/libuv.h>
