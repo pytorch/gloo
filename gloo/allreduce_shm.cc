@@ -64,6 +64,7 @@ void shared_create(
     if (nbytes = write(d, bytes, nbytes)) {
       shared_open(data, name, nbytes);
     }
+    close(d);
   } else {
     printf("shared_create %s failed\n", name);
   }
@@ -374,11 +375,15 @@ void AllreduceSharedMemoryData::initialize() {
   shared_create(
       &allreduce_buffer, shm_name, workspace_buf, sizeof(AllreduceWorkspace));
 
+  shm_fd.resize(world_size);
+  shm_fd[rank] = allreduce_buffer.descriptor;
+
   workspace_buf = (AllreduceWorkspace*)allreduce_buffer.bytes;
   workspace_buf->states[0] = coll_alt2_allreduce_naive__copy_in_done;
   workspace_buf->states[1] = coll_begin;
   workspace_buf->fd = allreduce_buffer.descriptor;
   strcpy(workspace_buf->name, shm_name);
+  shm_buffer_name = std::string(workspace_buf->name);
 
   // create the workspace pointer list
   workspace =
@@ -405,6 +410,9 @@ void AllreduceSharedMemoryData::initialize() {
         shared_open(&allreduce_buffer, shm_name, sizeof(AllreduceWorkspace));
       } while (allreduce_buffer.descriptor == -1 && errno == ENOENT);
       workspace_buf_other = (AllreduceWorkspace*)allreduce_buffer.bytes;
+      workspace_buf_other->fd = allreduce_buffer.descriptor;
+      shm_fd[i] = allreduce_buffer.descriptor;
+      strcpy(workspace_buf_other->name, shm_name);
       workspace[i] = workspace_buf_other;
     } else {
       workspace[i] = workspace_buf;
@@ -421,11 +429,11 @@ AllreduceSharedMemoryData::~AllreduceSharedMemoryData() {
   if (is_initialized == true) {
     // unlink and munmap shared memory
     for (int i = 0; i < world_size; i++) {
-      std::string shm_name = std::string(workspace[i]->name);
-      close(workspace[i]->fd);
-      munmap(workspace[i], sizeof(Allreduceworkspace));
-      shm_unlink(shm_name.c_str());
+      close(shm_fd[i]);
+      munmap(workspace[i], sizeof(AllreduceWorkspace));
     }
+
+    shm_unlink(shm_buffer_name.c_str());
 
     free(cur_workspace);
     free(workspace);

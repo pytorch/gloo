@@ -57,6 +57,8 @@ struct AllreduceSharedMemoryData {
   char** symmetric_buffer[2];
   // buffer for large messages, double buffer
   char** distributed_buffer[2];
+  std::vector<int> shm_fd;
+  std::string shm_buffer_name;
 
   std::mutex m;
   std::condition_variable cv;
