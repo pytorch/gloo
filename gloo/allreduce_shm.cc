@@ -37,9 +37,9 @@ struct SharedData {
 };
 
 void shared_open(SharedData* data, const char* name, size_t nbytes) {
-  int d = shm_open(name, O_RDWR, S_IRUSR | S_IWUSR);
+  int d = shm_open(name, O_RDONLY, S_IRUSR);
   if (d != -1) {
-    void* bytes = mmap(NULL, nbytes, PROT_READ | PROT_WRITE, MAP_SHARED, d, 0);
+    void* bytes = mmap(NULL, nbytes, PROT_READ, MAP_SHARED, d, 0);
     data->name = name;
     data->descriptor = d;
     data->bytes = bytes;
@@ -60,12 +60,14 @@ void shared_create(
     void* bytes,
     size_t nbytes) {
   int d = shm_open(name, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-  if (d != -1) {
-    if (nbytes = write(d, bytes, nbytes)) {
-      shared_open(data, name, nbytes);
-    }
-    close(d);
+  if (d != -1 && ftruncate(d, nbytes) != -1) {
+    bytes = mmap(NULL, nbytes, PROT_READ | PROT_WRITE, MAP_SHARED, d, 0);
+    data->name = name;
+    data->descriptor = d;
+    data->bytes = bytes;
+    data->nbytes = nbytes;
   } else {
+    data->descriptor = -1;
     printf("shared_create %s failed\n", name);
   }
 }
@@ -410,9 +412,7 @@ void AllreduceSharedMemoryData::initialize() {
         shared_open(&allreduce_buffer, shm_name, sizeof(AllreduceWorkspace));
       } while (allreduce_buffer.descriptor == -1 && errno == ENOENT);
       workspace_buf_other = (AllreduceWorkspace*)allreduce_buffer.bytes;
-      workspace_buf_other->fd = allreduce_buffer.descriptor;
       shm_fd[i] = allreduce_buffer.descriptor;
-      strcpy(workspace_buf_other->name, shm_name);
       workspace[i] = workspace_buf_other;
     } else {
       workspace[i] = workspace_buf;
