@@ -554,7 +554,7 @@ void Pair::closeWhileHoldingPairLock() {
           state_, CONNECTING, "Cannot close pair while waiting on connection");
       break;
     case CONNECTED:
-      device_->defer([=] { this->handle_->close(); });
+      device_->defer([=, this] { this->handle_->close(); });
       state_ = CLOSING;
       break;
     case CLOSING:
