@@ -8,8 +8,8 @@
 
 #include "gloo/transport/tcp/tls/pair.h"
 
+#include "gloo/common/enforce.h"
 #include "gloo/common/error.h"
-#include "gloo/common/logging.h"
 #include "gloo/transport/tcp/buffer.h"
 #include "gloo/transport/tcp/tls/context.h"
 #include "gloo/transport/tcp/tls/device.h"

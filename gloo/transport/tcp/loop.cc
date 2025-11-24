@@ -14,8 +14,8 @@
 
 #include <array>
 
+#include <gloo/common/enforce.h>
 #include <gloo/common/error.h>
-#include <gloo/common/logging.h>
 
 #if defined(__SANITIZE_THREAD__)
 #define TSAN_ENABLED

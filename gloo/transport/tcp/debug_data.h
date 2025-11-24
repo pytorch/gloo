@@ -1,11 +1,10 @@
 // (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
-
-#include <string>
 #pragma once
 
-namespace gloo {
-namespace transport {
-namespace tcp {
+#include <spdlog/fmt/fmt.h>
+#include <string>
+
+namespace gloo::transport::tcp {
 
 struct ConnectDebugData {
   const int retryCount;
@@ -18,6 +17,23 @@ struct ConnectDebugData {
   const std::string local;
 };
 
-} // namespace tcp
-} // namespace transport
-} // namespace gloo
+} // namespace gloo::transport::tcp
+
+template <>
+struct fmt::formatter<gloo::transport::tcp::ConnectDebugData>
+    : fmt::formatter<std::string> {
+  auto format(gloo::transport::tcp::ConnectDebugData& data, format_context& ctx)
+      const -> decltype(ctx.out()) {
+    return fmt::format_to(
+        ctx.out(),
+        "willRetry={}, retry={}, retryLimit={}, rank={}, size={}, local={}, remote={}, error={}",
+        data.willRetry,
+        data.retryCount,
+        data.retryLimit,
+        data.glooRank,
+        data.glooSize,
+        data.local,
+        data.remote,
+        data.error);
+  }
+};

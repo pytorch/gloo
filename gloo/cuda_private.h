@@ -16,7 +16,7 @@
 #ifdef __linux__
 #include "gloo/common/linux.h"
 #endif
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 #include "gloo/cuda.h"
 #include "gloo/transport/device.h"
 

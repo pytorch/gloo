@@ -11,7 +11,7 @@
 #include <math.h>
 
 #include "gloo/algorithm.h"
-#include "gloo/common/logging.h"
+#include "gloo/common/enforce.h"
 #include "gloo/context.h"
 
 namespace gloo {

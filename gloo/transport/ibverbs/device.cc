@@ -6,18 +6,17 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include "gloo/transport/ibverbs/device.h"
-
 #include <fcntl.h>
 #include <poll.h>
-#include <string.h>
-
 #include <algorithm>
+#include <cstring>
 
+#include "gloo/common/enforce.h"
 #include "gloo/common/error.h"
 #include "gloo/common/linux.h"
-#include "gloo/common/logging.h"
+#include "gloo/common/log.h"
 #include "gloo/transport/ibverbs/context.h"
+#include "gloo/transport/ibverbs/device.h"
 #include "gloo/transport/ibverbs/pair.h"
 
 namespace gloo {
@@ -85,9 +84,8 @@ std::shared_ptr<::gloo::transport::Device> CreateDevice(
     std::vector<std::string> names;
     for (auto i = 0; i < devices.size(); i++) {
       GLOO_DEBUG(
-          "found candidate device ",
+          "found candidate device {} dev={}",
           devices[i]->name,
-          " dev=",
           devices[i]->dev_name);
       names.push_back(devices[i]->name);
     }
@@ -96,11 +94,9 @@ std::shared_ptr<::gloo::transport::Device> CreateDevice(
   }
 
   GLOO_INFO(
-      "Using ibverbs device=",
+      "Using ibverbs device={} port={} index={}",
       attr.name,
-      " port=",
       attr.port,
-      " index=",
       attr.index);
 
   // Look for specified device name
@@ -227,7 +223,7 @@ void Device::loop() {
       Pair* pair = static_cast<Pair*>(cqContext);
       pair->handleCompletionEvent();
     } catch (const std::exception& ex) {
-      GLOO_ERROR("Exception while handling completion event: ", ex.what());
+      GLOO_ERROR("Exception while handling completion event: {}", ex.what());
       throw;
     }
   }

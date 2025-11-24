@@ -23,6 +23,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          submodules: true
       - name: Setup environment
         run: |
           sudo apt-get install -y libssl-dev

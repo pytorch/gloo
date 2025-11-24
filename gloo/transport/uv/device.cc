@@ -22,7 +22,7 @@
 #else
 #include <gloo/common/win.h> // @manual
 #endif
-#include <gloo/common/logging.h>
+#include <gloo/common/enforce.h>
 #include <gloo/transport/uv/common.h>
 #include <gloo/transport/uv/context.h>
 #include <gloo/transport/uv/libuv.h>

@@ -18,4 +18,4 @@ extend `::gloo::Exception`.
 ## Assertions
 Gloo asserts unexpected errors and logical invariants instead of expecting
 callers to handle them. `GLOO_ENFORCE` macros are defined in
-[`logging.h`](../gloo/common/logging.h)
+[`enforce.h`](../gloo/common/enforce.h)
