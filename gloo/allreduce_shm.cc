@@ -353,7 +353,7 @@ void AllreduceSharedMemoryData::initialize() {
       Allreduceworkspace::NAME_BUF_SIZE,
       "%s_%d_%s_%s",
       "shm_allreduce_buffer",
-      getuid(),
+      getsid(getpid()),
       addr_string.c_str(),
       port_string.c_str());
   // create shared workspace for SHM based allreduce
