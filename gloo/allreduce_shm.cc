@@ -61,7 +61,7 @@ void shared_create(
     size_t nbytes) {
   int d = shm_open(name, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
   if (d != -1) {
-    if (ftruncate(d, nbytes) != -1) {
+    if (nbytes = write(d, bytes, nbytes)) {
       shared_open(data, name, nbytes);
     }
     close(d);
