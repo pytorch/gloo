@@ -37,9 +37,9 @@ struct SharedData {
 };
 
 void shared_open(SharedData* data, const char* name, size_t nbytes) {
-  int d = shm_open(name, O_RDONLY, S_IRUSR);
+  int d = shm_open(name, O_RDWR, S_IRUSR | S_IWUSR);
   if (d != -1) {
-    void* bytes = mmap(NULL, nbytes, PROT_READ, MAP_SHARED, d, 0);
+    void* bytes = mmap(NULL, nbytes, PROT_READ | PROT_WRITE, MAP_SHARED, d, 0);
     data->name = name;
     data->descriptor = d;
     data->bytes = bytes;
@@ -60,14 +60,12 @@ void shared_create(
     void* bytes,
     size_t nbytes) {
   int d = shm_open(name, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
-  if (d != -1 && ftruncate(d, nbytes) != -1) {
-    bytes = mmap(NULL, nbytes, PROT_READ | PROT_WRITE, MAP_SHARED, d, 0);
-    data->name = name;
-    data->descriptor = d;
-    data->bytes = bytes;
-    data->nbytes = nbytes;
+  if (d != -1) {
+    if (ftruncate(d, nbytes) != -1) {
+      shared_open(data, name, nbytes);
+    }
+    close(d);
   } else {
-    data->descriptor = -1;
     printf("shared_create %s failed\n", name);
   }
 }
