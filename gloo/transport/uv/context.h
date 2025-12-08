@@ -45,7 +45,7 @@ class Context final : public ::gloo::transport::Context,
  public:
   Context(std::shared_ptr<Device> device, int rank, int size);
 
-  virtual ~Context();
+  ~Context() override;
 
   std::unique_ptr<transport::Pair>& createPair(int rank) override;
 

@@ -17,7 +17,7 @@ class BarrierAllToAll : public Barrier {
   explicit BarrierAllToAll(const std::shared_ptr<Context>& context)
       : Barrier(context) {}
 
-  void run() {
+  void run() override {
     // Create send/recv buffers for every peer
     auto slot = this->context_->nextSlot();
 

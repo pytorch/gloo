@@ -8,7 +8,7 @@
 
 #include <gloo/transport/uv/address.h>
 
-#include <string.h>
+#include <cstring>
 
 #include <uv.h>
 

@@ -22,9 +22,9 @@ class AllreduceLocal : public Algorithm {
       const int count,
       const ReductionFunction<T>* fn = ReductionFunction<T>::sum);
 
-  virtual ~AllreduceLocal() = default;
+  ~AllreduceLocal() override = default;
 
-  virtual void run() override;
+  void run() override;
 
  protected:
   std::vector<T*> ptrs_;

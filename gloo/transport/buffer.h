@@ -16,7 +16,7 @@ namespace transport {
 class Buffer {
  public:
   explicit Buffer(int slot, void* ptr, size_t size)
-      : slot_(slot), ptr_(ptr), size_(size), debug_(false) {}
+      : slot_(slot), ptr_(ptr), size_(size) {}
   virtual ~Buffer() = 0;
 
   virtual void setDebug(bool debug) {
@@ -37,7 +37,7 @@ class Buffer {
   int slot_;
   void* ptr_;
   size_t size_;
-  bool debug_;
+  bool debug_{false};
 };
 
 } // namespace transport

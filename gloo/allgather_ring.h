@@ -52,9 +52,9 @@ class AllgatherRing : public Algorithm {
         rightPair_->createRecvBuffer(notificationSlot, &dummy_, sizeof(dummy_));
   }
 
-  virtual ~AllgatherRing() {}
+  ~AllgatherRing() override = default;
 
-  void run() {
+  void run() override {
     // Short circuit if there is only a single process or the output is empty.
     if (this->contextSize_ == 1 || count_ == 0) {
       return;

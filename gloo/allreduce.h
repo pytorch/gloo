@@ -42,9 +42,7 @@ struct AllreduceOptionsImpl {
   };
 
   explicit AllreduceOptionsImpl(const std::shared_ptr<Context>& context)
-      : context(context),
-        timeout(context->getTimeout()),
-        algorithm(UNSPECIFIED) {}
+      : context(context), timeout(context->getTimeout()) {}
 
   std::shared_ptr<Context> context;
 
@@ -52,7 +50,7 @@ struct AllreduceOptionsImpl {
   std::chrono::milliseconds timeout;
 
   // Algorithm selection.
-  Algorithm algorithm;
+  Algorithm algorithm{UNSPECIFIED};
 
   // Input and output buffers.
   // The output is used as input if input is not specified.

@@ -110,11 +110,11 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
 
   // Assert the size of all inputs and outputs is identical.
   const size_t totalBytes = opts.elements * opts.elementSize;
-  for (size_t i = 0; i < out.size(); i++) {
-    GLOO_ENFORCE_EQ(out[i]->size, totalBytes);
+  for (const auto& i : out) {
+    GLOO_ENFORCE_EQ(i->size, totalBytes);
   }
-  for (size_t i = 0; i < in.size(); i++) {
-    GLOO_ENFORCE_EQ(in[i]->size, totalBytes);
+  for (const auto& i : in) {
+    GLOO_ENFORCE_EQ(i->size, totalBytes);
   }
 
   // Initialize local reduction and broadcast functions.
@@ -560,8 +560,7 @@ void bcube(
     }
 
     // Wait for send and receive operations to complete.
-    for (size_t i = 0; i < group.ranks.size(); i++) {
-      const auto peer = group.ranks[i];
+    for (unsigned long peer : group.ranks) {
       if (peer == context->rank) {
         continue;
       }
@@ -640,8 +639,7 @@ void bcube(
     }
 
     // Wait for operations to complete.
-    for (size_t i = 0; i < group.ranks.size(); i++) {
-      const auto peer = group.ranks[i];
+    for (unsigned long peer : group.ranks) {
       if (peer == context->rank) {
         continue;
       }

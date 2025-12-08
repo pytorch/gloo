@@ -84,14 +84,14 @@ class BaseTest : public ::testing::Test {
     std::mutex mutex;
     std::vector<std::string> errors;
     for (int rank = 0; rank < size; rank++) {
-      threads.push_back(std::thread([&, rank]() {
+      threads.emplace_back([&, rank]() {
         try {
           fn(rank);
         } catch (const std::exception& e) {
           std::lock_guard<std::mutex> lock(mutex);
-          errors.push_back(e.what());
+          errors.emplace_back(e.what());
         }
-      }));
+      });
     }
 
     // Wait for threads to complete

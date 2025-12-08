@@ -224,7 +224,7 @@ class Context {
     std::vector<Tally>::iterator it_;
 
     // If the iterator has been initialized.
-    bool initialized_;
+    bool initialized_{false};
 
     // Initialize iterator to Tally instance for this slot.
     void initialize_iterator();

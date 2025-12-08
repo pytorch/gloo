@@ -220,7 +220,7 @@ class Loop : public std::enable_shared_from_this<Loop> {
   explicit Loop(std::unique_ptr<uv_loop_t> ptr) : loop_(std::move(ptr)) {}
 
   static std::shared_ptr<Loop> create() {
-    auto ptr = std::unique_ptr<uv_loop_t>(new uv_loop_t);
+    auto ptr = std::make_unique<uv_loop_t>();
     auto loop = std::make_shared<Loop>(std::move(ptr));
     auto rv = uv_loop_init(loop->loop_.get());
     UV_ASSERT(rv, "uv_loop_init");
@@ -228,18 +228,15 @@ class Loop : public std::enable_shared_from_this<Loop> {
   }
 
   template <typename T, typename... Args>
-  typename std::
-      enable_if<std::is_base_of<BaseHandle, T>::value, std::shared_ptr<T>>::type
-      resource(Args&&... args) {
+  std::enable_if_t<std::is_base_of_v<BaseHandle, T>, std::shared_ptr<T>>
+  resource(Args&&... args) {
     auto handle = T::create(shared_from_this(), std::forward<Args>(args)...);
     handle->init();
     return handle;
   }
 
   template <typename T, typename... Args>
-  typename std::enable_if<
-      std::is_base_of<BaseRequest, T>::value,
-      std::shared_ptr<T>>::type
+  std::enable_if_t<std::is_base_of_v<BaseRequest, T>, std::shared_ptr<T>>
   resource(Args&&... args) {
     return T::create(shared_from_this(), std::forward<Args>(args)...);
   }
@@ -281,13 +278,13 @@ class Resource : public Emitter<T>, public std::enable_shared_from_this<T> {
 
   template <typename R>
   const R* get() const noexcept {
-    static_assert(!std::is_same<R, U>::value, "!");
+    static_assert(!std::is_same_v<R, U>, "!");
     return reinterpret_cast<const R*>(&resource_);
   }
 
   template <typename R>
   R* get() noexcept {
-    static_assert(!std::is_same<R, U>::value, "!");
+    static_assert(!std::is_same_v<R, U>, "!");
     return reinterpret_cast<R*>(&resource_);
   }
 
@@ -346,7 +343,7 @@ class Handle : public Resource<T, U>, public BaseHandle {
   }
 
   template <typename F, typename... Args>
-  typename std::invoke_result<F, Args...>::type invoke(F&& f, Args&&... args) {
+  std::invoke_result_t<F, Args...> invoke(F&& f, Args&&... args) {
     return std::forward<F>(f)(std::forward<Args>(args)...);
   }
 
@@ -382,9 +379,9 @@ class Request : public Resource<T, U>, public BaseRequest {
   // The request is leaked if the call is successful, under the
   // assumption that it is unleaked when the callback gets called.
   template <typename F, typename... Args>
-  typename std::enable_if<
-      !std::is_void<typename std::invoke_result<F, Args...>::type>::value,
-      typename std::invoke_result<F, Args...>::type>::type
+  std::enable_if_t<
+      !std::is_void_v<std::invoke_result_t<F, Args...>>,
+      std::invoke_result_t<F, Args...>>
   invoke(F&& f, Args&&... args) {
     auto err = std::forward<F>(f)(std::forward<Args>(args)...);
     if (err) {
@@ -457,8 +454,7 @@ class ReadEvent {
   size_t length;
 
   template <typename T>
-  typename std::enable_if<std::is_trivially_copyable<T>::value, T>::type as()
-      const {
+  std::enable_if_t<std::is_trivially_copyable_v<T>, T> as() const {
     if (length != sizeof(T)) {
       abort();
     }
@@ -631,7 +627,7 @@ class TCP final : public Handle<TCP, uv_tcp_t> {
   template <typename T>
   void write(T t) {
     static_assert(
-        std::is_trivially_copyable<T>::value,
+        std::is_trivially_copyable_v<T>,
         "Only trivially copyable types can be written directly.");
     auto data = std::unique_ptr<char[], detail::WriteRequest::Deleter>(
         new char[sizeof(T)], [](char* ptr) { delete[] ptr; });

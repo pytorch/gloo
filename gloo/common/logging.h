@@ -83,7 +83,7 @@ class EnforceNotMet : public std::exception {
     return msg_stack_;
   }
 
-  virtual const char* what() const noexcept override;
+  const char* what() const noexcept override;
 
  private:
   std::vector<std::string> msg_stack_;

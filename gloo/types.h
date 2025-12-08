@@ -91,8 +91,8 @@ class Slot {
 };
 
 struct float16;
-float16 cpu_float2half_rn(float f);
-float cpu_half2float(float16 h);
+float16 cpu_float2half_rn(float f) noexcept;
+float cpu_half2float(float16 h) noexcept;
 
 struct alignas(2) float16 {
   uint16_t x;
@@ -127,12 +127,7 @@ struct alignas(2) float16 {
     return *this;
   }
 
-  float16& operator=(const float16& rhs) {
-    if (rhs != *this) {
-      x = rhs.x;
-    }
-    return *this;
-  }
+  float16& operator=(const float16& rhs) = default;
 
   bool operator==(const float16& rhs) const {
     return x == rhs.x;
@@ -249,7 +244,7 @@ inline bool operator>=(const float16& lhs, const float16& rhs) {
   return cpu_half2float(lhs) >= cpu_half2float(rhs);
 }
 
-inline float16 cpu_float2half_rn(float f) {
+inline float16 cpu_float2half_rn(float f) noexcept {
   float16 ret;
 
   static_assert(
@@ -310,7 +305,7 @@ inline float16 cpu_float2half_rn(float f) {
   return ret;
 }
 
-inline float cpu_half2float(float16 h) {
+inline float cpu_half2float(float16 h) noexcept {
   unsigned sign = ((h.x >> 15) & 1);
   unsigned exponent = ((h.x >> 10) & 0x1f);
   unsigned mantissa = ((h.x & 0x3ff) << 13);

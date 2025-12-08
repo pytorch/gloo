@@ -60,7 +60,7 @@ class Context {
  protected:
   std::shared_ptr<transport::Device> device_;
   std::shared_ptr<transport::Context> transportContext_;
-  int slot_;
+  int slot_{0};
   std::chrono::milliseconds timeout_;
 };
 

@@ -30,8 +30,8 @@ void scatter(ScatterOptions& opts) {
     // Assert there are as many inputs as ranks to send to.
     GLOO_ENFORCE_EQ(in.size(), context->size);
     // Assert the size of all inputs is identical to the output.
-    for (size_t i = 0; i < in.size(); i++) {
-      GLOO_ENFORCE_EQ(in[i]->size, out->size);
+    for (const auto& i : in) {
+      GLOO_ENFORCE_EQ(i->size, out->size);
     }
   }
 

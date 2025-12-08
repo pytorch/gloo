@@ -82,14 +82,7 @@ class AllreduceHalvingDoubling : public Algorithm {
         sendOffsets_(steps_),
         recvOffsets_(steps_),
         sendCounts_(steps_, 0),
-        recvCounts_(steps_, 0),
-        sendCountToLargerBlock_(0),
-        offsetToMyBinaryBlock_(0),
-        myBinaryBlockSize_(0),
-        stepsWithinBlock_(0),
-        rankInBinaryBlock_(0),
-        nextSmallerBlockSize_(0),
-        nextLargerBlockSize_(0) {
+        recvCounts_(steps_, 0) {
     if (count_ == 0 || this->contextSize_ == 1) {
       return;
     }
@@ -222,7 +215,7 @@ class AllreduceHalvingDoubling : public Algorithm {
     }
   }
 
-  void run() {
+  void run() override {
     if (count_ == 0) {
       return;
     }
@@ -394,7 +387,7 @@ class AllreduceHalvingDoubling : public Algorithm {
 
   std::vector<size_t> sendCounts_;
   std::vector<size_t> recvCounts_;
-  size_t sendCountToLargerBlock_;
+  size_t sendCountToLargerBlock_{0};
 
   int dummy_;
   std::vector<std::unique_ptr<transport::Buffer>> sendNotificationBufs_;
@@ -404,12 +397,12 @@ class AllreduceHalvingDoubling : public Algorithm {
   // binary blocks and keep track of which block each process is in, as well as
   // the adjoining larger and smaller blocks (with which communication will be
   // required)
-  uint32_t offsetToMyBinaryBlock_;
-  uint32_t myBinaryBlockSize_;
-  uint32_t stepsWithinBlock_;
-  uint32_t rankInBinaryBlock_;
-  uint32_t nextSmallerBlockSize_;
-  uint32_t nextLargerBlockSize_;
+  uint32_t offsetToMyBinaryBlock_{0};
+  uint32_t myBinaryBlockSize_{0};
+  uint32_t stepsWithinBlock_{0};
+  uint32_t rankInBinaryBlock_{0};
+  uint32_t nextSmallerBlockSize_{0};
+  uint32_t nextLargerBlockSize_{0};
 
   int slotOffset_;
 };

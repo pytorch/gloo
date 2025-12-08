@@ -41,8 +41,8 @@ class AllreduceRingChunked : public Algorithm {
     chunkBytes_ = chunkSize_ * sizeof(T);
 
     // Allocate inboxes
-    for (int i = 0; i < 2; i++) {
-      inbox_[i] = static_cast<T*>(malloc(bytes_));
+    for (auto& i : inbox_) {
+      i = static_cast<T*>(malloc(bytes_));
     }
 
     if (count_ == 0 || this->contextSize_ == 1) {
@@ -72,15 +72,15 @@ class AllreduceRingChunked : public Algorithm {
         rightPair->createRecvBuffer(notificationSlot, &dummy_, sizeof(dummy_));
   }
 
-  virtual ~AllreduceRingChunked() {
-    for (int i = 0; i < 2; i++) {
-      if (inbox_[i] != nullptr) {
-        free(inbox_[i]);
+  ~AllreduceRingChunked() override {
+    for (auto& i : inbox_) {
+      if (i != nullptr) {
+        free(i);
       }
     }
   }
 
-  void run() {
+  void run() override {
     if (count_ == 0) {
       return;
     }
