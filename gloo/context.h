@@ -24,6 +24,8 @@ class Device;
 class UnboundBuffer;
 } // namespace transport
 
+class AllreduceSharedMemoryData;
+
 class Context {
  public:
   Context(int rank, int size, int base = 2);
@@ -32,6 +34,8 @@ class Context {
   const int rank;
   const int size;
   int base;
+
+  std::shared_ptr<AllreduceSharedMemoryData> shmData;
 
   std::shared_ptr<transport::Device>& getDevice();
 
@@ -51,6 +55,8 @@ class Context {
   void setTimeout(std::chrono::milliseconds timeout);
 
   std::chrono::milliseconds getTimeout() const;
+
+  bool isIntraNode() const;
 
   std::unique_ptr<transport::RemoteKey> deserializeRemoteKey(
       const std::string& serialized) {

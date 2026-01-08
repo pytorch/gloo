@@ -12,8 +12,10 @@
 #include <array>
 #include <cstring>
 
+#include "gloo/allreduce_shm.h"
 #include "gloo/common/logging.h"
 #include "gloo/math.h"
+#include "gloo/transport/device.h"
 #include "gloo/types.h"
 
 namespace gloo {
@@ -131,7 +133,15 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
     return;
   }
 
-  switch (opts.algorithm) {
+  auto algorithm = opts.algorithm;
+
+#ifndef _WIN32
+  if (context->isIntraNode() && !context->getDevice()->hasGPUDirect()) {
+    algorithm = detail::AllreduceOptionsImpl::SHM;
+  }
+#endif
+
+  switch (algorithm) {
     case detail::AllreduceOptionsImpl::UNSPECIFIED:
     case detail::AllreduceOptionsImpl::RING:
       ring(opts, reduceInputs, broadcastOutputs);
@@ -139,6 +149,11 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
     case detail::AllreduceOptionsImpl::BCUBE:
       bcube(opts, reduceInputs, broadcastOutputs);
       break;
+#ifndef _WIN32
+    case detail::AllreduceOptionsImpl::SHM:
+      shm(opts);
+      break;
+#endif
     default:
       GLOO_ENFORCE(false, "Algorithm not handled.");
   }
