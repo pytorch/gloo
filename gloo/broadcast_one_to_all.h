@@ -38,7 +38,7 @@ class BroadcastOneToAll : public Algorithm {
     GLOO_ENFORCE_LT(rootPointerRank_, ptrs_.size());
   }
 
-  void run() {
+  void run() override {
     if (contextSize_ == 1) {
       broadcastLocally();
       return;

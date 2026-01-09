@@ -100,7 +100,7 @@ const ReductionFunction<T>* ReductionFunction<T>::max =
 template <typename T>
 class LocalOp {
  public:
-  virtual ~LocalOp() noexcept(false) {}
+  virtual ~LocalOp() noexcept(false) = default;
   virtual void runAsync() = 0;
   virtual void wait() = 0;
 

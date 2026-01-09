@@ -28,7 +28,7 @@ class UnboundBuffer : public ::gloo::transport::UnboundBuffer {
  public:
   UnboundBuffer(std::shared_ptr<Context> context, void* ptr, size_t size);
 
-  virtual ~UnboundBuffer();
+  ~UnboundBuffer() override;
 
   // If specified, the source of this recv is stored in the rank pointer.
   // Returns true if it completed, false if it was aborted.
@@ -68,10 +68,10 @@ class UnboundBuffer : public ::gloo::transport::UnboundBuffer {
   bool abortWaitRecv_{false};
   bool abortWaitSend_{false};
 
-  int recvCompletions_;
-  int recvRank_;
-  int sendCompletions_;
-  int sendRank_;
+  int recvCompletions_{0};
+  int recvRank_{-1};
+  int sendCompletions_{0};
+  int sendRank_{-1};
 
   // Allows for sharing weak (non owning) references to "this" without
   // affecting the lifetime of this instance.

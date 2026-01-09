@@ -6,7 +6,7 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-#include <stdlib.h>
+#include <cstdlib>
 
 #include <functional>
 #include <thread>
@@ -53,8 +53,8 @@ using ParamHP = std::tuple<Transport, int, int, std::function<Func16>>;
 template <typename Algorithm>
 class AllreduceConstructorTest : public BaseTest {};
 
-typedef ::testing::Types<AllreduceRing<float>, AllreduceRingChunked<float>>
-    AllreduceTypes;
+using AllreduceTypes =
+    ::testing::Types<AllreduceRing<float>, AllreduceRingChunked<float>>;
 TYPED_TEST_CASE(AllreduceConstructorTest, AllreduceTypes);
 
 TYPED_TEST(AllreduceConstructorTest, InlinePointers) {

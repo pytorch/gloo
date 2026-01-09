@@ -12,7 +12,7 @@ namespace gloo {
 namespace transport {
 
 // Have to provide implementation for pure virtual destructor.
-Buffer::~Buffer() {}
+Buffer::~Buffer() = default;
 
 } // namespace transport
 } // namespace gloo

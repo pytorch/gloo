@@ -19,18 +19,17 @@ namespace rendezvous {
 class FileStore : public Store {
  public:
   explicit FileStore(const std::string& path);
-  virtual ~FileStore() {}
+  ~FileStore() override = default;
 
-  virtual void set(const std::string& key, const std::vector<char>& data)
-      override;
+  void set(const std::string& key, const std::vector<char>& data) override;
 
-  virtual std::vector<char> get(const std::string& key) override;
+  std::vector<char> get(const std::string& key) override;
 
-  virtual void wait(const std::vector<std::string>& keys) override {
+  void wait(const std::vector<std::string>& keys) override {
     wait(keys, Store::kDefaultTimeout);
   }
 
-  virtual void wait(
+  void wait(
       const std::vector<std::string>& keys,
       const std::chrono::milliseconds& timeout) override;
 

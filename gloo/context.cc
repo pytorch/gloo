@@ -18,13 +18,13 @@ namespace gloo {
 static const std::chrono::seconds kTimeoutDefault = std::chrono::seconds(30);
 
 Context::Context(int rank, int size, int base)
-    : rank(rank), size(size), base(base), slot_(0), timeout_(kTimeoutDefault) {
+    : rank(rank), size(size), base(base),  timeout_(kTimeoutDefault) {
   GLOO_ENFORCE_GE(rank, 0);
   GLOO_ENFORCE_LT(rank, size);
   GLOO_ENFORCE_GE(size, 1);
 }
 
-Context::~Context() {}
+Context::~Context() = default;
 
 std::shared_ptr<transport::Device>& Context::getDevice() {
   GLOO_ENFORCE(device_, "Device not set!");

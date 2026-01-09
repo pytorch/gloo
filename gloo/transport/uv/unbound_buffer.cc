@@ -12,6 +12,8 @@
 #include <gloo/common/logging.h>
 #include <gloo/transport/uv/context.h>
 
+#include <utility>
+
 namespace gloo {
 namespace transport {
 namespace uv {
@@ -21,14 +23,11 @@ UnboundBuffer::UnboundBuffer(
     void* ptr,
     size_t size)
     : ::gloo::transport::UnboundBuffer(ptr, size),
-      context_(context),
-      recvCompletions_(0),
-      recvRank_(-1),
-      sendCompletions_(0),
-      sendRank_(-1),
+      context_(std::move(context)),
+      
       shareableNonOwningPtr_(this) {}
 
-UnboundBuffer::~UnboundBuffer() {}
+UnboundBuffer::~UnboundBuffer() = default;
 
 void UnboundBuffer::handleRecvCompletion(int rank) {
   std::lock_guard<std::mutex> lock(mutex_);

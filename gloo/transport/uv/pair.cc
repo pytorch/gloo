@@ -31,9 +31,8 @@ Pair::Pair(
       device_(device),
       rank_(rank),
       timeout_(timeout),
-      addr_(device_->nextAddress()),
-      state_(INITIALIZED),
-      errno_(0) {}
+      addr_(device_->nextAddress())
+      {}
 
 Pair::~Pair() {
   std::unique_lock<std::mutex> lock(mutex_);
@@ -82,11 +81,7 @@ void Pair::connect(const std::vector<char>& bytes) {
       addr_,
       peer,
       timeout_,
-      std::bind(
-          &Pair::connectCallback,
-          this,
-          std::placeholders::_1,
-          std::placeholders::_2));
+      [this](auto && PH1, auto && PH2) { connectCallback(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2)); });
 
   // Wait for callback to fire.
   //
@@ -122,16 +117,11 @@ void Pair::connectCallback(
     state_ = CONNECTED;
 
     // Setup event listeners.
-    handle_->on<libuv::CloseEvent>(std::bind(
-        &Pair::onClose, this, std::placeholders::_1, std::placeholders::_2));
-    handle_->on<libuv::EndEvent>(std::bind(
-        &Pair::onEnd, this, std::placeholders::_1, std::placeholders::_2));
-    handle_->on<libuv::ErrorEvent>(std::bind(
-        &Pair::onError, this, std::placeholders::_1, std::placeholders::_2));
-    handle_->on<libuv::ReadEvent>(std::bind(
-        &Pair::onRead, this, std::placeholders::_1, std::placeholders::_2));
-    handle_->on<libuv::WriteEvent>(std::bind(
-        &Pair::onWrite, this, std::placeholders::_1, std::placeholders::_2));
+    handle_->on<libuv::CloseEvent>([this](auto && PH1, auto && PH2) { onClose(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2)); });
+    handle_->on<libuv::EndEvent>([this](auto && PH1, auto && PH2) { onEnd(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2)); });
+    handle_->on<libuv::ErrorEvent>([this](auto && PH1, auto && PH2) { onError(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2)); });
+    handle_->on<libuv::ReadEvent>([this](auto && PH1, auto && PH2) { onRead(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2)); });
+    handle_->on<libuv::WriteEvent>([this](auto && PH1, auto && PH2) { onWrite(std::forward<decltype(PH1)>(PH1), std::forward<decltype(PH2)>(PH2)); });
 
     // Prepare to read next preamble.
     readNextOp();

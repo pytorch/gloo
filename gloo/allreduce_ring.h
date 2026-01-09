@@ -57,7 +57,7 @@ class AllreduceRing : public Algorithm {
         rightPair->createRecvBuffer(notificationSlot, &dummy_, sizeof(dummy_));
   }
 
-  virtual ~AllreduceRing() {
+  ~AllreduceRing() override {
     if (inbox_ != nullptr) {
       free(inbox_);
     }
@@ -66,7 +66,7 @@ class AllreduceRing : public Algorithm {
     }
   }
 
-  void run() {
+  void run() override {
     if (count_ == 0) {
       return;
     }

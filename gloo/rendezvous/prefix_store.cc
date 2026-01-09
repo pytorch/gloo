@@ -9,14 +9,13 @@
 #include "prefix_store.h"
 
 #include <sstream>
+#include <utility>
 
 namespace gloo {
 namespace rendezvous {
 
-PrefixStore::PrefixStore(
-    const std::string& prefix,
-    std::shared_ptr<Store> store)
-    : prefix_(prefix), store_(std::move(store)) {}
+PrefixStore::PrefixStore(std::string prefix, std::shared_ptr<Store> store)
+    : prefix_(std::move(prefix)), store_(std::move(store)) {}
 
 std::string PrefixStore::joinKey(const std::string& key) {
   std::stringstream ss;

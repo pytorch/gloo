@@ -12,7 +12,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <memory>
 #include <sstream>
+#include <utility>
 
 #include <uv.h> // @manual
 
@@ -179,7 +181,7 @@ std::shared_ptr<transport::Device> CreateDevice(struct attr attr) {
   return std::make_shared<Device>(attr);
 }
 
-Device::Device(const struct attr& attr) : attr_(attr) {
+Device::Device(struct attr attr) : attr_(std::move(attr)) {
   loop_ = libuv::Loop::create();
 
   // Use async handle to trigger the event loop to
@@ -208,7 +210,7 @@ Device::Device(const struct attr& attr) : attr_(attr) {
   addr_ = Address(listener_->sockname());
 
   // Run uv_run on private thread.
-  thread_.reset(new std::thread([this] { loop_->run(); }));
+  thread_ = std::make_unique<std::thread>([this] { loop_->run(); });
 }
 
 Device::~Device() {

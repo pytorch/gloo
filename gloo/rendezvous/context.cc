@@ -9,6 +9,7 @@
 #include "gloo/rendezvous/context.h"
 
 #include <memory>
+#include <utility>
 
 #include "gloo/common/logging.h"
 #include "gloo/rendezvous/store.h"
@@ -20,7 +21,7 @@ namespace rendezvous {
 Context::Context(int rank, int size, int base)
     : ::gloo::Context(rank, size, base) {}
 
-Context::~Context() {}
+Context::~Context() = default;
 
 void Context::connectFullMesh(
     std::shared_ptr<rendezvous::Store> store,
@@ -35,7 +36,7 @@ void Context::connectFullMesh(
 }
 
 ContextFactory::ContextFactory(std::shared_ptr<::gloo::Context> backingContext)
-    : backingContext_(backingContext) {
+    : backingContext_(std::move(backingContext)) {
   // We make sure that we have a fully connected context
   for (auto i = 0; i < backingContext_->size; i++) {
     if (i == backingContext_->rank) {

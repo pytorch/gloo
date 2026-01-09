@@ -26,7 +26,7 @@ class Address : public ::gloo::transport::Address {
  public:
   using sequence_type = int;
 
-  Address() {}
+  Address() = default;
 
   Address(struct sockaddr_storage ss, sequence_type seq = -1);
 
@@ -36,9 +36,9 @@ class Address : public ::gloo::transport::Address {
   Address& operator=(const Address& other);
   Address(const Address& other);
 
-  virtual std::vector<char> bytes() const override;
+  std::vector<char> bytes() const override;
 
-  virtual std::string str() const override;
+  std::string str() const override;
 
   const struct sockaddr_storage& getSockaddr() const {
     return impl_.ss;
@@ -66,7 +66,7 @@ class Address : public ::gloo::transport::Address {
     sequence_type seq = -1;
   };
 
-  static_assert(std::is_trivially_copyable<Impl>::value, "!");
+  static_assert(std::is_trivially_copyable_v<Impl>, "!");
 
   Impl impl_;
   mutable std::mutex m_;

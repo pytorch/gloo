@@ -8,13 +8,13 @@
 
 #include "gloo/rendezvous/file_store.h"
 
-#include <errno.h>
 #include <fcntl.h>
-#include <limits.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <array>
+#include <cerrno>
+#include <climits>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <functional>
 #include <iostream>

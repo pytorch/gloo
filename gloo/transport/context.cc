@@ -17,7 +17,7 @@ Context::Context(int rank, int size) : rank(rank), size(size) {
 }
 
 // Have to provide implementation for pure virtual destructor.
-Context::~Context() {}
+Context::~Context() = default;
 
 std::unique_ptr<transport::Pair>& Context::getPair(int rank_2) {
   return pairs_.at(rank_2);
@@ -104,7 +104,7 @@ std::vector<char> Context::extractAddress(
 }
 
 Context::LazyTally::LazyTally(std::vector<Tally>& vec, slot_t slot)
-    : vec_(vec), slot_(slot), initialized_(false) {}
+    : vec_(vec), slot_(slot) {}
 
 Context::LazyTally::~LazyTally() {
   // Remove empty tally from vector.

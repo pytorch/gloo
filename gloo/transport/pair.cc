@@ -12,7 +12,7 @@ namespace gloo {
 namespace transport {
 
 // Have to provide implementation for pure virtual destructor.
-Pair::~Pair() {}
+Pair::~Pair() = default;
 
 } // namespace transport
 } // namespace gloo

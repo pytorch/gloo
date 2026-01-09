@@ -74,7 +74,7 @@ class ShareableNonOwningPtr;
 template <typename T>
 class NonOwningPtr final {
  public:
-  NonOwningPtr() {}
+  NonOwningPtr() = default;
 
   explicit NonOwningPtr(const WeakNonOwningPtr<T>& ptr)
       : ptr_(ptr.ptr_.lock()) {}
@@ -99,7 +99,7 @@ class NonOwningPtr final {
 template <typename T>
 class WeakNonOwningPtr final {
  public:
-  WeakNonOwningPtr() {}
+  WeakNonOwningPtr() = default;
 
   explicit WeakNonOwningPtr(const ShareableNonOwningPtr<T>& ref)
       : ptr_(ref.ptr_) {}

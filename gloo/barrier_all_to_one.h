@@ -19,7 +19,7 @@ class BarrierAllToOne : public Barrier {
       int rootRank = 0)
       : Barrier(context), rootRank_(rootRank) {}
 
-  void run() {
+  void run() override {
     auto slot = this->context_->nextSlot();
     auto timeout = this->context_->getTimeout();
 

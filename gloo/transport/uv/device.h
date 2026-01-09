@@ -33,7 +33,7 @@ namespace uv {
 // network interface. Whatever is used will be resolved to a
 // sockaddr_storage struct to finally bind a socket to.
 struct attr {
-  attr() {}
+  attr() = default;
   /* implicit */ attr(const char* ptr) : hostname(ptr) {}
 
   std::string hostname;
@@ -75,17 +75,16 @@ std::shared_ptr<::gloo::transport::Device> CreateDevice(struct attr);
 class Device : public ::gloo::transport::Device,
                public std::enable_shared_from_this<Device> {
  public:
-  explicit Device(const struct attr& attr);
+  explicit Device(struct attr attr);
 
-  virtual ~Device();
+  ~Device() override;
 
-  virtual std::string str() const override;
+  std::string str() const override;
 
-  virtual const std::string& getPCIBusID() const override;
+  const std::string& getPCIBusID() const override;
 
-  virtual std::shared_ptr<::gloo::transport::Context> createContext(
-      int rank,
-      int size) override;
+  std::shared_ptr<::gloo::transport::Context> createContext(int rank, int size)
+      override;
 
  protected:
   using ConnectCallback = std::function<

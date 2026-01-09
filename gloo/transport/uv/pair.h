@@ -97,28 +97,28 @@ class Pair : public ::gloo::transport::Pair {
       int rank,
       std::chrono::milliseconds timeout);
 
-  virtual ~Pair();
+  ~Pair() override;
 
   Pair(const Pair& that) = delete;
 
   Pair& operator=(const Pair& that) = delete;
 
-  virtual const Address& address() const override;
+  const Address& address() const override;
 
-  virtual void connect(const std::vector<char>& bytes) override;
+  void connect(const std::vector<char>& bytes) override;
 
-  virtual void setSync(bool sync, bool busyPoll) override {
+  void setSync(bool sync, bool busyPoll) override {
     abort();
   }
 
-  virtual std::unique_ptr<::gloo::transport::Buffer> createSendBuffer(
+  std::unique_ptr<::gloo::transport::Buffer> createSendBuffer(
       int slot,
       void* ptr,
       size_t size) override {
     abort();
   }
 
-  virtual std::unique_ptr<::gloo::transport::Buffer> createRecvBuffer(
+  std::unique_ptr<::gloo::transport::Buffer> createRecvBuffer(
       int slot,
       void* ptr,
       size_t size) override {
@@ -199,10 +199,10 @@ class Pair : public ::gloo::transport::Pair {
 
   // State of the pair. This is used so that we can ensure the
   // underlying connection is closed before we destruct.
-  State state_;
+  State state_{INITIALIZED};
 
   // Error state of the handle, if set.
-  int errno_;
+  int errno_{0};
 
   // Handle of the connection.
   // This is set only if state_ == CONNECTED || state_ == CLOSING.

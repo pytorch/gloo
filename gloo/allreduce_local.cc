@@ -8,7 +8,7 @@
 
 #include "gloo/allreduce_local.h"
 
-#include <string.h>
+#include <cstring>
 
 namespace gloo {
 

@@ -345,7 +345,7 @@ class AllreduceBcube : public Algorithm {
 #define DEBUG_PRINT_RECV(stage)
 #endif
 
-  void run() {
+  void run() override {
     if (totalNumElems_ == 0) {
       return;
     }
