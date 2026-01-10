@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.21 FATAL_ERROR)
 
 project(gloo CXX C)
 
@@ -43,6 +43,7 @@ endif()
 option(USE_CUDA "Build with CUDA support" OFF)
 option(GLOO_USE_CUDA_TOOLKIT "Build CUDA with FindCUDATookit.cmake and enable_language(CUDA)" OFF)
 option(GLOO_USE_TORCH_DTYPES "Build CUDA kernels with pytorch dtypes" 0)
+option(USE_ROCM "Build with ROCm support" OFF)
 
 if(MSVC)
   message(STATUS "MSVC detected")
