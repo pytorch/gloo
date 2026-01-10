@@ -34,7 +34,7 @@ if(USE_ROCM)
     )
 
   gloo_hip_add_executable(benchmark_hip ${GLOO_BENCHMARK_HIP_SRCS})
-  target_link_libraries(benchmark_hip gloo_hip)
+  target_link_libraries(benchmark_hip PRIVATE gloo_hip)
 
   if(GLOO_INSTALL)
     install(TARGETS benchmark_hip DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
