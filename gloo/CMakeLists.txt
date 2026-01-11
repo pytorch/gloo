@@ -220,11 +220,14 @@ if(GLOO_INSTALL)
     endforeach()
   endif()
   if(USE_ROCM)
-    foreach(HEADER ${GLOO_HIP_HDRS})
-      string(REGEX MATCH "(.*)[/\\]" DIR ${HEADER})
-      string(REGEX REPLACE "${CMAKE_CURRENT_SOURCE_DIR}" "gloo" DIR ${DIR})
-      install(FILES ${HEADER} DESTINATION ${CMAKE_INSTALL_PREFIX}/include/${DIR})
-    endforeach()
+    install(
+      DIRECTORY ${HIPIFY_OUTPUT_DIR}/
+      DESTINATION ${CMAKE_INSTALL_PREFIX}/include/gloo/hip
+      FILES_MATCHING PATTERN "*.h"
+      # excludes the build-tree subdirs
+      PATTERN "*/obj-*/" EXCLUDE
+    )
+
   endif()
 endif()
 

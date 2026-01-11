@@ -165,7 +165,7 @@ if(USE_ROCM)
     set(GLOO_HIP_INCLUDE ${hip_INCLUDE_DIRS} $<BUILD_INTERFACE:${HIPIFY_OUTPUT_ROOT_DIR}> $<INSTALL_INTERFACE:include> ${GLOO_HIP_INCLUDE})
 
     # This is needed for library added by hip_add_library (same for hip_add_executable)
-    hip_include_directories(${GLOO_HIP_INCLUDE})
+    include_directories(${GLOO_HIP_INCLUDE})
 
     set(gloo_hip_DEPENDENCY_LIBS ${GLOO_HIP_HCC_LIBRARIES})
 

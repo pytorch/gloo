@@ -40,5 +40,8 @@ if (NOT hipify_return_value EQUAL 0)
   message(FATAL_ERROR "Failed to get hipify files list!")
 endif()
 
-include_directories(PREPEND ${HIPIFY_OUTPUT_ROOT_DIR})
+set(HIPIFY_OUTPUT_ROOT_DIR ${PROJECT_BINARY_DIR}/hip)
 set(HIPIFY_OUTPUT_DIR ${HIPIFY_OUTPUT_ROOT_DIR}/gloo)
+
+include_directories(PREPEND ${HIPIFY_OUTPUT_ROOT_DIR})
+
