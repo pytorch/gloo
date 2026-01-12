@@ -16,6 +16,7 @@
 
 #include <gloo/common/error.h>
 #include <gloo/common/logging.h>
+#include <gloo/common/utils.h>
 
 #if defined(__SANITIZE_THREAD__)
 #define TSAN_ENABLED
@@ -187,6 +188,7 @@ void Loop::defer(std::function<void()> fn) {
 }
 
 void Loop::run() {
+  setThreadName("gloo_tcp_loop");
   std::array<struct epoll_event, capacity_> events;
   int nfds;
 

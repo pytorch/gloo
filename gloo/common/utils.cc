@@ -11,8 +11,13 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #else
+#include <pthread.h>
 #include <unistd.h>
 #include <cstdlib>
+#endif
+
+#ifdef __APPLE__
+#include <pthread.h>
 #endif
 
 #include "gloo/common/utils.h"
@@ -20,6 +25,7 @@
 namespace gloo {
 
 constexpr int HOSTNAME_MAX_SIZE = 192;
+constexpr int THREAD_NAME_MAX_SIZE = 15;
 
 std::string getHostname() {
   // Get Hostname using syscall
@@ -51,6 +57,17 @@ bool disableConnectionRetries() {
         (std::string(res) == "True" || std::string(res) == "1");
   }();
   return disable;
+}
+
+void setThreadName(const std::string& name) {
+  // Thread names are limited to 15 characters on Linux (plus null terminator)
+  std::string truncatedName = name.substr(0, THREAD_NAME_MAX_SIZE);
+#if defined(__linux__)
+  pthread_setname_np(pthread_self(), truncatedName.c_str());
+#elif defined(__APPLE__)
+  pthread_setname_np(truncatedName.c_str());
+#endif
+  // On Windows and other platforms, this is a no-op
 }
 
 } // namespace gloo

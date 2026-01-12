@@ -16,6 +16,7 @@
 #include "gloo/broadcast_one_to_all.h"
 #include "gloo/common/common.h"
 #include "gloo/common/logging.h"
+#include "gloo/common/utils.h"
 #include "gloo/rendezvous/context.h"
 #include "gloo/rendezvous/file_store.h"
 #include "gloo/rendezvous/prefix_store.h"
@@ -80,22 +81,24 @@ Runner::Runner(const options& options) : options_(options) {
   if (options_.transport == "tls") {
     if (options_.tcpDevice.empty()) {
       transport::tcp::attr attr;
-      transportDevices_.push_back(transport::tcp::tls::CreateDevice(
-          attr,
-          options_.pkey,
-          options_.cert,
-          options_.caFile,
-          options_.caPath));
+      transportDevices_.push_back(
+          transport::tcp::tls::CreateDevice(
+              attr,
+              options_.pkey,
+              options_.cert,
+              options_.caFile,
+              options_.caPath));
     } else {
       for (const auto& name : options_.tcpDevice) {
         transport::tcp::attr attr;
         attr.iface = name;
-        transportDevices_.push_back(transport::tcp::tls::CreateDevice(
-            attr,
-            options_.pkey,
-            options_.cert,
-            options_.caFile,
-            options_.caPath));
+        transportDevices_.push_back(
+            transport::tcp::tls::CreateDevice(
+                attr,
+                options_.pkey,
+                options_.cert,
+                options_.caFile,
+                options_.caPath));
       }
     }
   }
@@ -625,6 +628,7 @@ void RunnerThread::run(RunnerJob* job) {
 }
 
 void RunnerThread::spawn() {
+  setThreadName("gloo_bench");
   std::unique_lock<std::mutex> lock(mutex_);
   while (!stop_) {
     while (job_ == nullptr) {
