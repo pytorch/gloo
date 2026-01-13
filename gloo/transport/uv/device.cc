@@ -23,6 +23,7 @@
 #include <gloo/common/win.h> // @manual
 #endif
 #include <gloo/common/logging.h>
+#include <gloo/common/utils.h>
 #include <gloo/transport/uv/common.h>
 #include <gloo/transport/uv/context.h>
 #include <gloo/transport/uv/libuv.h>
@@ -208,7 +209,10 @@ Device::Device(const struct attr& attr) : attr_(attr) {
   addr_ = Address(listener_->sockname());
 
   // Run uv_run on private thread.
-  thread_.reset(new std::thread([this] { loop_->run(); }));
+  thread_.reset(new std::thread([this] {
+    setThreadName("gloo_uv_loop");
+    loop_->run();
+  }));
 }
 
 Device::~Device() {

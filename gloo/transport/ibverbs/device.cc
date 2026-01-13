@@ -17,6 +17,7 @@
 #include "gloo/common/error.h"
 #include "gloo/common/linux.h"
 #include "gloo/common/logging.h"
+#include "gloo/common/utils.h"
 #include "gloo/transport/ibverbs/context.h"
 #include "gloo/transport/ibverbs/pair.h"
 
@@ -193,6 +194,7 @@ std::shared_ptr<transport::Context> Device::createContext(int rank, int size) {
 }
 
 void Device::loop() {
+  setThreadName("gloo_ib_loop");
   int rv;
 
   auto flags = fcntl(comp_channel_->fd, F_GETFL);

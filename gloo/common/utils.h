@@ -14,6 +14,10 @@ namespace gloo {
 
 std::string getHostname();
 
+// Set the name of the current thread for debugging purposes.
+// The name should be 15 characters or less (will be truncated if longer).
+void setThreadName(const std::string& name);
+
 bool useRankAsSeqNumber();
 
 bool isStoreExtendedApiEnabled();
