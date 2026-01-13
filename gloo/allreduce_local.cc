@@ -32,7 +32,7 @@ void AllreduceLocal<T>::run() {
   }
   // Broadcast ptrs_[0]
   for (int i = 1; i < ptrs_.size(); i++) {
-    memcpy(ptrs_[i], ptrs_[0], bytes_);
+    memcpy((void*)ptrs_[i], (const void*)ptrs_[0], bytes_);
   }
 }
 
