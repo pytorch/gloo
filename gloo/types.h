@@ -127,12 +127,7 @@ struct alignas(2) float16 {
     return *this;
   }
 
-  float16& operator=(const float16& rhs) {
-    if (rhs != *this) {
-      x = rhs.x;
-    }
-    return *this;
-  }
+  float16& operator=(const float16&) = default;
 
   bool operator==(const float16& rhs) const {
     return x == rhs.x;
