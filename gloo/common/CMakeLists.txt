@@ -1,6 +1,7 @@
 set(GLOO_COMMON_SRCS
   "${CMAKE_CURRENT_SOURCE_DIR}/logging.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/utils.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/error.cc"
   )
 
 set(GLOO_COMMON_HDRS
