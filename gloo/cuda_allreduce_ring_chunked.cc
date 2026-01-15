@@ -9,7 +9,6 @@
 #include "gloo/cuda_allreduce_ring_chunked.h"
 
 #include "gloo/cuda_collectives_device.h"
-#include "gloo/cuda_collectives_host.h"
 #include "gloo/cuda_private.h"
 
 namespace gloo {
