@@ -1,53 +1,90 @@
 set(HAVE_HIP FALSE)
 
-IF(NOT DEFINED ENV{ROCM_PATH})
-  SET(ROCM_PATH /opt/rocm)
-ELSE()
-  SET(ROCM_PATH $ENV{ROCM_PATH})
-ENDIF()
+# ROCm path configuration (still needed for finding hip package)
+if(NOT DEFINED ENV{ROCM_PATH})
+  set(ROCM_PATH /opt/rocm)
+else()
+  set(ROCM_PATH $ENV{ROCM_PATH})
+endif()
 
-IF(NOT DEFINED ENV{GLOO_ROCM_ARCH})
-  SET(GLOO_ROCM_ARCH gfx906;gfx908;gfx90a)
-ELSE()
-  SET(GLOO_ROCM_ARCH $ENV{GLOO_ROCM_ARCH})
-ENDIF()
+# Architecture handling with the following priority:
+# 1. GLOO_ROCM_ARCH (env or cache) takes priority
+# 2. Fall back to CMAKE_HIP_ARCHITECTURES if set
+# 3. Use defaults if neither is set
+set(GLOO_ROCM_ARCH_DEFAULT "gfx906;gfx908;gfx90a")
 
-# Add HIP to the CMAKE Module Path
-set(CMAKE_MODULE_PATH ${ROCM_PATH}/lib/cmake/hip ${CMAKE_MODULE_PATH})
+if(DEFINED ENV{GLOO_ROCM_ARCH})
+  set(GLOO_ROCM_ARCH $ENV{GLOO_ROCM_ARCH} CACHE STRING "HIP architectures for Gloo")
+elseif(NOT DEFINED GLOO_ROCM_ARCH)
+  if(DEFINED CMAKE_HIP_ARCHITECTURES)
+    set(GLOO_ROCM_ARCH ${CMAKE_HIP_ARCHITECTURES} CACHE STRING "HIP architectures for Gloo")
+  else()
+    set(GLOO_ROCM_ARCH ${GLOO_ROCM_ARCH_DEFAULT} CACHE STRING "HIP architectures for Gloo")
+  endif()
+endif()
 
-# Disable Asserts In Code (Can't use asserts on HIP stack.)
-ADD_DEFINITIONS(-DNDEBUG)
+# Warn if CMAKE_HIP_ARCHITECTURES differs from GLOO_ROCM_ARCH
+if(DEFINED CMAKE_HIP_ARCHITECTURES AND NOT "${CMAKE_HIP_ARCHITECTURES}" STREQUAL "${GLOO_ROCM_ARCH}")
+  message(WARNING "CMAKE_HIP_ARCHITECTURES (${CMAKE_HIP_ARCHITECTURES}) differs from GLOO_ROCM_ARCH (${GLOO_ROCM_ARCH}). Using GLOO_ROCM_ARCH for Gloo targets.")
+endif()
 
-# Find the HIP Package
-find_package(HIP 1.0)
+# Enable HIP language
+enable_language(HIP)
 
-IF(HIP_FOUND)
+# Find HIP package for hip::host target
+find_package(hip REQUIRED)
+
+if(hip_FOUND)
   set(HAVE_HIP TRUE)
-
-  set(hip_library_name amdhip64)
-  message("HIP library name: ${hip_library_name}")
-
-  set(CMAKE_HCC_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
-  set(CMAKE_HCC_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
-  FIND_LIBRARY(GLOO_HIP_HCC_LIBRARIES ${hip_library_name} HINTS ${ROCM_PATH}/lib)
-
-ENDIF()
+  message(STATUS "Found HIP: ${hip_VERSION}")
+  message(STATUS "GLOO_ROCM_ARCH: ${GLOO_ROCM_ARCH}")
+endif()
 
 ################################################################################
+# Helper function for HIP libraries using CMake native support
 function(gloo_hip_add_library target)
   set(sources ${ARGN})
-  set_source_files_properties(${sources} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
-  hip_add_library(${target} ${sources} ${GLOO_STATIC_OR_SHARED})
+
+  # Mark non-.hip files as HIP language
+  foreach(source ${sources})
+    get_filename_component(ext ${source} LAST_EXT)
+    if(NOT "${ext}" STREQUAL ".hip")
+      set_source_files_properties(${source} PROPERTIES LANGUAGE HIP)
+    endif()
+  endforeach()
+
+  add_library(${target} ${GLOO_STATIC_OR_SHARED} ${sources})
   target_include_directories(${target} PUBLIC ${GLOO_HIP_INCLUDE})
-  target_compile_options(${target} PUBLIC ${HIP_CXX_FLAGS})
-  target_link_libraries(${target} ${gloo_hip_DEPENDENCY_LIBS})
+  target_link_libraries(${target} PRIVATE hip::host ${gloo_hip_DEPENDENCY_LIBS})
+  target_compile_options(${target} PRIVATE ${GLOO_HIP_FLAGS})
+
+  # Set target-specific properties
+  set_target_properties(${target} PROPERTIES
+    HIP_ARCHITECTURES "${GLOO_ROCM_ARCH}"
+    POSITION_INDEPENDENT_CODE ON
+  )
 endfunction()
 
+# Helper function for HIP executables using CMake native support
 function(gloo_hip_add_executable target)
   set(sources ${ARGN})
-  set_source_files_properties(${sources} PROPERTIES HIP_SOURCE_PROPERTY_FORMAT 1)
-  hip_add_executable(${target} ${sources})
+
+  # Mark non-.hip files as HIP language
+  foreach(source ${sources})
+    get_filename_component(ext ${source} LAST_EXT)
+    if(NOT "${ext}" STREQUAL ".hip")
+      set_source_files_properties(${source} PROPERTIES LANGUAGE HIP)
+    endif()
+  endforeach()
+
+  add_executable(${target} ${sources})
   target_include_directories(${target} PUBLIC ${GLOO_HIP_INCLUDE})
-  target_compile_options(${target} PUBLIC ${HIP_CXX_FLAGS})
-  target_link_libraries(${target} ${gloo_hip_DEPENDENCY_LIBS})
+  target_link_libraries(${target} PRIVATE hip::host ${gloo_hip_DEPENDENCY_LIBS})
+  target_compile_options(${target} PRIVATE ${GLOO_HIP_FLAGS})
+
+  # Set target-specific properties
+  set_target_properties(${target} PROPERTIES
+    HIP_ARCHITECTURES "${GLOO_ROCM_ARCH}"
+    POSITION_INDEPENDENT_CODE ON
+  )
 endfunction()

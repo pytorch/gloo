@@ -79,5 +79,5 @@ if(USE_ROCM)
     )
 
   gloo_hip_add_executable(gloo_test_hip ${GLOO_TEST_HIP_SRCS})
-  target_link_libraries(gloo_test_hip gloo_hip gtest OpenSSL::SSL OpenSSL::Crypto)
+  target_link_libraries(gloo_test_hip PRIVATE gloo_hip gtest OpenSSL::SSL OpenSSL::Crypto)
 endif()
