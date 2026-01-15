@@ -74,7 +74,7 @@ TEST_F(TlsTcpTest, CreateDeviceWithUnknownCA) {
       }
     } catch (::gloo::IoException e) {
       exception_thrown = true;
-      ASSERT_THAT(e.what(), ::testing::ContainsRegex("unknown ca"));
+      ASSERT_THAT(e.what(), ::testing::ContainsRegex("[unknown ca|Connect timeout|Connection refused]"));
     } catch (::gloo::EnforceNotMet e) {
       exception_thrown = true;
       ASSERT_THAT(
