@@ -134,5 +134,16 @@ int main(void) {
     std::cout << "data[" << i << "] = " << data[i] << std::endl;
   }
 
+  // Automatically delete rendezvous files after
+  // this program is done running (if applicable)
+  auto keyFilePaths_ = fileStore.getAllKeyFilePaths();
+  for (auto path : keyFilePaths_) {
+    if (remove(path.c_str()) != 0) {
+      std::cout << "Failed to delete rendezvous file at " << path;
+      std::cout << " please delete manually before running this program again.";
+      std::cout << std::endl;
+    }
+  }
+
   return 0;
 }
