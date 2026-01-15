@@ -192,9 +192,12 @@ const std::string& infinibandToBusID(const std::string& name) {
 static int getInterfaceSpeedGLinkSettings(int sock, struct ifreq* ifr) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)
   constexpr auto link_mode_data_nwords = 3 * 127;
-  struct {
-    __u32 link_mode_data[link_mode_data_nwords];
+  union {
     struct ethtool_link_settings req;
+    struct { // Only to provide the memory
+      __u32 link_mode_data[link_mode_data_nwords];
+      struct ethtool_link_settings dummy;
+    };
   } ecmd;
   int rv;
 
