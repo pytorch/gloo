@@ -267,7 +267,7 @@ class AllreduceBcube : public Algorithm {
   AllreduceBcube(
       const std::shared_ptr<Context>& context,
       const std::vector<T*> ptrs,
-      const int count,
+      const size_t count,
       const ReductionFunction<T>* fn = ReductionFunction<T>::sum)
       : Algorithm(context),
         myRank_(this->context_->rank),
@@ -471,11 +471,11 @@ class AllreduceBcube : public Algorithm {
   /**
    * Total number of elements to process
    */
-  const int totalNumElems_{0};
+  const size_t totalNumElems_{0};
   /**
    * Total number of bytes to process
    */
-  const int bytes_{0};
+  const size_t bytes_{0};
   /**
    * Total number of steps
    */

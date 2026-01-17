@@ -19,7 +19,7 @@ class AllreduceLocal : public Algorithm {
   AllreduceLocal(
       const std::shared_ptr<Context>& context,
       const std::vector<T*>& ptrs,
-      const int count,
+      const size_t count,
       const ReductionFunction<T>* fn = ReductionFunction<T>::sum);
 
   virtual ~AllreduceLocal() = default;
@@ -28,8 +28,8 @@ class AllreduceLocal : public Algorithm {
 
  protected:
   std::vector<T*> ptrs_;
-  const int count_;
-  const int bytes_;
+  const size_t count_;
+  const size_t bytes_;
   const ReductionFunction<T>* fn_;
 };
 
