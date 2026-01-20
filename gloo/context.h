@@ -37,6 +37,8 @@ class Context {
 
   std::shared_ptr<AllreduceSharedMemoryData> shmData;
 
+  std::mutex shmDataMutex;
+
   std::shared_ptr<transport::Device>& getDevice();
 
   std::unique_ptr<transport::Pair>& getPair(int i);

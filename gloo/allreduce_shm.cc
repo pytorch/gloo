@@ -1,4 +1,5 @@
 #include "gloo/allreduce_shm.h"
+#include "gloo/types.h"
 
 #include <assert.h>
 #include <errno.h>
@@ -444,11 +445,6 @@ AllreduceSharedMemoryData::~AllreduceSharedMemoryData() {
 
 void shm(const detail::AllreduceOptionsImpl& opts) {
   const auto& context = opts.context;
-  if (context->shmData == nullptr) {
-    context->shmData = std::make_shared<AllreduceSharedMemoryData>(
-        context->rank, context->size);
-    context->shmData->initialize();
-  }
   const size_t data_size = opts.elements * opts.elementSize;
   auto& in = opts.in;
   auto& out = opts.out;
@@ -485,20 +481,51 @@ void shm(const detail::AllreduceOptionsImpl& opts) {
   }
 
   void* data = out[0].get()->ptr;
+  auto tag = opts.tag;
+  std::unique_ptr<transport::UnboundBuffer> tagBuffer =
+      context->createUnboundBuffer(&tag, sizeof(tag));
+  transport::UnboundBuffer* tag_ptr = tagBuffer.get();
+  const auto slot = Slot::build(kAllreduceSlotPrefix, opts.tag);
 
-  for (int offset = 0; offset < data_size;
-       offset += Allreduceworkspace::MAX_BUF_SIZE) {
-    auto data_ptr = ((char*)(data) + offset);
-    size_t chunk_size = data_size - offset > Allreduceworkspace::MAX_BUF_SIZE
-        ? Allreduceworkspace::MAX_BUF_SIZE
-        : data_size - offset;
-    size_t chunk_el = chunk_size / (data_size / opts.elements);
-    if (chunk_size < Allreduceworkspace::NAIVE_ALLREDUCE_THRESHOLD) {
-      symmetric_naive_all_reduce(
-          data_ptr, opts.elementSize, chunk_size, chunk_el, opts);
+  {
+    // Use mutex to make context->shmData thread safe.
+    std::unique_lock<std::mutex> lock(context->shmDataMutex);
+
+    if (context->shmData == nullptr) {
+      context->shmData = std::make_shared<AllreduceSharedMemoryData>(
+          context->rank, context->size);
+      context->shmData->initialize();
+    }
+
+    // In async mode there may be many allreduce ops executing simultaneously.
+    // However shmData is expected to occupied exclusively. We use unique tag to
+    // do synchronization among different ranks.
+    if (context->rank == 0) {
+      for (int i = 1; i < context->size; i++) {
+        tag_ptr->send(i, slot);
+        tag_ptr->waitSend();
+      }
     } else {
-      distributed_naive_reduce(
-          data_ptr, opts.elementSize, chunk_size, chunk_el, opts);
+      lock.unlock();
+      tag_ptr->recv(0, slot);
+      tag_ptr->waitRecv();
+      lock.lock();
+    }
+
+    for (int offset = 0; offset < data_size;
+         offset += Allreduceworkspace::MAX_BUF_SIZE) {
+      auto data_ptr = ((char*)(data) + offset);
+      size_t chunk_size = data_size - offset > Allreduceworkspace::MAX_BUF_SIZE
+          ? Allreduceworkspace::MAX_BUF_SIZE
+          : data_size - offset;
+      size_t chunk_el = chunk_size / (data_size / opts.elements);
+      if (chunk_size < Allreduceworkspace::NAIVE_ALLREDUCE_THRESHOLD) {
+        symmetric_naive_all_reduce(
+            data_ptr, opts.elementSize, chunk_size, chunk_el, opts);
+      } else {
+        distributed_naive_reduce(
+            data_ptr, opts.elementSize, chunk_size, chunk_el, opts);
+      }
     }
   }
 
