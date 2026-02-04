@@ -12,13 +12,14 @@ permissions: read-all
 jobs:
   build-linux:
     name: build on ubuntu
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         cmake_args:
           - ""
           - "-DUSE_IBVERBS=ON -DUSE_LIBUV=ON -DUSE_TCP_OPENSSL_LINK=ON"
           - "-DUSE_TCP_OPENSSL_LOAD=ON"
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Checkout code
