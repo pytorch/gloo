@@ -13,12 +13,18 @@ jobs:
   build-linux:
     name: build on ubuntu
     strategy:
+      fail-fast: false
       matrix:
-        cmake_args:
-          - ""
-          - "-DUSE_IBVERBS=ON -DUSE_LIBUV=ON -DUSE_TCP_OPENSSL_LINK=ON"
-          - "-DUSE_TCP_OPENSSL_LOAD=ON"
-        runner: [ubuntu-latest, ubuntu-24.04-arm]
+        include:
+          - runner: ubuntu-latest
+            cmake_args: ""
+          - runner: ubuntu-latest
+            cmake_args: "-DUSE_IBVERBS=ON -DUSE_LIBUV=ON -DUSE_TCP_OPENSSL_LINK=ON"
+          - runner: ubuntu-latest
+            cmake_args: "-DUSE_TCP_OPENSSL_LOAD=ON"
+          - runner: ubuntu-24.04-arm
+            cmake_args: "-DUSE_LIBUV=ON -DUSE_TCP_OPENSSL_LINK=ON"
+
     runs-on: ${{ matrix.runner }}
 
     steps:
