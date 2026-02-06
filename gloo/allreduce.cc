@@ -12,7 +12,9 @@
 #include <array>
 #include <cstring>
 
+#if !defined(_WIN32) && !defined(__aarch64__) && !defined(__arm__)
 #include "gloo/allreduce_shm.h"
+#endif
 #include "gloo/common/logging.h"
 #include "gloo/math.h"
 #include "gloo/transport/device.h"
@@ -135,7 +137,7 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
 
   auto algorithm = opts.algorithm;
 
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__aarch64__) && !defined(__arm__)
   if (context->isIntraNode() && !context->getDevice()->hasGPUDirect()) {
     algorithm = detail::AllreduceOptionsImpl::SHM;
   }
@@ -149,7 +151,7 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
     case detail::AllreduceOptionsImpl::BCUBE:
       bcube(opts, reduceInputs, broadcastOutputs);
       break;
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__aarch64__) && !defined(__arm__)
     case detail::AllreduceOptionsImpl::SHM:
       shm(opts);
       break;
@@ -500,10 +502,11 @@ void bcube(
           group.bufferOffset + (groupRank * group.chunkLength);
       group.myChunkLength = std::min(
           size_t(group.chunkLength),
-          size_t(std::max(
-              int64_t(0),
-              int64_t(group.bufferLength) -
-                  int64_t(groupRank * group.chunkLength))));
+          size_t(
+              std::max(
+                  int64_t(0),
+                  int64_t(group.bufferLength) -
+                      int64_t(groupRank * group.chunkLength))));
 
       // Store a const copy of this group in the vector.
       groups.push_back(group);
@@ -558,9 +561,11 @@ void bcube(
           group.bufferOffset + i * group.chunkLength;
       const size_t currentChunkLength = std::min(
           size_t(group.chunkLength),
-          size_t(std::max(
-              int64_t(0),
-              int64_t(group.bufferLength) - int64_t(i * group.chunkLength))));
+          size_t(
+              std::max(
+                  int64_t(0),
+                  int64_t(group.bufferLength) -
+                      int64_t(i * group.chunkLength))));
       // Compute the local reduction only in the first step of the algorithm.
       // In subsequent steps, we already have a partially reduced result.
       if (step == 0) {
@@ -631,9 +636,11 @@ void bcube(
           group.bufferOffset + i * group.chunkLength;
       const size_t currentChunkLength = std::min(
           size_t(group.chunkLength),
-          size_t(std::max(
-              int64_t(0),
-              int64_t(group.bufferLength) - int64_t(i * group.chunkLength))));
+          size_t(
+              std::max(
+                  int64_t(0),
+                  int64_t(group.bufferLength) -
+                      int64_t(i * group.chunkLength))));
       out->recv(
           src,
           slot,
@@ -674,9 +681,11 @@ void bcube(
           group.bufferOffset + i * group.chunkLength;
       const size_t currentChunkLength = std::min(
           size_t(group.chunkLength),
-          size_t(std::max(
-              int64_t(0),
-              int64_t(group.bufferLength) - int64_t(i * group.chunkLength))));
+          size_t(
+              std::max(
+                  int64_t(0),
+                  int64_t(group.bufferLength) -
+                      int64_t(i * group.chunkLength))));
       broadcastOutputs(
           currentChunkOffset * elementSize, currentChunkLength * elementSize);
     }
