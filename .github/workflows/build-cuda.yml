@@ -1,0 +1,66 @@
+---
+name: CI-CUDA
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  build-cuda:
+    name: build with CUDA ${{ matrix.cuda_version }}
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        cuda_version: ["11.8.0", "12.4.0"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/ghc
+
+      - name: Install CUDA toolkit
+        uses: Jimver/cuda-toolkit@4bd727d5619dc6fa323b1e76c3aa5dca94f5ec6d # v0.2.19
+        id: cuda-toolkit
+        with:
+          cuda: ${{ matrix.cuda_version }}
+          method: network
+          sub-packages: '["nvcc", "cudart-dev"]'
+
+      - name: Install apt packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget build-essential cmake libibverbs-dev
+
+      - name: Install libuv
+        run: |
+          wget -q -O libuv-v1.49.2.tar.gz https://dist.libuv.org/dist/v1.49.2/libuv-v1.49.2.tar.gz
+          tar xf libuv-v1.49.2.tar.gz
+          cd libuv-v1.49.2
+          mkdir -p build
+          cd build
+          cmake ../ -DCMAKE_INSTALL_PREFIX=/usr/local
+          sudo make install
+
+      - name: Build with CUDA
+        run: |
+          mkdir -p build
+          cd build
+          cmake ../ \
+            -DCMAKE_VERBOSE_MAKEFILE=ON \
+            -DUSE_CUDA=ON \
+            -DGLOO_USE_CUDA_TOOLKIT=ON \
+            -DUSE_LIBUV=ON \
+            -DUSE_IBVERBS=ON
+          make -j"$(nproc)"

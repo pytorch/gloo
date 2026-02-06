@@ -1,0 +1,58 @@
+---
+name: CI-ROCm
+
+on: # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions: read-all
+
+jobs:
+  build-rocm:
+    name: build with ROCm ${{ matrix.rocm_version }}
+    runs-on: ubuntu-22.04
+    container:
+      image: rocm/dev-ubuntu-22.04:${{ matrix.rocm_version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        rocm_version: ["6.0", "6.2"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install apt packages
+        run: |
+          apt-get update
+          apt-get install -y wget build-essential cmake libibverbs-dev python3 pkg-config
+
+      - name: Install libuv
+        run: |
+          wget -q -O libuv-v1.49.2.tar.gz https://dist.libuv.org/dist/v1.49.2/libuv-v1.49.2.tar.gz
+          tar xf libuv-v1.49.2.tar.gz
+          cd libuv-v1.49.2
+          mkdir -p build
+          cd build
+          cmake ../ -DCMAKE_INSTALL_PREFIX=/usr/local
+          make install
+
+      - name: Build with ROCm
+        env:
+          ROCM_PATH: /opt/rocm
+          GLOO_ROCM_ARCH: gfx906;gfx908;gfx90a;gfx942
+        run: |
+          mkdir -p build
+          cd build
+          cmake ../ \
+            -DCMAKE_VERBOSE_MAKEFILE=ON \
+            -DUSE_ROCM=ON \
+            -DUSE_LIBUV=ON \
+            -DUSE_IBVERBS=ON \
+            -DCMAKE_PREFIX_PATH=/opt/rocm \
+            -DCMAKE_HIP_COMPILER=/opt/rocm/bin/hipcc
+          make -j"$(nproc)"
