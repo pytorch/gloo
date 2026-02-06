@@ -534,8 +534,15 @@ bool Pair::read() {
         }
 
         // Unexpected error
-        signalException(
-            GLOO_ERROR_MSG("Read error ", peer_.str(), ": ", strerror(errno)));
+        signalException(GLOO_ERROR_MSG(
+            "Read error ",
+            peer_.str(),
+            ": ",
+            strerror(errno),
+            ". ",
+            "This is typically caused by a remote worker hanging or bugs in the application. ",
+            "Check the logs of the remote worker before reporting an error. ",
+            "GLHF! 🏖️"));
         return false;
       }
       break;
@@ -543,8 +550,13 @@ bool Pair::read() {
 
     // Transition to CLOSED on EOF
     if (rv == 0) {
-      signalException(
-          GLOO_ERROR_MSG("Connection closed by peer ", peer_.str()));
+      signalException(GLOO_ERROR_MSG(
+          "Connection closed by peer ",
+          peer_.str(),
+          ". ",
+          "This is typically caused by a remote worker crashing. ",
+          "Check the logs of the remote worker before reporting an error. ",
+          "GLHF! 🏖️"));
       return false;
     }
 
