@@ -67,8 +67,4 @@ std::chrono::milliseconds Context::getTimeout() const {
   return timeout_;
 }
 
-bool Context::isIntraNode() const {
-  return transportContext_->isIntraNode();
-}
-
 } // namespace gloo

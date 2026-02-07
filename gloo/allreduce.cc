@@ -12,12 +12,8 @@
 #include <array>
 #include <cstring>
 
-#if !defined(_WIN32) && !defined(__aarch64__) && !defined(__arm__)
-#include "gloo/allreduce_shm.h"
-#endif
 #include "gloo/common/logging.h"
 #include "gloo/math.h"
-#include "gloo/transport/device.h"
 #include "gloo/types.h"
 
 namespace gloo {
@@ -135,15 +131,7 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
     return;
   }
 
-  auto algorithm = opts.algorithm;
-
-#if !defined(_WIN32) && !defined(__aarch64__) && !defined(__arm__)
-  if (context->isIntraNode() && !context->getDevice()->hasGPUDirect()) {
-    algorithm = detail::AllreduceOptionsImpl::SHM;
-  }
-#endif
-
-  switch (algorithm) {
+  switch (opts.algorithm) {
     case detail::AllreduceOptionsImpl::UNSPECIFIED:
     case detail::AllreduceOptionsImpl::RING:
       ring(opts, reduceInputs, broadcastOutputs);
@@ -151,11 +139,6 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
     case detail::AllreduceOptionsImpl::BCUBE:
       bcube(opts, reduceInputs, broadcastOutputs);
       break;
-#if !defined(_WIN32) && !defined(__aarch64__) && !defined(__arm__)
-    case detail::AllreduceOptionsImpl::SHM:
-      shm(opts);
-      break;
-#endif
     default:
       GLOO_ENFORCE(false, "Algorithm not handled.");
   }

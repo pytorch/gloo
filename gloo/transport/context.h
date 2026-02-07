@@ -68,10 +68,6 @@ class Context {
     return timeout_;
   }
 
-  bool isIntraNode() const {
-    return intraNode_;
-  }
-
   virtual std::unique_ptr<RemoteKey> deserializeRemoteKey(
       const std::string& serialized) {
     throw std::runtime_error("Not implemented");
@@ -101,9 +97,6 @@ class Context {
   // Default timeout for new pairs (e.g. during initialization) and
   // any kind of send/recv operation.
   std::chrono::milliseconds timeout_;
-
-  // Whether is intra-node.
-  bool intraNode_ = false;
 
   std::vector<char> extractAddress(const std::vector<char>& allAddrs, int i)
       const;

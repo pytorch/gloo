@@ -51,11 +51,6 @@ list(APPEND GLOO_HDRS
   "${CMAKE_CURRENT_SOURCE_DIR}/types.h"
   )
 
-if(NOT MSVC AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm)")
-  list(APPEND GLOO_SRCS "${CMAKE_CURRENT_SOURCE_DIR}/allreduce_shm.cc")
-  list(APPEND GLOO_HDRS "${CMAKE_CURRENT_SOURCE_DIR}/allreduce_shm.h")
-endif()
-
 if(USE_CUDA)
   file(GLOB GLOO_CUDA_SRCS
     "${CMAKE_CURRENT_SOURCE_DIR}/cuda*.cc"
