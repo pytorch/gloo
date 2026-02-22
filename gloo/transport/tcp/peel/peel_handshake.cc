@@ -79,7 +79,7 @@ bool PeelHandshake::init() {
     sockaddr_in local{};
     local.sin_family = AF_INET;
     local.sin_addr.s_addr = htonl(INADDR_ANY);
-    local.sin_port = htons(config_.local_port);
+    local.sin_port = htons(config_.local_port == 0 ? config_.mcast_port : config_.local_port);
 
     if (::bind(fd_, reinterpret_cast<sockaddr*>(&local), sizeof(local)) < 0) {
         std::cerr << "peel: bind() failed: " << strerror(errno) << "\n";
