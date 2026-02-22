@@ -426,6 +426,62 @@ std::vector<char> Rank::bytes() const {
   return buf;
 }
 
+
+// ---------------------------------------------------------------------------
+// Peel Handshake Implementation
+// ---------------------------------------------------------------------------
+
+void Context::enablePeel(const peel::PeelConfig& config) {
+  if (peelCohort_) {
+    // Already completed a handshake
+    throw std::runtime_error("Peel handshake already completed");
+  }
+
+  peelHandshake_ = std::make_unique<peel::PeelHandshake>(config);
+  if (!peelHandshake_->init()) {
+    peelHandshake_.reset();
+    throw std::runtime_error("Failed to initialize Peel handshake");
+  }
+}
+
+bool Context::performPeelHandshake(bool isSender, int expectedReceivers) {
+  if (!peelHandshake_) {
+    // Peel not enabled or already completed
+    if (peelCohort_) {
+      // Already done
+      return true;
+    }
+    std::cerr << "peel: enablePeel() must be called first\n";
+    return false;
+  }
+
+  std::optional<peel::PeelCohort> result;
+
+  if (isSender) {
+    if (expectedReceivers <= 0) {
+      std::cerr << "peel: expectedReceivers must be > 0 for sender\n";
+      return false;
+    }
+    result = peelHandshake_->senderHandshake(expectedReceivers);
+  } else {
+    result = peelHandshake_->receiverHandshake();
+  }
+
+  // Handshake object is no longer needed
+  peelHandshake_.reset();
+
+  if (!result) {
+    std::cerr << "peel: handshake failed\n";
+    return false;
+  }
+
+  // Store the result
+  peelCohort_ = std::make_unique<peel::PeelCohort>(std::move(*result));
+  return true;
+}
+
+
+
 } // namespace tcp
 } // namespace transport
 } // namespace gloo

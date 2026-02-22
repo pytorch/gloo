@@ -18,6 +18,7 @@
 #include "gloo/common/memory.h"
 #include "gloo/common/store.h"
 #include "gloo/transport/context.h"
+#include "gloo/transport/tcp/peel/peel_handshake.h" // PEEL
 
 namespace gloo {
 namespace transport {
@@ -36,6 +37,40 @@ class Context : public ::gloo::transport::Context,
 
   virtual ~Context();
 
+
+
+  // ---------------------------------------------------------------------------
+  // Peel Handshake Support
+  // ---------------------------------------------------------------------------
+
+  // Enable Peel handshake capability with given configuration
+  // Call this before performPeelHandshake()
+  void enablePeel(const peel::PeelConfig& config);
+
+  // Perform the Peel handshake
+  // - isSender: true if this rank is the sender (typically rank 0)
+  // - expectedReceivers: number of receivers to wait for (only used if isSender)
+  // Returns true on success
+  bool performPeelHandshake(bool isSender, int expectedReceivers = 0);
+
+  // Check if Peel is enabled
+  bool isPeelEnabled() const { return peelHandshake_ != nullptr || peelCohort_ != nullptr; }
+
+  // Check if Peel handshake completed successfully
+  bool isPeelReady() const { return peelCohort_ != nullptr; }
+
+  // Get the Peel cohort after successful handshake
+  // Returns nullptr if handshake not done or failed
+  const peel::PeelCohort* peelCohort() const { return peelCohort_.get(); }
+
+  // Get mutable Peel cohort (for taking ownership of socket, etc.)
+  peel::PeelCohort* peelCohortMutable() { return peelCohort_.get(); }
+
+
+
+
+
+
   virtual void createAndConnectAllPairs(std::shared_ptr<IStore> store) override;
 
   std::unique_ptr<transport::Pair>& createPair(int rank) override;
@@ -50,6 +85,21 @@ class Context : public ::gloo::transport::Context,
       size_t size) override;
 
  protected:
+
+  // ---------------------------------------------------------------------------
+  // Peel Handshake Members
+  // ---------------------------------------------------------------------------
+
+  // Peel handshake object (non-null while handshake in progress)
+  std::unique_ptr<peel::PeelHandshake> peelHandshake_;
+
+  // Peel cohort result (non-null after successful handshake)
+  std::unique_ptr<peel::PeelCohort> peelCohort_;
+
+
+
+  
+
   std::shared_ptr<Device> device_;
   std::shared_ptr<IStore> store_{nullptr};
 
