@@ -53,6 +53,5 @@ jobs:
             -DUSE_ROCM=ON \
             -DUSE_LIBUV=ON \
             -DUSE_IBVERBS=ON \
-            -DCMAKE_PREFIX_PATH=/opt/rocm \
-            -DCMAKE_HIP_COMPILER=/opt/rocm/bin/hipcc
+            -DCMAKE_PREFIX_PATH=/opt/rocm
           make -j"$(nproc)"

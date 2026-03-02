@@ -140,35 +140,29 @@ if(USE_ROCM)
   include(cmake/Hip.cmake)
   if(HAVE_HIP)
     include(cmake/Hipify.cmake)
-    list(APPEND HIP_CXX_FLAGS -D__HIP_PLATFORM_HCC__=1)
-    list(APPEND HIP_CXX_FLAGS -DCUDA_HAS_FP16=1)
-    list(APPEND HIP_CXX_FLAGS -D__HIP_NO_HALF_OPERATORS__=1)
-    list(APPEND HIP_CXX_FLAGS -D__HIP_NO_HALF_CONVERSIONS__=1)
-    list(APPEND HIP_CXX_FLAGS -DHIP_VERSION=${HIP_VERSION_MAJOR})
+
+    # Set include directories for HIP targets
+    set(GLOO_HIP_INCLUDE
+      ${hip_INCLUDE_DIRS}
+      $<BUILD_INTERFACE:${HIPIFY_OUTPUT_ROOT_DIR}>
+      $<INSTALL_INTERFACE:include>
+    )
+
+    # Set compile flags for HIP targets
+    set(GLOO_HIP_FLAGS
+      -DCUDA_HAS_FP16=1
+      -D__HIP_NO_HALF_OPERATORS__=1
+      -D__HIP_NO_HALF_CONVERSIONS__=1
+      -DHIP_VERSION=${hip_VERSION_MAJOR}
+      -DUSE_MIOPEN
+    )
     if(NOT WIN32)
-      list(APPEND HIP_CXX_FLAGS -fPIC)
-      list(APPEND HIP_CXX_FLAGS -Wno-shift-count-negative)
-      list(APPEND HIP_CXX_FLAGS -Wno-shift-count-overflow)
-      list(APPEND HIP_CXX_FLAGS -Wno-duplicate-decl-specifier)
+      list(APPEND GLOO_HIP_FLAGS
+        -Wno-shift-count-negative
+        -Wno-shift-count-overflow
+        -Wno-duplicate-decl-specifier
+      )
     endif()
-    list(APPEND HIP_CXX_FLAGS -DUSE_MIOPEN)
-
-    set(HIP_CLANG_FLAGS ${HIP_CXX_FLAGS})
-    # Ask hcc to generate device code during compilation so we can use
-    # host linker to link.
-    list(APPEND HIP_CLANG_FLAGS -fno-gpu-rdc)
-    list(APPEND HIP_CLANG_FLAGS -Wno-defaulted-function-deleted)
-    foreach(gloo_rocm_arch ${GLOO_ROCM_ARCH})
-      list(APPEND HIP_CLANG_FLAGS --offload-arch=${gloo_rocm_arch})
-    endforeach()
-
-    set(GLOO_HIP_INCLUDE ${hip_INCLUDE_DIRS} $<BUILD_INTERFACE:${HIPIFY_OUTPUT_ROOT_DIR}> $<INSTALL_INTERFACE:include> ${GLOO_HIP_INCLUDE})
-
-    # This is needed for library added by hip_add_library (same for hip_add_executable)
-    hip_include_directories(${GLOO_HIP_INCLUDE})
-
-    set(gloo_hip_DEPENDENCY_LIBS ${GLOO_HIP_HCC_LIBRARIES})
-
   else()
     message(WARNING "Not compiling with HIP support. Suppress this warning with -DUSE_ROCM=OFF.")
     set(USE_ROCM OFF)
