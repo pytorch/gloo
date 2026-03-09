@@ -1,5 +1,3 @@
-// gloo/transport/tcp/peel/test_peel_full_mesh.cc
-
 #include "peel_full_mesh.h"
 
 #include <cstdlib>

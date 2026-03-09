@@ -1,5 +1,3 @@
-// gloo/transport/tcp/peel/test_peel_gloo_context.cc
-
 #include "peel_context.h"
 
 #include <cstdlib>

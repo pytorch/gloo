@@ -22,6 +22,7 @@ set(PEEL_HEADERS
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(HIREDIS REQUIRED hiredis)
 
+# Main library
 add_library(gloo_peel ${PEEL_SOURCES})
 
 target_include_directories(gloo_peel
@@ -35,7 +36,26 @@ target_link_libraries(gloo_peel
         ${HIREDIS_LIBRARIES}
 )
 
+# =============================================================================
+# Test executables
+# =============================================================================
+
+# Test: Full Mesh Handshake
+add_executable(test_peel_full_mesh test_peel_full_mesh.cc)
+target_link_libraries(test_peel_full_mesh gloo_peel)
+
+# Test: Gloo Context
+add_executable(test_peel_gloo_context test_peel_gloo_context.cc)
+target_link_libraries(test_peel_gloo_context gloo_peel)
+
+# Test: Broadcast Example
+add_executable(test_peel_broadcast_example test_peel_broadcast_example.cc)
+target_link_libraries(test_peel_broadcast_example gloo_peel)
+
+# =============================================================================
 # Install
+# =============================================================================
+
 install(TARGETS gloo_peel
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
@@ -43,4 +63,13 @@ install(TARGETS gloo_peel
 
 install(FILES ${PEEL_HEADERS}
     DESTINATION include/gloo/transport/tcp/peel
+)
+
+# Optionally install test binaries
+install(TARGETS 
+    test_peel_full_mesh 
+    test_peel_gloo_context 
+    test_peel_broadcast_example
+    RUNTIME DESTINATION bin
+    OPTIONAL
 )
