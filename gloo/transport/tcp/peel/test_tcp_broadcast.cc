@@ -2,12 +2,12 @@
  * Test TCP point-to-point broadcast using Gloo
  * 
  * Usage:
- *   ./test_tcp_broadcast <rank> <world_size> <redis_host> [redis_port]
+ *   ./test_tcp_broadcast <rank> <world_size> <redis_host> [redis_port] [iface]
  * 
  * Example (3 nodes):
- *   Node 0: ./test_tcp_broadcast 0 3 192.168.1.101
- *   Node 1: ./test_tcp_broadcast 1 3 192.168.1.101
- *   Node 2: ./test_tcp_broadcast 2 3 192.168.1.101
+ *   Node 0: ./test_tcp_broadcast 0 3 10.161.159.133 6379 eth0
+ *   Node 1: ./test_tcp_broadcast 1 3 10.161.159.133 6379 eth0
+ *   Node 2: ./test_tcp_broadcast 2 3 10.161.159.133 6379 eth0
  */
 
 #include <chrono>
@@ -27,11 +27,14 @@
 using Clock = std::chrono::steady_clock;
 
 void printUsage(const char* prog) {
-    std::cerr << "Usage: " << prog << " <rank> <world_size> <redis_host> [redis_port]\n";
+    std::cerr << "Usage: " << prog << " <rank> <world_size> <redis_host> [redis_port] [iface]\n";
+    std::cerr << "\nDefaults:\n";
+    std::cerr << "  redis_port: 6379\n";
+    std::cerr << "  iface:      (auto-detect)\n";
     std::cerr << "\nExample:\n";
-    std::cerr << "  " << prog << " 0 3 192.168.1.101\n";
-    std::cerr << "  " << prog << " 1 3 192.168.1.101\n";
-    std::cerr << "  " << prog << " 2 3 192.168.1.101\n";
+    std::cerr << "  " << prog << " 0 3 10.161.159.133 6379 eth0\n";
+    std::cerr << "  " << prog << " 1 3 10.161.159.133 6379 eth0\n";
+    std::cerr << "  " << prog << " 2 3 10.161.159.133 6379 eth0\n";
 }
 
 int main(int argc, char** argv) {
@@ -44,9 +47,13 @@ int main(int argc, char** argv) {
     int worldSize = std::atoi(argv[2]);
     std::string redisHost = argv[3];
     int redisPort = (argc > 4) ? std::atoi(argv[4]) : 6379;
+    std::string iface = (argc > 5) ? argv[5] : "";
 
     std::cout << "[TCP] Rank " << rank << "/" << worldSize 
               << " connecting to Redis at " << redisHost << ":" << redisPort << "\n";
+    if (!iface.empty()) {
+        std::cout << "[TCP] Rank " << rank << ": Using interface " << iface << "\n";
+    }
 
     // ===========================================
     // Setup Redis store for rendezvous
@@ -54,10 +61,12 @@ int main(int argc, char** argv) {
     auto store = std::make_shared<gloo::rendezvous::RedisStore>(redisHost, redisPort);
 
     // ===========================================
-    // Create TCP device
+    // Create TCP device with interface
     // ===========================================
     gloo::transport::tcp::attr tcpAttr;
-    // tcpAttr.iface = "eth0";  // Uncomment and set if needed
+    if (!iface.empty()) {
+        tcpAttr.iface = iface;
+    }
     auto tcpDevice = gloo::transport::tcp::CreateDevice(tcpAttr);
 
     std::cout << "[TCP] Rank " << rank << ": TCP device created\n";

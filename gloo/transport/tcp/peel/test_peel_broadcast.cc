@@ -2,12 +2,7 @@
  * Test Peel multicast broadcast using Gloo
  * 
  * Usage:
- *   ./test_peel_broadcast <rank> <world_size> <redis_host> [redis_port] [mcast_group] [mcast_port]
- * 
- * Example (3 nodes):
- *   Node 0: ./test_peel_broadcast 0 3 192.168.1.101
- *   Node 1: ./test_peel_broadcast 1 3 192.168.1.101
- *   Node 2: ./test_peel_broadcast 2 3 192.168.1.101
+ *   ./test_peel_broadcast <rank> <world_size> <redis_host> [redis_port] [iface] [mcast_group] [mcast_port]
  */
 
 #include <chrono>
@@ -18,6 +13,7 @@
 #include <string>
 #include <vector>
 
+#include "gloo/rendezvous/prefix_store.h"
 #include "gloo/rendezvous/redis_store.h"
 #include "gloo/transport/tcp/device.h"
 #include "gloo/transport/tcp/context.h"
@@ -27,15 +23,15 @@ using Clock = std::chrono::steady_clock;
 
 void printUsage(const char* prog) {
     std::cerr << "Usage: " << prog 
-              << " <rank> <world_size> <redis_host> [redis_port] [mcast_group] [mcast_port]\n";
+              << " <rank> <world_size> <redis_host> [redis_port] [iface] [mcast_group] [mcast_port]\n";
     std::cerr << "\nDefaults:\n";
     std::cerr << "  redis_port:  6379\n";
+    std::cerr << "  iface:       (auto-detect)\n";
     std::cerr << "  mcast_group: 239.255.0.1\n";
     std::cerr << "  mcast_port:  5000\n";
     std::cerr << "\nExample:\n";
-    std::cerr << "  " << prog << " 0 3 192.168.1.101\n";
-    std::cerr << "  " << prog << " 1 3 192.168.1.101\n";
-    std::cerr << "  " << prog << " 2 3 192.168.1.101\n";
+    std::cerr << "  " << prog << " 0 3 10.161.159.133 6379 vmbr0\n";
+    std::cerr << "  " << prog << " 0 3 10.161.159.133 6379 vmbr0 239.255.0.1 5000\n";
 }
 
 int main(int argc, char** argv) {
@@ -48,24 +44,39 @@ int main(int argc, char** argv) {
     int worldSize = std::atoi(argv[2]);
     std::string redisHost = argv[3];
     int redisPort = (argc > 4) ? std::atoi(argv[4]) : 6379;
-    std::string mcastGroup = (argc > 5) ? argv[5] : "239.255.0.1";
-    uint16_t mcastPort = (argc > 6) ? static_cast<uint16_t>(std::atoi(argv[6])) : 5000;
+    std::string iface = (argc > 5) ? argv[5] : "";
+    std::string mcastGroup = (argc > 6) ? argv[6] : "239.255.0.1";
+    uint16_t mcastPort = (argc > 7) ? static_cast<uint16_t>(std::atoi(argv[7])) : 5000;
 
     std::cout << "[PEEL] Rank " << rank << "/" << worldSize 
               << " connecting to Redis at " << redisHost << ":" << redisPort << "\n";
+    if (!iface.empty()) {
+        std::cout << "[PEEL] Rank " << rank << ": Using interface " << iface << "\n";
+    }
     std::cout << "[PEEL] Rank " << rank << ": Multicast group " 
               << mcastGroup << ":" << mcastPort << "\n";
 
     // ===========================================
-    // Setup Redis store for rendezvous
+    // Setup Redis store with unique prefix
     // ===========================================
-    gloo::rendezvous::RedisStore store(redisHost, redisPort);
+    auto redisStore = std::make_shared<gloo::rendezvous::RedisStore>(redisHost, redisPort);
+    
+    auto now = std::chrono::system_clock::now();
+    auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(
+        now.time_since_epoch()).count();
+    std::string prefix = "peel_test_" + std::to_string(timestamp / 10);
+    
+    auto store = std::make_shared<gloo::rendezvous::PrefixStore>(prefix, redisStore);
+    
+    std::cout << "[PEEL] Rank " << rank << ": Using prefix '" << prefix << "'\n";
 
     // ===========================================
     // Create TCP device and context
     // ===========================================
     gloo::transport::tcp::attr tcpAttr;
-    // tcpAttr.iface = "eth0";  // Uncomment and set if needed
+    if (!iface.empty()) {
+        tcpAttr.iface = iface;
+    }
     auto tcpDevice = gloo::transport::tcp::CreateDevice(tcpAttr);
 
     std::cout << "[PEEL] Rank " << rank << ": TCP device created\n";
@@ -79,9 +90,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    // Connect using store
-    tcpCtx->createAndConnectAllPairs(
-        std::make_shared<gloo::rendezvous::RedisStore>(redisHost, redisPort));
+    // Connect using store (with prefix)
+    tcpCtx->createAndConnectAllPairs(store);
 
     std::cout << "[PEEL] Rank " << rank << ": TCP context connected\n";
 
@@ -93,11 +103,17 @@ int main(int argc, char** argv) {
     peelConfig.world_size = worldSize;
     peelConfig.redis_host = redisHost;
     peelConfig.redis_port = redisPort;
-    peelConfig.mcast_group = mcastGroup;
+    peelConfig.mcast_group = mcastGroup;  // Now correctly set to 239.255.0.1
     peelConfig.base_port = mcastPort;
-    peelConfig.redis_prefix = "peel_test";
+    peelConfig.redis_prefix = prefix + "_peel";
+    if (!iface.empty()) {
+        peelConfig.iface_ip = iface;
+    }
 
-    std::cout << "[PEEL] Rank " << rank << ": Enabling Peel...\n";
+    std::cout << "[PEEL] Rank " << rank << ": Enabling Peel with config:\n";
+    std::cout << "       mcast_group: " << peelConfig.mcast_group << "\n";
+    std::cout << "       base_port:   " << peelConfig.base_port << "\n";
+    std::cout << "       iface_ip:    " << peelConfig.iface_ip << "\n";
 
     tcpCtx->enablePeel(peelConfig);
 
@@ -117,12 +133,10 @@ int main(int argc, char** argv) {
     const int root = 0;
 
     if (rank == root) {
-        // Root fills data with known pattern
-        std::iota(data.begin(), data.end(), 0);  // 0, 1, 2, 3, ...
+        std::iota(data.begin(), data.end(), 0);
         std::cout << "[PEEL] Rank " << rank << ": Sender - broadcasting " 
                   << dataCount << " uint32s (" << (dataCount * sizeof(uint32_t)) << " bytes)\n";
     } else {
-        // Receivers initialize to zero
         std::fill(data.begin(), data.end(), 0);
         std::cout << "[PEEL] Rank " << rank << ": Receiver - waiting for broadcast\n";
     }
@@ -164,17 +178,6 @@ int main(int argc, char** argv) {
 
     if (success) {
         std::cout << "[PEEL] Rank " << rank << ": SUCCESS - Data verified correctly\n";
-    }
-
-    // ===========================================
-    // Barrier before exit
-    // ===========================================
-    std::string barrierKey = "peel_barrier_" + std::to_string(rank);
-    store.set(barrierKey, std::vector<char>{'d', 'o', 'n', 'e'});
-    
-    for (int r = 0; r < worldSize; ++r) {
-        std::string key = "peel_barrier_" + std::to_string(r);
-        store.wait({key});
     }
 
     std::cout << "[PEEL] Rank " << rank << ": Exiting\n";
