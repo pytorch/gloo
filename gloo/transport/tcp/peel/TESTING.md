@@ -144,8 +144,6 @@ After building Gloo, test executables are located at:
 - Redis coordination for Peel
 - UDP multicast socket setup
 - Multicast group join
-- Reliable data transmission with ACKs
-- **Retransmission** on packet loss
 - Data integrity verification
 
 ------
@@ -319,4 +317,5 @@ peel: enabled and ready for rank 2 (world_size=3)
 [PEEL] Rank 2: Broadcast completed in 35.064 ms (114.077 MB/s)
 [PEEL] Rank 2: SUCCESS - Data verified correctly
 [PEEL] Rank 2: Exiting
+
 ```
