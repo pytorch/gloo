@@ -1,75 +1,37 @@
 # gloo/transport/tcp/peel/CMakeLists.txt
 
-set(PEEL_SOURCES
-    peel_protocol.cc
-    peel_redis.cc
-    peel_full_mesh.cc
-    peel_transport.cc
-    peel_broadcast.cc
-    peel_context.cc
-)
-
-set(PEEL_HEADERS
-    peel_protocol.h
-    peel_redis.h
-    peel_full_mesh.h
-    peel_transport.h
-    peel_broadcast.h
-    peel_context.h
-)
-
-# Find hiredis
+# Find hiredis (required for peel)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(HIREDIS REQUIRED hiredis)
 
-# Main library
-add_library(gloo_peel ${PEEL_SOURCES})
-
-target_include_directories(gloo_peel
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/..
-        ${HIREDIS_INCLUDE_DIRS}
-)
-
-target_link_libraries(gloo_peel
-    PUBLIC
-        ${HIREDIS_LIBRARIES}
-)
+# Add hiredis to parent scope for linking with gloo
+set(HIREDIS_INCLUDE_DIRS ${HIREDIS_INCLUDE_DIRS} PARENT_SCOPE)
+set(HIREDIS_LIBRARIES ${HIREDIS_LIBRARIES} PARENT_SCOPE)
 
 # =============================================================================
-# Test executables
+# Test executables (standalone, link against gloo which includes peel sources)
 # =============================================================================
 
 # Test: Full Mesh Handshake
 add_executable(test_peel_full_mesh test_peel_full_mesh.cc)
-target_link_libraries(test_peel_full_mesh gloo_peel)
+target_link_libraries(test_peel_full_mesh gloo ${HIREDIS_LIBRARIES})
+target_include_directories(test_peel_full_mesh PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${HIREDIS_INCLUDE_DIRS}
+)
 
 # Test: Gloo Context
 add_executable(test_peel_gloo_context test_peel_gloo_context.cc)
-target_link_libraries(test_peel_gloo_context gloo_peel)
+target_link_libraries(test_peel_gloo_context gloo ${HIREDIS_LIBRARIES})
+target_include_directories(test_peel_gloo_context PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${HIREDIS_INCLUDE_DIRS}
+)
 
 # Test: Broadcast Example
 add_executable(test_peel_broadcast_example test_peel_broadcast_example.cc)
-target_link_libraries(test_peel_broadcast_example gloo_peel)
-
-# =============================================================================
-# Install
-# =============================================================================
-
-install(TARGETS gloo_peel
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
-)
-
-install(FILES ${PEEL_HEADERS}
-    DESTINATION include/gloo/transport/tcp/peel
-)
-
-# Optionally install test binaries
-install(TARGETS 
-    test_peel_full_mesh 
-    test_peel_gloo_context 
-    test_peel_broadcast_example
-    RUNTIME DESTINATION bin
-    OPTIONAL
+target_link_libraries(test_peel_broadcast_example gloo ${HIREDIS_LIBRARIES})
+target_include_directories(test_peel_broadcast_example PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${HIREDIS_INCLUDE_DIRS}
 )

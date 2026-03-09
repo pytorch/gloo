@@ -18,7 +18,7 @@
 #include "gloo/common/memory.h"
 #include "gloo/common/store.h"
 #include "gloo/transport/context.h"
-#include "gloo/transport/tcp/peel/peel_handshake.h" // PEEL
+#include "gloo/transport/tcp/peel/peel_context.h" // PEEL
 
 namespace gloo {
 namespace transport {
@@ -37,39 +37,44 @@ class Context : public ::gloo::transport::Context,
 
   virtual ~Context();
 
-
-
   // ---------------------------------------------------------------------------
-  // Peel Handshake Support
+  // Peel Multicast Support
   // ---------------------------------------------------------------------------
 
-  // Enable Peel handshake capability with given configuration
-  // Call this before performPeelHandshake()
-  void enablePeel(const peel::PeelConfig& config);
+  // Enable Peel multicast with given configuration
+  // This initializes the transport and performs the full-mesh handshake
+  void enablePeel(const peel::PeelContextConfig& config);
 
-  // Perform the Peel handshake
-  // - isSender: true if this rank is the sender (typically rank 0)
-  // - expectedReceivers: number of receivers to wait for (only used if isSender)
-  // Returns true on success
-  bool performPeelHandshake(bool isSender, int expectedReceivers = 0);
+  // Check if Peel is enabled and initialized
+  bool isPeelEnabled() const { return peelContext_ != nullptr; }
 
-  // Check if Peel is enabled
-  bool isPeelEnabled() const { return peelHandshake_ != nullptr || peelCohort_ != nullptr; }
+  // Check if Peel is ready for data transfer
+  bool isPeelReady() const { return peelContext_ != nullptr && peelContext_->isReady(); }
 
-  // Check if Peel handshake completed successfully
-  bool isPeelReady() const { return peelCohort_ != nullptr; }
+  // Get the Peel context for direct access
+  const peel::PeelContext* peelContext() const { return peelContext_.get(); }
+  peel::PeelContext* peelContextMutable() { return peelContext_.get(); }
 
-  // Get the Peel cohort after successful handshake
-  // Returns nullptr if handshake not done or failed
-  const peel::PeelCohort* peelCohort() const { return peelCohort_.get(); }
+  // Convenience: perform broadcast using Peel multicast
+  // - root: rank that sends the data
+  // - data: buffer (root sends, others receive)
+  // - size: number of bytes
+  bool peelBroadcast(int root, void* data, size_t size) {
+    if (!isPeelReady()) return false;
+    return peelContext_->broadcast(root, data, size);
+  }
 
-  // Get mutable Peel cohort (for taking ownership of socket, etc.)
-  peel::PeelCohort* peelCohortMutable() { return peelCohort_.get(); }
+  // Cleanup Peel resources
+  void disablePeel() {
+    if (peelContext_) {
+      peelContext_->cleanup();
+      peelContext_.reset();
+    }
+  }
 
-
-
-
-
+  // ---------------------------------------------------------------------------
+  // Existing API
+  // ---------------------------------------------------------------------------
 
   virtual void createAndConnectAllPairs(std::shared_ptr<IStore> store) override;
 
@@ -85,20 +90,15 @@ class Context : public ::gloo::transport::Context,
       size_t size) override;
 
  protected:
+  // ---------------------------------------------------------------------------
+  // Peel Members
+  // ---------------------------------------------------------------------------
+
+  std::unique_ptr<peel::PeelContext> peelContext_;
 
   // ---------------------------------------------------------------------------
-  // Peel Handshake Members
+  // Existing Members
   // ---------------------------------------------------------------------------
-
-  // Peel handshake object (non-null while handshake in progress)
-  std::unique_ptr<peel::PeelHandshake> peelHandshake_;
-
-  // Peel cohort result (non-null after successful handshake)
-  std::unique_ptr<peel::PeelCohort> peelCohort_;
-
-
-
-  
 
   std::shared_ptr<Device> device_;
   std::shared_ptr<IStore> store_{nullptr};
@@ -148,23 +148,16 @@ class Context : public ::gloo::transport::Context,
   void signalException(const std::string& msg);
 
   // Returns a sorted list of connected peer ranks, excluding self.
-  // Normally all peer ranks should be connected at the end of
-  // createAndConnectAllPairs
-  // peer rank concept is introduced at the transport/tcp/pair level, so
-  // this method is defined at the same level instead of the parent contexts
   std::vector<int> getConnectedPeerRanks() const;
 
   // Returns a sorted list of unconnected and peer ranks, excluding self.
-  // Normally empty at the end of createAndConnectAllPairs
   std::vector<int> getUnConnectedPeerRanks() const;
 
   // a helper function to print out rank to rank connectivity information
   void printConnectivityInfo() const;
 
   friend class ContextMutator;
-
   friend class UnboundBuffer;
-
   friend class Pair;
 };
 

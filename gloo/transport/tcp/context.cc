@@ -32,6 +32,9 @@ Context::Context(std::shared_ptr<Device> device, int rank, int size)
 }
 
 Context::~Context() {
+  // Cleanup Peel if enabled
+  disablePeel();
+
   if (device_->isLazyInit()) {
     // We need to shutdown the loop thread prior to freeing the pairs as
     // connection callbacks may be called after we free the pairs leading to
@@ -79,15 +82,6 @@ void Context::createAndConnectAllPairs(std::shared_ptr<IStore> store) {
   // Obtain the pair object for this rank
   // and tack on all the pair identifiers used for the remote side
   // to identify themselves use during the rendezvous process
-  // TODO:
-  // Seems like logically the remote rank should really just report its rank
-  // during rendezvous instead of the device seq number.
-  // That would allow it to bypass the seemingly unnecessary O(n) store access,
-  // just to get the seq number the other side is expecting.
-  // However this seems to require some major surgery to the stack that
-  // Pieter originally wrote (since the connect() is at `Device` level,
-  // which does not have the rank info hosted at a higher `Pair` level).
-  // So better safe than sorry for now we try to minimize the changeset needed.
   const auto& currentRankPair = getPair(rank);
   const auto& deviceAddress = Address(
       static_cast<const Pair*>(currentRankPair.get())->address().getSockaddr());
@@ -302,11 +296,6 @@ int Context::recvFromAnyFindRank(
       for (const auto srcRank : srcRanks) {
         if (rank == srcRank) {
           // We've found a rank that could fulfill this recv.
-          //
-          // The caller of this function will try and attempt a recv,
-          // which will remove this remote pending send operation,
-          // if it's still around.
-          //
           return rank;
         }
       }
@@ -426,61 +415,26 @@ std::vector<char> Rank::bytes() const {
   return buf;
 }
 
-
 // ---------------------------------------------------------------------------
-// Peel Handshake Implementation
+// Peel Implementation
 // ---------------------------------------------------------------------------
 
-void Context::enablePeel(const peel::PeelConfig& config) {
-  if (peelCohort_) {
-    // Already completed a handshake
-    throw std::runtime_error("Peel handshake already completed");
+void Context::enablePeel(const peel::PeelContextConfig& config) {
+  if (peelContext_) {
+    std::cerr << "peel: already enabled\n";
+    return;
   }
 
-  peelHandshake_ = std::make_unique<peel::PeelHandshake>(config);
-  if (!peelHandshake_->init()) {
-    peelHandshake_.reset();
-    throw std::runtime_error("Failed to initialize Peel handshake");
+  peelContext_ = std::make_unique<peel::PeelContext>(config);
+  if (!peelContext_->init()) {
+    std::cerr << "peel: initialization failed\n";
+    peelContext_.reset();
+    return;
   }
+
+  std::cerr << "peel: enabled and ready for rank " << config.rank
+            << " (world_size=" << config.world_size << ")\n";
 }
-
-bool Context::performPeelHandshake(bool isSender, int expectedReceivers) {
-  if (!peelHandshake_) {
-    // Peel not enabled or already completed
-    if (peelCohort_) {
-      // Already done
-      return true;
-    }
-    std::cerr << "peel: enablePeel() must be called first\n";
-    return false;
-  }
-
-  std::optional<peel::PeelCohort> result;
-
-  if (isSender) {
-    if (expectedReceivers <= 0) {
-      std::cerr << "peel: expectedReceivers must be > 0 for sender\n";
-      return false;
-    }
-    result = peelHandshake_->senderHandshake(expectedReceivers);
-  } else {
-    result = peelHandshake_->receiverHandshake();
-  }
-
-  // Handshake object is no longer needed
-  peelHandshake_.reset();
-
-  if (!result) {
-    std::cerr << "peel: handshake failed\n";
-    return false;
-  }
-
-  // Store the result
-  peelCohort_ = std::make_unique<peel::PeelCohort>(std::move(*result));
-  return true;
-}
-
-
 
 } // namespace tcp
 } // namespace transport

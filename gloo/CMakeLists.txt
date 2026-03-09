@@ -165,10 +165,10 @@ elseif(USE_TCP_OPENSSL_LOAD)
   target_link_libraries(gloo PRIVATE dl)
 endif()
 
-target_link_libraries(gloo PRIVATE ${gloo_DEPENDENCY_LIBS})
+target_link_libraries(gloo PRIVATE ${gloo_DEPENDENCY_LIBS} ${HIREDIS_LIBRARIES})
 
 # Add Interface include directories that are relocatable.
-target_include_directories(gloo INTERFACE $<INSTALL_INTERFACE:include>)
+target_include_directories(gloo INTERFACE $<INSTALL_INTERFACE:include> ${HIREDIS_INCLUDE_DIRS})
 if(USE_CUDA)
   target_include_directories(gloo_cuda INTERFACE $<INSTALL_INTERFACE:include>)
 

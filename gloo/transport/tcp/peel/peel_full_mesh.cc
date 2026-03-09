@@ -329,9 +329,9 @@ bool PeelFullMesh::performHandshake(PeelFullMeshResult& result) {
     }
 
     // Send START
-    PeelHeader start{};
-    fillHeader(start, 0, FLG_START, 0);
-    sendPacket(send_fd_, send_dest, start);
+    PeelHeader startPkt{};
+    fillHeader(startPkt, 0, FLG_START, 0);
+    sendPacket(send_fd_, send_dest, startPkt);
     std::cerr << "peel[" << config_.rank << "]: sent START\n";
 
     return true;
