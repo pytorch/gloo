@@ -63,22 +63,22 @@ gloo/
             ├── CMakeLists.txt
             │
             │── peel_protocol.h       ─┐
-            │── peel_protocol.cc       │ Protocol Layer
+            │── peel_protocol.cc       │ Protocol
             │                         ─┘
             │── peel_redis.h          ─┐
-            │── peel_redis.cc          │ Redis Layer
+            │── peel_redis.cc          │ Redis
             │                         ─┘
             │── peel_full_mesh.h      ─┐
-            │── peel_full_mesh.cc      │ Mesh Layer
+            │── peel_full_mesh.cc      │ Mesh
             │                         ─┘
             │── peel_transport.h      ─┐
-            │── peel_transport.cc      │ Transport Layer
+            │── peel_transport.cc      │ Transport
             │                         ─┘
             │── peel_broadcast.h      ─┐
-            │── peel_broadcast.cc      │ Broadcast Layer
+            │── peel_broadcast.cc      │ Broadcast
             │                         ─┘
             │── peel_context.h        ─┐
-            │── peel_context.cc        │ Context Layer
+            │── peel_context.cc        │ Context
             │                         ─┘
             │── test_tcp_broadcast.cc         ─┐
             │── test_peel_broadcast.cc         │
@@ -121,4 +121,5 @@ rm -rf *
 cmake .. -DUSE_REDIS=ON
 make -j$(nproc)
 ```
+
 
