@@ -35,3 +35,21 @@ target_include_directories(test_peel_broadcast_example PRIVATE
     ${PROJECT_SOURCE_DIR}
     ${HIREDIS_INCLUDE_DIRS}
 )
+
+# Test: TCP Broadcast (baseline)
+add_executable(test_tcp_broadcast test_tcp_broadcast.cc)
+target_link_libraries(test_tcp_broadcast gloo ${HIREDIS_LIBRARIES})
+target_include_directories(test_tcp_broadcast PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${HIREDIS_INCLUDE_DIRS}
+)
+target_compile_definitions(test_tcp_broadcast PRIVATE GLOO_USE_REDIS=1)
+
+# Test: Peel Broadcast (multicast)
+add_executable(test_peel_broadcast test_peel_broadcast.cc)
+target_link_libraries(test_peel_broadcast gloo ${HIREDIS_LIBRARIES})
+target_include_directories(test_peel_broadcast PRIVATE 
+    ${PROJECT_SOURCE_DIR}
+    ${HIREDIS_INCLUDE_DIRS}
+)
+target_compile_definitions(test_peel_broadcast PRIVATE GLOO_USE_REDIS=1)
