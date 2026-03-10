@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <exception>
 #include <functional>
 #include <stdexcept>
@@ -112,6 +113,13 @@ class BaseTest : public ::testing::Test {
           device_creator,
       std::function<void(std::shared_ptr<Context>)> fn,
       int base = 2) {
+    // Track whether workers found the transport unavailable so we can call
+    // GTEST_SKIP() from the main thread after joining. GTEST_SKIP() is not
+    // thread-safe and must not be called from worker threads — doing so
+    // causes a data race on GTest internals that can manifest as
+    // "terminate called recursively" (SIGABRT / exit code 134).
+    std::atomic<bool> transportUnavailable{false};
+
     Barrier barrier(size);
     auto store = std::make_shared<::gloo::rendezvous::HashStore>();
 
@@ -119,11 +127,11 @@ class BaseTest : public ::testing::Test {
       auto context =
           std::make_shared<::gloo::rendezvous::Context>(rank, size, base);
 
-      // Create device per thread to avoid collisions then they are using the
+      // Create device per thread to avoid collisions when they are using the
       // socket address.
       auto device = device_creator(transport);
       if (!device) {
-        GTEST_SKIP() << "Skipping test: transport not available";
+        transportUnavailable.store(true);
         return;
       }
       context->connectFullMesh(store, device);
@@ -150,6 +158,10 @@ class BaseTest : public ::testing::Test {
         context->closeConnections();
       }
     });
+
+    if (transportUnavailable.load()) {
+      GTEST_SKIP() << "Skipping test: transport not available";
+    }
   }
 
   void spawn(

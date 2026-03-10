@@ -154,14 +154,22 @@ Device::~Device() {
   done_ = true;
   loop_->join();
 
+  // Log errors instead of throwing — destructors are implicitly noexcept
+  // in C++11+, so a throw here calls std::terminate().
   rv = ibv_destroy_comp_channel(comp_channel_);
-  GLOO_ENFORCE_EQ(rv, 0, strerror(errno));
+  if (rv != 0) {
+    GLOO_ERROR("ibv_destroy_comp_channel: ", strerror(errno));
+  }
 
   rv = ibv_dealloc_pd(pd_);
-  GLOO_ENFORCE_EQ(rv, 0, strerror(errno));
+  if (rv != 0) {
+    GLOO_ERROR("ibv_dealloc_pd: ", strerror(errno));
+  }
 
   rv = ibv_close_device(context_);
-  GLOO_ENFORCE_EQ(rv, 0, strerror(errno));
+  if (rv != 0) {
+    GLOO_ERROR("ibv_close_device: ", strerror(errno));
+  }
 }
 
 std::string Device::str() const {
