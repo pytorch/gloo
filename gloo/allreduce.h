@@ -19,6 +19,9 @@ namespace gloo {
 
 namespace detail {
 
+#define GLOO_SHM_ALLREDUCE_APPLICABLE \
+  !defined(_WIN32) && !defined(__aarch64__) && !defined(__arm__)
+
 struct AllreduceOptionsImpl {
   // This type describes the function to use for element wise reduction.
   //

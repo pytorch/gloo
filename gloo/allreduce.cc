@@ -12,7 +12,7 @@
 #include <array>
 #include <cstring>
 
-#if !defined(_WIN32) && !defined(__aarch64__) && !defined(__arm__)
+#if GLOO_SHM_ALLREDUCE_APPLICABLE
 #include "gloo/allreduce_shm.h"
 #endif
 #include "gloo/common/logging.h"
@@ -137,8 +137,9 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
 
   auto algorithm = opts.algorithm;
 
-#if !defined(_WIN32) && !defined(__aarch64__) && !defined(__arm__)
-  if (context->isIntraNode() && !context->getDevice()->hasGPUDirect()) {
+#if GLOO_SHM_ALLREDUCE_APPLICABLE
+  if (algorithm == detail::AllreduceOptionsImpl::UNSPECIFIED &&
+      context->isIntraNode() && !context->getDevice()->hasGPUDirect()) {
     algorithm = detail::AllreduceOptionsImpl::SHM;
   }
 #endif
@@ -151,7 +152,7 @@ void allreduce(const detail::AllreduceOptionsImpl& opts) {
     case detail::AllreduceOptionsImpl::BCUBE:
       bcube(opts, reduceInputs, broadcastOutputs);
       break;
-#if !defined(_WIN32) && !defined(__aarch64__) && !defined(__arm__)
+#if GLOO_SHM_ALLREDUCE_APPLICABLE
     case detail::AllreduceOptionsImpl::SHM:
       shm(opts);
       break;

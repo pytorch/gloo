@@ -175,6 +175,17 @@ static void parallel_memcpy(void* to, void* from, size_t n_bytes) {
   }
 }
 
+void copy_buffer(void* to, void* from, size_t n_bytes) {
+  // use memcpy when buffer size is less than 1 MiB
+  if (n_bytes < AllreduceSharedMemoryData::AllreduceWorkspace::
+                    NAIVE_ALLREDUCE_THRESHOLD) {
+    memcpy(to, from, n_bytes);
+    return;
+  }
+
+  parallel_memcpy(to, from, n_bytes);
+}
+
 size_t slice_size(size_t chunk_el, int slice_idx, int world_size) {
   size_t slice_size = chunk_el / world_size;
   return slice_idx == world_size - 1 ? slice_size + (chunk_el % world_size)
@@ -234,7 +245,7 @@ void symmetric_naive_all_reduce(
   }
   state_idx = (state_idx + 1) % 3;
 
-  parallel_memcpy(symmetric_buffer[current_buffer][rank], data_ptr, chunk_size);
+  copy_buffer(symmetric_buffer[current_buffer][rank], data_ptr, chunk_size);
 
   std::atomic_thread_fence(std::memory_order_release);
   workspace[rank]->states[state_group] = copy_current;
@@ -298,8 +309,7 @@ void distributed_naive_reduce(
   state_idx = (state_idx + 1) % 2;
 
   int data_size = chunk_size / chunk_el;
-  parallel_memcpy(
-      distributed_buffer[current_buffer][rank], data_ptr, chunk_size);
+  copy_buffer(distributed_buffer[current_buffer][rank], data_ptr, chunk_size);
   std::atomic_thread_fence(std::memory_order_release);
   workspace[rank]->states[state_group] = copy_current;
 
@@ -324,7 +334,7 @@ void distributed_naive_reduce(
 
   for (int i = 0; i < world_size; i++) {
     int rank = (i + rank) % world_size;
-    parallel_memcpy(
+    copy_buffer(
         slice_data(data_ptr, chunk_el, data_size, rank, world_size),
         slice_data(
             distributed_buffer[current_buffer][rank],
