@@ -17,14 +17,22 @@
 
 namespace gloo {
 
+#if !defined(_WIN32) && !defined(__aarch64__) && !defined(__arm__)
+#define GLOO_SHM_ALLREDUCE_APPLICABLE 1
+#else
+#define GLOO_SHM_ALLREDUCE_APPLICABLE 0
+#endif
+
+#if GLOO_SHM_ALLREDUCE_APPLICABLE
+class AllreduceSharedMemoryData;
+#endif
+
 // There is no need to materialize all transport types here.
 namespace transport {
 class Context;
 class Device;
 class UnboundBuffer;
 } // namespace transport
-
-class AllreduceSharedMemoryData;
 
 class Context {
  public:
@@ -35,9 +43,11 @@ class Context {
   const int size;
   int base;
 
+#if GLOO_SHM_ALLREDUCE_APPLICABLE
   std::shared_ptr<AllreduceSharedMemoryData> shmData;
 
   std::mutex shmDataMutex;
+#endif
 
   std::shared_ptr<transport::Device>& getDevice();
 
