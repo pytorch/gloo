@@ -10,6 +10,7 @@
 
 // One-time init to use EPIPE errors instead of SIGPIPE
 #ifndef _WIN32
+#include <signal.h>
 namespace {
 struct Initializer {
   Initializer() {
