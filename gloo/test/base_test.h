@@ -10,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include <atomic>
 #include <exception>
 #include <functional>
 #include <stdexcept>
@@ -75,6 +76,14 @@ extern const std::vector<Transport> kTransportsForClassAlgorithms;
 extern const std::vector<Transport> kTransportsForFunctionAlgorithms;
 extern const std::vector<Transport> kTransportsForRDMA;
 
+// Returns true if ibverbs is available with functional RDMA hardware.
+// Probes once using raw ibverbs APIs (through ibv_create_qp) and caches
+// the result. On CI runners without real RDMA hardware, rdma-core software
+// providers let device open / PD alloc / CQ creation succeed but QP creation
+// fails. Creating a gloo Device (which starts a background thread) on such
+// systems causes segfaults after fork() in TransportMultiProcTest.
+bool ibverbsAvailable();
+
 std::shared_ptr<::gloo::transport::Device> createDevice(Transport transport);
 
 class BaseTest : public ::testing::Test {
@@ -115,18 +124,31 @@ class BaseTest : public ::testing::Test {
     Barrier barrier(size);
     auto store = std::make_shared<::gloo::rendezvous::HashStore>();
 
+    // Track whether workers found the transport unavailable so we can
+    // call GTEST_SKIP() from the main thread after joining.
+    // GTEST_SKIP() is not safe to call from worker threads — concurrent
+    // calls race on GTest internals and can cause "terminate called
+    // recursively" (SIGABRT / exit code 134).
+    std::atomic<bool> transportUnavailable{false};
+
     spawnThreads(size, [&](int rank) {
       auto context =
           std::make_shared<::gloo::rendezvous::Context>(rank, size, base);
 
-      // Create device per thread to avoid collisions then they are using the
+      // Create device per thread to avoid collisions when they are using the
       // socket address.
       auto device = device_creator(transport);
       if (!device) {
-        GTEST_SKIP() << "Skipping test: transport not available";
+        transportUnavailable.store(true);
         return;
       }
-      context->connectFullMesh(store, device);
+
+      try {
+        context->connectFullMesh(store, device);
+      } catch (const std::exception&) {
+        transportUnavailable.store(true);
+        return;
+      }
 
       try {
         fn(context);
@@ -150,6 +172,10 @@ class BaseTest : public ::testing::Test {
         context->closeConnections();
       }
     });
+
+    if (transportUnavailable.load()) {
+      GTEST_SKIP() << "Skipping test: transport not available";
+    }
   }
 
   void spawn(

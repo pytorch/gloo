@@ -10,10 +10,25 @@
 
 // One-time init to use EPIPE errors instead of SIGPIPE
 #ifndef _WIN32
+#include <execinfo.h>
+#include <signal.h>
+#include <unistd.h>
+#include <cstdio>
+
 namespace {
+
+static void segfault_handler(int sig) {
+  void* array[30];
+  int size = backtrace(array, 30);
+  fprintf(stderr, "[DIAG] Signal %d caught, backtrace:\n", sig);
+  backtrace_symbols_fd(array, size, STDERR_FILENO);
+  _exit(128 + sig);
+}
+
 struct Initializer {
   Initializer() {
     signal(SIGPIPE, SIG_IGN);
+    signal(SIGSEGV, segfault_handler);
   }
 };
 Initializer initializer;
