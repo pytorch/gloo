@@ -117,7 +117,10 @@ static void lookupAddrForHostname(struct attr& attr) {
     attr.ai_protocol = rp->ai_protocol;
     memcpy(&attr.ai_addr, rp->ai_addr, rp->ai_addrlen);
     attr.ai_addrlen = rp->ai_addrlen;
-    close(fd);
+
+    // We explicitly don't close this FD here as we want to hold on to it until
+    // the listener binds the server socket to the port.
+    attr.fd = std::make_shared<FDHolder>(fd);
     break;
   }
 
