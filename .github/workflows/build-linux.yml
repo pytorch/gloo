@@ -75,7 +75,7 @@ jobs:
           sudo apt-get install -y gcc g++
           mkdir -p build
           cd build
-          cmake ../ -DCMAKE_VERBOSE_MAKEFILE=ON -DBUILD_TEST=ON ${{matrix.cmake_args}} -DOPENSSL_ROOT_DIR=/opt/openssl/
+          cmake ../ -DCMAKE_VERBOSE_MAKEFILE=ON -DBUILD_TEST=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo ${{matrix.cmake_args}} -DOPENSSL_ROOT_DIR=/opt/openssl/
           make
       - name: Test
         run: |
