@@ -60,8 +60,18 @@ bool PeelRedis::set(const std::string& key, const std::string& value) {
         redisCommand(ctx_, "SET %s %s", key.c_str(), value.c_str()));
     if (!reply) return false;
 
-    bool ok = (reply->type == REDIS_REPLY_STATUS &&
-               std::strcmp(reply->str, "OK") == 0);
+    bool ok = false;
+    if (reply->str != nullptr) {
+        ok = (reply->type == REDIS_REPLY_STATUS &&
+              std::strcmp(reply->str, "OK") == 0);
+    } else if (reply->type == REDIS_REPLY_STATUS) {
+        ok = true;
+        std::cerr << "Warning: Redis SET reply->str is NULL, but type is STATUS" << std::endl;
+    } else if (reply->type == REDIS_REPLY_ERROR) {
+        std::cerr << "Redis SET error: " << (reply->str ? reply->str : "unknown error") 
+                  << " for key: " << key << std::endl;
+    }
+    
     freeReplyObject(reply);
     return ok;
 }
