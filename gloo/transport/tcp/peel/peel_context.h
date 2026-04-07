@@ -21,7 +21,7 @@ struct PeelContextConfig {
     // Multicast
     std::string mcast_group = "239.255.0.1";
     uint16_t base_port = PEEL_DEFAULT_BASE_PORT;
-    std::string iface_ip;
+    std::string iface_name;
     int ttl = PEEL_DEFAULT_TTL;
 
     // Redis

@@ -25,7 +25,7 @@ struct PeelTransportConfig {
     uint16_t base_port = PEEL_DEFAULT_BASE_PORT;
     int rank = 0;
     int world_size = 1;
-    std::string iface_ip;
+    std::string iface_name;
     int ttl = PEEL_DEFAULT_TTL;
     int rcvbuf = 4 * 1024 * 1024;
     int rto_ms = PEEL_DEFAULT_RTO_MS;
@@ -99,12 +99,17 @@ private:
     bool recvPacket(int from_rank, PeelHeader& hdr,
                     std::vector<uint8_t>& payload, int timeout_ms);
 
-    // Wait for ACKs from all receivers (placeholder for reliability)
+    // Wait for ACKs from all receivers (stop-and-wait)
     bool waitForAcks(uint32_t seq, int timeout_ms);
+
+    // Send a unicast ACK frame back to the sender
+    void sendAck(uint32_t dst_ip_n, uint16_t dst_port_h, const uint8_t dst_mac[6],
+                 uint32_t seq, uint32_t tsecr, uint8_t retrans_id);
 
     PeelTransportConfig config_;
     std::unique_ptr<PeelFullMeshResult> mesh_result_;
     uint32_t next_seq_ = 1;
+    uint16_t ip_id_    = 0;  // Rolling IP identification counter
 };
 
 } // namespace peel

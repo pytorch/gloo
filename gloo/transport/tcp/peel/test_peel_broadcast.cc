@@ -107,13 +107,13 @@ int main(int argc, char** argv) {
     peelConfig.base_port = mcastPort;
     peelConfig.redis_prefix = prefix + "_peel";
     if (!iface.empty()) {
-        peelConfig.iface_ip = iface;
+        peelConfig.iface_name = iface;
     }
 
     std::cout << "[PEEL] Rank " << rank << ": Enabling Peel with config:\n";
     std::cout << "       mcast_group: " << peelConfig.mcast_group << "\n";
     std::cout << "       base_port:   " << peelConfig.base_port << "\n";
-    std::cout << "       iface_ip:    " << peelConfig.iface_ip << "\n";
+    std::cout << "       iface_name:  " << peelConfig.iface_name << "\n";
 
     tcpCtx->enablePeel(peelConfig);
 

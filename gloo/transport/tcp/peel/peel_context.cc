@@ -22,7 +22,7 @@ bool PeelContext::init() {
     tc.base_port = config_.base_port;
     tc.rank = config_.rank;
     tc.world_size = config_.world_size;
-    tc.iface_ip = config_.iface_ip;
+    tc.iface_name = config_.iface_name;
     tc.ttl = config_.ttl;
     tc.rcvbuf = config_.rcvbuf;
     tc.rto_ms = config_.rto_ms;

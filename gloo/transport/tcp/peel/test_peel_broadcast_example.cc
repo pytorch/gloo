@@ -8,20 +8,23 @@ using namespace gloo::transport::tcp::peel;
 
 int main(int argc, char** argv) {
     if (argc < 3) {
-        std::cerr << "Usage: " << argv[0] << " <rank> <world_size> [redis_host]\n";
+        std::cerr << "Usage: " << argv[0] << " <rank> <world_size> [redis_host] [iface]\n";
         return 1;
     }
 
     int rank = std::atoi(argv[1]);
     int world_size = std::atoi(argv[2]);
     std::string redis_host = argc > 3 ? argv[3] : "127.0.0.1";
+    std::string iface      = argc > 4 ? argv[4] : "";
 
     PeelContextConfig config;
-    config.rank = rank;
-    config.world_size = world_size;
-    config.redis_host = redis_host;
+    config.rank        = rank;
+    config.world_size  = world_size;
+    config.redis_host  = redis_host;
     config.mcast_group = "239.255.0.1";
-    config.base_port = 50000;
+    config.base_port   = 50000;
+    if (!iface.empty())
+        config.iface_name = iface;
 
     PeelContext ctx(config);
 
