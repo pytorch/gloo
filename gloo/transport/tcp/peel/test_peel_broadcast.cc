@@ -64,7 +64,8 @@ int main(int argc, char** argv) {
     auto now = std::chrono::system_clock::now();
     auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(
         now.time_since_epoch()).count();
-    std::string prefix = "peel_test_" + std::to_string(timestamp / 10);
+    //std::string prefix = "peel_test_" + std::to_string(timestamp / 10);
+    std::string prefix = "peel_test_fixed"; // fix prefix
     
     auto store = std::make_shared<gloo::rendezvous::PrefixStore>(prefix, redisStore);
     
