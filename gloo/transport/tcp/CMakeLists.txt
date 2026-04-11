@@ -23,6 +23,8 @@ else()
         "${CMAKE_CURRENT_SOURCE_DIR}/peel/peel_transport.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/peel/peel_broadcast.cc"
         "${CMAKE_CURRENT_SOURCE_DIR}/peel/peel_context.cc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/peel/peel_discovery.cc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/peel/peel_tree.cc"
     )
     list(APPEND GLOO_TRANSPORT_HDRS
         "${CMAKE_CURRENT_SOURCE_DIR}/address.h"
@@ -46,6 +48,8 @@ else()
         "${CMAKE_CURRENT_SOURCE_DIR}/peel/peel_transport.h"
         "${CMAKE_CURRENT_SOURCE_DIR}/peel/peel_broadcast.h"
         "${CMAKE_CURRENT_SOURCE_DIR}/peel/peel_context.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/peel/peel_discovery.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/peel/peel_tree.h"
     )
 endif()
 
