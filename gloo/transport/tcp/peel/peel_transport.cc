@@ -37,6 +37,7 @@ static size_t build_udp_frame(
     uint16_t       dst_port_h,
     uint8_t        ttl,
     uint16_t       ip_id,
+    uint8_t        tos,
     const uint8_t* payload,
     size_t         payload_len)
 {
@@ -52,7 +53,7 @@ static size_t build_udp_frame(
     auto* ip    = reinterpret_cast<iphdr*>(frame + 14);
     ip->ihl      = 5;
     ip->version  = 4;
-    ip->tos      = 0;
+    ip->tos      = tos;
     ip->tot_len  = htons((uint16_t)ip_len);
     ip->id       = htons(ip_id);
     ip->frag_off = htons(0x4000);  // DF
@@ -117,7 +118,9 @@ static const uint8_t* parse_udp_frame(
 PeelTransport::PeelTransport(const PeelTransportConfig& config)
     : config_(config) {}
 
-PeelTransport::~PeelTransport() = default;
+PeelTransport::~PeelTransport() {
+    cleanup();
+}
 
 bool PeelTransport::init() {
     PeelFullMeshConfig mesh_config;
@@ -130,9 +133,12 @@ bool PeelTransport::init() {
     mesh_config.rcvbuf               = config_.rcvbuf;
     mesh_config.rto_ms               = config_.rto_ms;
     mesh_config.handshake_timeout_ms = config_.timeout_ms;
-    mesh_config.redis_host           = config_.redis_host;
-    mesh_config.redis_port           = config_.redis_port;
-    mesh_config.redis_prefix         = config_.redis_prefix;
+    mesh_config.participant_ranks    = config_.participant_ranks;
+    mesh_config.use_cidr_rules_mac   = config_.use_cidr_rules_mac;
+    if (config_.use_cidr_rules_mac)
+        memcpy(mesh_config.cidr_rules_mac, config_.cidr_rules_mac, 6);
+    mesh_config.dscp                 = config_.dscp;
+    mesh_config.sender_rank          = config_.sender_rank;
 
     PeelFullMesh mesh(mesh_config);
 
@@ -147,11 +153,28 @@ bool PeelTransport::init() {
         return false;
     }
 
+    // Start the worker thread now that sockets are ready.
+    // The thread must be started after mesh_result_ is set so it can
+    // safely access send/recv channels from the moment it wakes up.
+    worker_ = std::thread(&PeelTransport::workerLoop, this);
+
     std::cerr << "peel_transport[" << config_.rank << "]: ready\n";
     return true;
 }
 
 void PeelTransport::cleanup() {
+    // Signal the worker to exit, then join before releasing resources.
+    // This order is critical: mesh_result_ (and its sockets) must not be
+    // freed while the worker thread may still be inside send() or recv().
+    {
+        std::lock_guard<std::mutex> lock(mu_);
+        worker_state_ = WorkerState::SHUTDOWN;
+        cv_work_.notify_one();
+    }
+    if (worker_.joinable())
+        worker_.join();
+
+    // Safe to release resources now that the worker has fully exited.
     mesh_result_.reset();
 }
 
@@ -164,12 +187,62 @@ bool PeelTransport::broadcast(int root, void* data, size_t size) {
         std::cerr << "peel_transport: not ready\n";
         return false;
     }
+    submitWork(root, data, size);
+    return waitResult();
+}
 
+bool PeelTransport::executeBroadcast(int root, void* data, size_t size) {
     if (config_.rank == root) {
         return send(data, size);
     } else {
         ssize_t n = recv(root, data, size, config_.timeout_ms);
         return n == static_cast<ssize_t>(size);
+    }
+}
+
+void PeelTransport::submitWork(int root, void* data, size_t size) {
+    std::lock_guard<std::mutex> lock(mu_);
+    assert(worker_state_ == WorkerState::IDLE &&
+           "submitWork() called while worker is not IDLE");
+    work_item_    = {root, data, size};
+    worker_state_ = WorkerState::WORKING;
+    cv_work_.notify_one();
+}
+
+bool PeelTransport::waitResult() {
+    std::unique_lock<std::mutex> lock(mu_);
+    cv_done_.wait(lock, [this] {
+        return worker_state_ == WorkerState::DONE;
+    });
+    bool result   = work_result_;
+    worker_state_ = WorkerState::IDLE;
+    return result;
+}
+
+void PeelTransport::workerLoop() {
+    while (true) {
+        // Wait until the main thread submits work or requests shutdown.
+        std::unique_lock<std::mutex> lock(mu_);
+        cv_work_.wait(lock, [this] {
+            return worker_state_ == WorkerState::WORKING ||
+                   worker_state_ == WorkerState::SHUTDOWN;
+        });
+
+        if (worker_state_ == WorkerState::SHUTDOWN)
+            break;
+
+        // Copy the work item while holding the lock, then release before
+        // executing so the main thread is not blocked during the operation.
+        WorkItem item = work_item_;
+        lock.unlock();
+
+        bool result = executeBroadcast(item.root, item.data, item.size);
+
+        // Publish the result and wake the waiting main thread.
+        lock.lock();
+        work_result_  = result;
+        worker_state_ = WorkerState::DONE;
+        cv_done_.notify_one();
     }
 }
 
@@ -195,8 +268,14 @@ bool PeelTransport::send(const void* data, size_t size) {
         for (int attempt = 0; attempt < PEEL_DEFAULT_RETRIES && !acked; ++attempt) {
             if (!sendPacket(seq, flags, ptr, chunk)) return false;
 
-            // Single-rank case: no receivers, nothing to wait for
-            if (config_.world_size == 1) { acked = true; break; }
+            // No receivers in this mesh: nothing to wait for.
+            // Use participant count if set, otherwise fall back to world_size.
+            // waitForAcks also handles expected==0 correctly, but short-circuiting
+            // here avoids an unnecessary socket recv() call.
+            const int mesh_size = config_.participant_ranks.empty()
+                ? config_.world_size
+                : static_cast<int>(config_.participant_ranks.size());
+            if (mesh_size <= 1) { acked = true; break; }
 
             acked = waitForAcks(seq, config_.rto_ms);
             if (!acked)
@@ -235,10 +314,13 @@ bool PeelTransport::sendPacket(uint32_t seq, uint16_t flags,
     if (len > 0)
         std::memcpy(udp_payload.data() + PEEL_HEADER_SIZE, payload, len);
 
-    // Derive multicast dst MAC from group IP
+    // Destination MAC: use the transport's fixed ruleset if configured,
+    // otherwise derive the standard multicast MAC from the group IP.
     uint32_t mcast_ip = ch->mcast.sin_addr.s_addr;
     uint8_t  dst_mac[6];
-    {
+    if (config_.use_cidr_rules_mac) {
+        memcpy(dst_mac, config_.cidr_rules_mac, 6);
+    } else {
         uint32_t ip = ntohl(mcast_ip);
         dst_mac[0] = 0x01; dst_mac[1] = 0x00; dst_mac[2] = 0x5e;
         dst_mac[3] = (ip >> 16) & 0x7f;
@@ -254,6 +336,7 @@ bool PeelTransport::sendPacket(uint32_t seq, uint16_t flags,
         ch->port, ntohs(ch->mcast.sin_port),
         (uint8_t)config_.ttl,
         ip_id_++,
+        static_cast<uint8_t>(config_.dscp << 2),
         udp_payload.data(), udp_payload.size());
 
     if (flen == 0) return false;
@@ -393,6 +476,7 @@ void PeelTransport::sendAck(uint32_t dst_ip_n, uint16_t dst_port_h,
         ch->port, dst_port_h,
         64,  // TTL for unicast ACK
         ip_id_++,
+        0,   // TOS: no DSCP for unicast ACK
         reinterpret_cast<const uint8_t*>(&ack), sizeof(ack));
 
     if (flen == 0) return;
@@ -413,7 +497,9 @@ bool PeelTransport::waitForAcks(uint32_t seq, int timeout_ms) {
     auto* ch = mesh_result_->send_channel.get();
     if (!ch || ch->fd < 0) return false;
 
-    int expected = config_.world_size - 1;
+    int expected = config_.participant_ranks.empty()
+        ? config_.world_size - 1
+        : static_cast<int>(config_.participant_ranks.size()) - 1;
     if (expected <= 0) return true;
 
     // Pack (src_ip, src_port) into a 64-bit key to track unique receivers

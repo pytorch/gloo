@@ -3,7 +3,6 @@
 #pragma once
 
 #include "peel_protocol.h"
-#include "peel_redis.h"
 
 #include <cstdint>
 #include <memory>
@@ -30,20 +29,37 @@ struct PeelFullMeshConfig {
     int rank = 0;
     int world_size = 1;
 
+    // Subset of ranks that participate in this mesh.
+    // Empty means all ranks 0..world_size-1 (default / single-transport case).
+    // When PeelTree is used, each subtree sets this to its own receiver_ranks.
+    std::vector<int> participant_ranks;
+
     // Network — interface name only; MAC and IP are derived automatically
     std::string iface_name;   // e.g. "eth0"
-    int ttl = PEEL_DEFAULT_TTL;
+    int ttl   = PEEL_DEFAULT_TTL;
     int rcvbuf = 4 * 1024 * 1024;
+
+    // CIDR rules: if use_cidr_rules_mac is true, every outgoing frame
+    // (handshake and data) uses cidr_rules_mac as the Ethernet destination
+    // instead of the standard derived multicast MAC.
+    uint8_t cidr_rules_mac[6]  = {};
+    bool    use_cidr_rules_mac = false;
+
+    // DSCP (Differentiated Services Code Point) for outgoing multicast packets.
+    // Written directly to ip->tos as (dscp << 2) in the raw IP header.
+    // Default 7 = CS1 (low-drop precedence, bulk traffic).
+    uint8_t dscp = 7;
+
+    // Rank that acts as the data sender for this mesh.
+    // During handshake: sender multicasts SYN and waits for unicast ACKs from
+    // all receivers, then broadcasts START.  Receivers only listen for SYN from
+    // this rank, unicast-ACK back, and wait for START — they never multicast.
+    // For broadcast this is the broadcast root (default 0).
+    int sender_rank = 0;
 
     // Timing
     int rto_ms = PEEL_DEFAULT_RTO_MS;
     int handshake_timeout_ms = PEEL_DEFAULT_TIMEOUT_MS;
-    int poll_interval_ms = 50;
-
-    // Redis
-    std::string redis_host = "127.0.0.1";
-    int redis_port = 6379;
-    std::string redis_prefix = "peel";
 
     // Helpers
     uint16_t sendPort() const { return base_port + static_cast<uint16_t>(rank); }
@@ -111,28 +127,24 @@ public:
     PeelFullMesh(const PeelFullMesh&) = delete;
     PeelFullMesh& operator=(const PeelFullMesh&) = delete;
 
-    // Initialize (resolve interface, connect Redis, create sockets)
+    // Initialize (resolve interface, create sockets)
     bool init();
 
-    // Run handshake (barrier + SYN/ACK)
+    // Run handshake (SYN/ACK across participant_ranks)
     std::unique_ptr<PeelFullMeshResult> run();
 
-    // Cleanup Redis keys
-    void cleanup();
-
 private:
-    bool connectRedis();
     bool createSockets();
-    bool signalReady();
-    bool waitForAllReady();
     bool performHandshake(PeelFullMeshResult& result);
 
     int  createSocket(uint16_t port, bool is_sender);
     void fillHeader(PeelHeader& h, uint32_t seq, uint16_t flags, uint8_t retrans_id);
-    bool sendPacket(int fd, const sockaddr_in& dest, const PeelHeader& hdr);
+    // dst_mac_override: when non-null, used as Ethernet destination instead of
+    // the CIDR/multicast MAC.  Pass sender's learned MAC for unicast ACKs.
+    bool sendPacket(int fd, const sockaddr_in& dest, const PeelHeader& hdr,
+                    const uint8_t* dst_mac_override = nullptr);
 
     PeelFullMeshConfig config_;
-    std::unique_ptr<PeelRedis> redis_;
 
     // Derived from iface_name at init()
     int      if_idx_   = 0;

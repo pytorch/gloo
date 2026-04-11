@@ -5,9 +5,12 @@
 #include "peel_full_mesh.h"
 #include "peel_protocol.h"
 
+#include <cassert>
+#include <condition_variable>
 #include <cstdint>
-#include <functional>
 #include <memory>
+#include <mutex>
+#include <thread>
 #include <vector>
 
 namespace gloo {
@@ -31,13 +34,25 @@ struct PeelTransportConfig {
     int rto_ms = PEEL_DEFAULT_RTO_MS;
     int timeout_ms = PEEL_DEFAULT_TIMEOUT_MS;
 
-    // Redis
-    std::string redis_host = "127.0.0.1";
-    int redis_port = 6379;
-    std::string redis_prefix = "peel";
+    // Subset of ranks in this transport's mesh (matches PeelSubtree::receiver_ranks).
+    // Empty means all ranks 0..world_size-1.
+    std::vector<int> participant_ranks;
 
     // Data transfer
     size_t max_chunk_size = PEEL_MAX_PAYLOAD;
+
+    // Routing ruleset: if use_cidr_rules_mac is true, every outgoing DATA frame
+    // uses cidr_rules_mac as the Ethernet destination instead of the standard
+    // derived multicast MAC.
+    uint8_t cidr_rules_mac[6]  = {};
+    bool    use_cidr_rules_mac = false;
+
+    // DSCP for outgoing multicast packets (written to ip->tos as dscp << 2).
+    uint8_t dscp = 7;
+
+    // Rank that sends data in this mesh (broadcast root).
+    // Passed through to PeelFullMeshConfig to drive the handshake direction.
+    int sender_rank = 0;
 };
 
 // =============================================================================
@@ -66,12 +81,20 @@ public:
     // Broadcast API
     // =========================================================================
 
-    // Broadcast data from root to all other ranks
-    // - root: rank that sends
-    // - data: buffer (root sends, others receive)
-    // - size: number of bytes
-    // Returns true on success
+    // Broadcast data from root to all other ranks.
+    // Convenience wrapper: submits work to the worker thread and blocks
+    // until it completes. Equivalent to submitWork() + waitResult().
     bool broadcast(int root, void* data, size_t size);
+
+    // Submit a broadcast operation to the worker thread (non-blocking).
+    // The caller must ensure the worker is IDLE before calling.
+    // Pair with waitResult() to retrieve the outcome.
+    // The data buffer must remain valid until waitResult() returns.
+    void submitWork(int root, void* data, size_t size);
+
+    // Block until the worker thread finishes the submitted operation.
+    // Returns the result and transitions the worker back to IDLE.
+    bool waitResult();
 
     // =========================================================================
     // Low-level Send/Recv (for future extensions)
@@ -106,10 +129,43 @@ private:
     void sendAck(uint32_t dst_ip_n, uint16_t dst_port_h, const uint8_t dst_mac[6],
                  uint32_t seq, uint32_t tsecr, uint8_t retrans_id);
 
-    PeelTransportConfig config_;
-    std::unique_ptr<PeelFullMeshResult> mesh_result_;
-    uint32_t next_seq_ = 1;
-    uint16_t ip_id_    = 0;  // Rolling IP identification counter
+    // =========================================================================
+    // Worker thread
+    // =========================================================================
+
+    // States of the worker thread state machine.
+    //   IDLE     — waiting for the next submitWork() call.
+    //   WORKING  — executing a broadcast operation.
+    //   DONE     — operation complete, result available for waitResult().
+    //   SHUTDOWN — cleanup() has been called; thread will exit.
+    enum class WorkerState { IDLE, WORKING, DONE, SHUTDOWN };
+
+    // Parameters for one broadcast operation, written by submitWork()
+    // and read by the worker thread under mu_.
+    struct WorkItem {
+        int    root = 0;
+        void*  data = nullptr;
+        size_t size = 0;
+    };
+
+    // Execute one broadcast operation. Called exclusively from workerLoop().
+    bool executeBroadcast(int root, void* data, size_t size);
+
+    // Worker thread entry point.
+    void workerLoop();
+
+    PeelTransportConfig                  config_;
+    std::unique_ptr<PeelFullMeshResult>  mesh_result_;
+    uint32_t                             next_seq_ = 1;
+    uint16_t                             ip_id_    = 0;
+
+    std::thread             worker_;
+    std::mutex              mu_;
+    std::condition_variable cv_work_;              // main  → worker : WORKING or SHUTDOWN
+    std::condition_variable cv_done_;              // worker → main  : DONE
+    WorkerState             worker_state_{WorkerState::IDLE};
+    WorkItem                work_item_{};
+    bool                    work_result_{false};
 };
 
 } // namespace peel

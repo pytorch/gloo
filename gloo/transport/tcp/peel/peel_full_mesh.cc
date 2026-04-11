@@ -108,6 +108,7 @@ static size_t build_udp_frame(
     uint16_t       dst_port_h,
     uint8_t        ttl,
     uint16_t       ip_id,
+    uint8_t        tos,
     const uint8_t* payload,
     size_t         payload_len)
 {
@@ -125,7 +126,7 @@ static size_t build_udp_frame(
     auto* ip    = reinterpret_cast<iphdr*>(frame + 14);
     ip->ihl      = 5;
     ip->version  = 4;
-    ip->tos      = 0;
+    ip->tos      = tos;
     ip->tot_len  = htons((uint16_t)ip_len);
     ip->id       = htons(ip_id);
     ip->frag_off = htons(0x4000);  // DF bit
@@ -277,16 +278,8 @@ bool PeelFullMesh::init() {
         return false;
     }
 
-    if (!connectRedis()) {
-        std::cerr << "peel[" << config_.rank << "]: redis connect failed\n";
-        return false;
-    }
     if (!createSockets()) {
         std::cerr << "peel[" << config_.rank << "]: socket creation failed\n";
-        return false;
-    }
-    if (!signalReady()) {
-        std::cerr << "peel[" << config_.rank << "]: signal ready failed\n";
         return false;
     }
 
@@ -297,12 +290,8 @@ bool PeelFullMesh::init() {
 std::unique_ptr<PeelFullMeshResult> PeelFullMesh::run() {
     std::cerr << "peel[" << config_.rank << "]: starting handshake...\n";
 
-    if (!waitForAllReady()) {
-        std::cerr << "peel[" << config_.rank << "]: barrier timeout\n";
-        return nullptr;
-    }
-
-    std::cerr << "peel[" << config_.rank << "]: all ranks ready\n";
+    // No Redis barrier here — PeelDiscovery already acted as the barrier by
+    // requiring all ranks to publish their IPs before any transport is created.
 
     auto result = std::make_unique<PeelFullMeshResult>();
     result->rank       = config_.rank;
@@ -317,16 +306,22 @@ std::unique_ptr<PeelFullMeshResult> PeelFullMesh::run() {
         return nullptr;
     }
 
-    // Build the L2 multicast destination used for all outgoing frames
-    uint8_t mcast_mac[6];
-    mcast_ip_to_mac(mcast_base_.sin_addr.s_addr, mcast_mac);
+    // Build the L2 destination used for all outgoing frames.
+    // Use the transport's fixed ruleset MAC if configured, otherwise
+    // derive the standard multicast MAC from the group IP.
+    uint8_t dst_mac[6];
+    if (config_.use_cidr_rules_mac) {
+        memcpy(dst_mac, config_.cidr_rules_mac, 6);
+    } else {
+        mcast_ip_to_mac(mcast_base_.sin_addr.s_addr, dst_mac);
+    }
 
     sockaddr_ll ll{};
     ll.sll_family   = AF_PACKET;
     ll.sll_protocol = htons(ETH_P_IP);
     ll.sll_ifindex  = if_idx_;
     ll.sll_halen    = 6;
-    memcpy(ll.sll_addr, mcast_mac, 6);
+    memcpy(ll.sll_addr, dst_mac, 6);
 
     // Transfer send channel
     result->send_channel = std::make_unique<PeelChannel>();
@@ -360,22 +355,9 @@ std::unique_ptr<PeelFullMeshResult> PeelFullMesh::run() {
     return result;
 }
 
-void PeelFullMesh::cleanup() {
-    if (redis_) {
-        std::string pattern = config_.redis_prefix + "/*";
-        int n = redis_->delPattern(pattern);
-        std::cerr << "peel: cleaned " << n << " redis keys\n";
-    }
-}
-
 // =============================================================================
 // Internal
 // =============================================================================
-
-bool PeelFullMesh::connectRedis() {
-    redis_ = std::make_unique<PeelRedis>(config_.redis_host, config_.redis_port);
-    return redis_->connect();
-}
 
 bool PeelFullMesh::createSockets() {
     std::memset(&mcast_base_, 0, sizeof(mcast_base_));
@@ -391,7 +373,17 @@ bool PeelFullMesh::createSockets() {
         return false;
     }
 
-    for (int r = 0; r < config_.world_size; ++r) {
+    // Only open receive sockets for the ranks that are actually in this mesh.
+    // When participant_ranks is empty, all ranks 0..world_size-1 participate.
+    const std::vector<int>* parts = &config_.participant_ranks;
+    std::vector<int> all_ranks;
+    if (parts->empty()) {
+        all_ranks.reserve(config_.world_size);
+        for (int r = 0; r < config_.world_size; ++r) all_ranks.push_back(r);
+        parts = &all_ranks;
+    }
+
+    for (int r : *parts) {
         if (r == config_.rank) continue;
         recv_fds_[r] = createSocket(config_.recvPort(r), false);
         if (recv_fds_[r] < 0) {
@@ -403,131 +395,194 @@ bool PeelFullMesh::createSockets() {
     return true;
 }
 
-bool PeelFullMesh::signalReady() {
-    std::string key = config_.redis_prefix + "/ready/" + std::to_string(config_.rank);
-    return redis_->set(key, "1");
-}
-
-bool PeelFullMesh::waitForAllReady() {
-    std::vector<std::string> keys;
-    for (int r = 0; r < config_.world_size; ++r)
-        keys.push_back(config_.redis_prefix + "/ready/" + std::to_string(r));
-    return redis_->waitForKeys(keys, config_.handshake_timeout_ms, config_.poll_interval_ms);
-}
-
 bool PeelFullMesh::performHandshake(PeelFullMeshResult& result) {
     auto start   = Clock::now();
     auto timeout = std::chrono::milliseconds(config_.handshake_timeout_ms);
 
-    std::vector<bool> heard_syn(config_.world_size, false);
-    std::vector<bool> heard_ack(config_.world_size, false);
-    heard_syn[config_.rank] = true;
-    heard_ack[config_.rank] = true;
-    int syn_count = 1, ack_count = 1;
-
     sockaddr_in send_dest = mcast_base_;
     send_dest.sin_port = htons(config_.sendPort());
 
-    constexpr int kMaxAttempts = 20;
+    // =========================================================================
+    // SENDER PATH  (this rank is the data sender for this mesh)
+    //
+    // 1. Broadcast SYN (multicast) until unicast ACKs arrive from all receivers.
+    //    Receivers learn the sender is alive from the SYN and reply with a
+    //    unicast ACK addressed to our own IP + sendPort (BPF-filtered on send_fd_).
+    // 2. Broadcast START to unblock all receivers simultaneously.
+    // =========================================================================
+    if (config_.rank == config_.sender_rank) {
 
-    for (int attempt = 1;
-         (syn_count < config_.world_size || ack_count < config_.world_size) &&
-         Clock::now() - start < timeout && attempt <= kMaxAttempts;
-         ++attempt)
-    {
-        // Broadcast SYN on our multicast channel
-        PeelHeader syn{};
-        fillHeader(syn, 0, FLG_SYN, static_cast<uint8_t>(attempt));
-        sendPacket(send_fd_, send_dest, syn);
+        // Resolve participant list — needed to know expected ACK count.
+        const std::vector<int>* parts = &config_.participant_ranks;
+        std::vector<int> all_ranks;
+        if (parts->empty()) {
+            all_ranks.reserve(config_.world_size);
+            for (int r = 0; r < config_.world_size; ++r) all_ranks.push_back(r);
+            parts = &all_ranks;
+        }
+        const int participant_count = static_cast<int>(parts->size());
 
-        std::cerr << "peel[" << config_.rank << "]: SYN attempt " << attempt
-                  << ", syn=" << syn_count << "/" << config_.world_size
-                  << ", ack=" << ack_count << "/" << config_.world_size << "\n";
+        // Track which receivers have ACKed. Indexed by rank for O(1) lookup.
+        std::vector<bool> heard_ack(config_.world_size, false);
+        heard_ack[config_.rank] = true;  // don't wait for ACK from self
+        int ack_count = 1;
 
-        auto rto_end = Clock::now() + std::chrono::milliseconds(config_.rto_ms);
+        constexpr int kMaxAttempts = 20;
 
-        while (Clock::now() < rto_end) {
-            fd_set fds;
-            FD_ZERO(&fds);
-            int max_fd = -1;
-            for (int r = 0; r < config_.world_size; ++r) {
-                if (r == config_.rank || recv_fds_[r] < 0) continue;
-                FD_SET(recv_fds_[r], &fds);
-                if (recv_fds_[r] > max_fd) max_fd = recv_fds_[r];
-            }
-            if (max_fd < 0) break;
+        for (int attempt = 1;
+             ack_count < participant_count &&
+             Clock::now() - start < timeout && attempt <= kMaxAttempts;
+             ++attempt)
+        {
+            PeelHeader syn{};
+            fillHeader(syn, 0, FLG_SYN, static_cast<uint8_t>(attempt));
+            sendPacket(send_fd_, send_dest, syn);
 
-            timeval tv{0, 10000};  // 10ms
-            if (select(max_fd + 1, &fds, nullptr, nullptr, &tv) <= 0) continue;
+            std::cerr << "peel[" << config_.rank << "]: SYN attempt " << attempt
+                      << ", ack=" << ack_count << "/" << participant_count << "\n";
 
-            for (int r = 0; r < config_.world_size; ++r) {
-                if (r == config_.rank) continue;
-                int fd = recv_fds_[r];
-                if (fd < 0 || !FD_ISSET(fd, &fds)) continue;
-
+            // Collect unicast ACKs on send_fd_ within one RTO window.
+            // BPF filter on send_fd_ already restricts to: dst_ip=own, dst_port=sendPort().
+            auto rto_end = Clock::now() + std::chrono::milliseconds(config_.rto_ms);
+            while (Clock::now() < rto_end && ack_count < participant_count) {
                 uint8_t buf[2048];
-                ssize_t n = ::recv(fd, buf, sizeof(buf), MSG_DONTWAIT);
-                if (n < 0) continue;
+                ssize_t n = ::recv(send_fd_, buf, sizeof(buf), 0);
+                if (n < 0) {
+                    if (errno == EAGAIN || errno == EWOULDBLOCK) break;
+                    if (errno == EINTR) continue;
+                    break;
+                }
 
-                // Parse the raw Ethernet frame; BPF already pre-filtered it
                 uint32_t src_ip; uint16_t src_port; size_t plen;
                 const uint8_t* payload = parse_udp_frame(
                     buf, n,
-                    mcast_base_.sin_addr.s_addr,  // dst must be our multicast group
-                    config_.recvPort(r),            // dst port must be rank r's port
+                    src_ip_n_,           // ACKs must be addressed to our unicast IP
+                    config_.sendPort(),  // and to our send port
                     src_ip, src_port, plen);
-
                 if (!payload || plen < sizeof(PeelHeader)) continue;
 
                 PeelHeader hdr{};
                 std::memcpy(&hdr, payload, sizeof(hdr));
                 if (!peel_verify_header_checksum(hdr)) continue;
+                if (!(ntohs(hdr.flags) & FLG_ACK)) continue;
 
-                uint16_t flags   = ntohs(hdr.flags);
-                int      src_rank = hdr.rank;
-                if (src_rank != r) continue;
+                const int src_rank = static_cast<int>(hdr.rank);
+                if (src_rank < 0 || src_rank >= config_.world_size) continue;
+                if (heard_ack[src_rank]) continue;
 
-                if ((flags & FLG_SYN) && !(flags & FLG_ACK) && !heard_syn[r]) {
-                    heard_syn[r] = true;
-                    ++syn_count;
-
-                    sockaddr_in peer{};
-                    peer.sin_family      = AF_INET;
-                    peer.sin_addr.s_addr = src_ip;
-                    peer.sin_port        = htons(src_port);
-                    result.peers[r]      = peer;
-
-                    std::cerr << "peel[" << config_.rank << "]: SYN from rank " << r << "\n";
-
-                    // Reply with SYN+ACK on our multicast channel
-                    PeelHeader ack{};
-                    fillHeader(ack, 0, FLG_SYN | FLG_ACK, hdr.retrans_id);
-                    ack.tsecr = hdr.tsval;
-                    peel_set_header_checksum(ack);
-                    sendPacket(send_fd_, send_dest, ack);
-                }
-
-                if ((flags & FLG_ACK) && !heard_ack[r]) {
-                    heard_ack[r] = true;
-                    ++ack_count;
-                    std::cerr << "peel[" << config_.rank << "]: ACK from rank " << r << "\n";
-                }
+                heard_ack[src_rank] = true;
+                ++ack_count;
+                result.peers[src_rank].sin_family      = AF_INET;
+                result.peers[src_rank].sin_addr.s_addr = src_ip;
+                result.peers[src_rank].sin_port        = htons(src_port);
+                std::cerr << "peel[" << config_.rank << "]: ACK from rank " << src_rank << "\n";
             }
         }
+
+        if (ack_count < participant_count) {
+            std::cerr << "peel[" << config_.rank << "]: handshake timeout, ack="
+                      << ack_count << "/" << participant_count << "\n";
+            return false;
+        }
+
+        // All receivers ready — broadcast START to signal data phase.
+        PeelHeader startPkt{};
+        fillHeader(startPkt, 0, FLG_START, 0);
+        sendPacket(send_fd_, send_dest, startPkt);
+        std::cerr << "peel[" << config_.rank << "]: sent START\n";
+        return true;
     }
 
-    if (syn_count < config_.world_size) {
-        std::cerr << "peel[" << config_.rank << "]: timeout, syn=" << syn_count
-                  << "/" << config_.world_size << "\n";
+    // =========================================================================
+    // RECEIVER PATH  (this rank only receives data, never multicasts)
+    //
+    // 1. Wait on recv_fds_[sender_rank] for a SYN from the sender.
+    //    Learn the sender's unicast IP and MAC from the received frame.
+    // 2. Unicast-ACK back to the sender (no multicast needed).
+    //    Re-ACK every SYN retransmit in case a previous ACK was lost.
+    // 3. Wait for START before returning — guarantees all receivers are
+    //    unblocked at the same moment the sender begins transmitting.
+    // =========================================================================
+    const int sfd = recv_fds_[config_.sender_rank];
+    if (sfd < 0) {
+        std::cerr << "peel[" << config_.rank
+                  << "]: no recv socket for sender rank " << config_.sender_rank << "\n";
         return false;
     }
 
-    // Broadcast START to signal data phase
-    PeelHeader startPkt{};
-    fillHeader(startPkt, 0, FLG_START, 0);
-    sendPacket(send_fd_, send_dest, startPkt);
-    std::cerr << "peel[" << config_.rank << "]: sent START\n";
+    // Set a receive timeout so we don't block forever if sender never arrives.
+    timeval tv{};
+    tv.tv_sec  = config_.handshake_timeout_ms / 1000;
+    tv.tv_usec = (config_.handshake_timeout_ms % 1000) * 1000;
+    setsockopt(sfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
 
+    uint32_t sender_ip_n = 0;
+    uint8_t  sender_mac[6]{};
+    bool got_syn   = false;
+    bool got_start = false;
+
+    while (!got_start && Clock::now() - start < timeout) {
+        uint8_t buf[2048];
+        ssize_t n = ::recv(sfd, buf, sizeof(buf), 0);
+        if (n < 0) {
+            if (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) continue;
+            return false;
+        }
+
+        uint32_t src_ip; uint16_t src_port; size_t plen;
+        const uint8_t* payload = parse_udp_frame(
+            buf, n,
+            mcast_base_.sin_addr.s_addr,          // sender multicasts to group
+            config_.recvPort(config_.sender_rank), // on sender's own port
+            src_ip, src_port, plen);
+        if (!payload || plen < sizeof(PeelHeader)) continue;
+
+        PeelHeader hdr{};
+        std::memcpy(&hdr, payload, sizeof(hdr));
+        if (!peel_verify_header_checksum(hdr)) continue;
+        if (static_cast<int>(hdr.rank) != config_.sender_rank) continue;
+
+        const uint16_t flags = ntohs(hdr.flags);
+
+        if (flags & FLG_SYN) {
+            // Capture sender info on first SYN (unchanged on retransmits).
+            if (!got_syn) {
+                got_syn      = true;
+                sender_ip_n  = src_ip;
+                if (n >= 12) memcpy(sender_mac, buf + 6, 6);  // Ethernet src MAC
+                result.peers[config_.sender_rank].sin_family      = AF_INET;
+                result.peers[config_.sender_rank].sin_addr.s_addr = src_ip;
+                result.peers[config_.sender_rank].sin_port        = htons(src_port);
+                std::cerr << "peel[" << config_.rank << "]: SYN from sender rank "
+                          << config_.sender_rank << "\n";
+            }
+
+            // Always unicast-ACK the SYN (including retransmits) so the sender
+            // can count us even if a previous ACK was dropped in transit.
+            sockaddr_in ack_dest{};
+            ack_dest.sin_family      = AF_INET;
+            ack_dest.sin_addr.s_addr = sender_ip_n;
+            // Sender's BPF filter on send_fd_: dst_ip=sender_ip, dst_port=sendPort().
+            ack_dest.sin_port = htons(config_.recvPort(config_.sender_rank));
+
+            PeelHeader ack{};
+            fillHeader(ack, 0, FLG_ACK, hdr.retrans_id);
+            // Use sender's unicast MAC so the ACK routes directly to the sender.
+            sendPacket(send_fd_, ack_dest, ack, sender_mac);
+            std::cerr << "peel[" << config_.rank << "]: unicast ACK to sender\n";
+        }
+
+        if (flags & FLG_START) {
+            got_start = true;
+            std::cerr << "peel[" << config_.rank << "]: received START\n";
+        }
+    }
+
+    if (!got_start) {
+        std::cerr << "peel[" << config_.rank
+                  << "]: handshake timeout waiting for START\n";
+        return false;
+    }
     return true;
 }
 
@@ -545,7 +600,12 @@ int PeelFullMesh::createSocket(uint16_t port, bool is_sender) {
         perror("bind(AF_PACKET)"); ::close(fd); return -1;
     }
 
-    // Join multicast at L2 — register the multicast MAC with the NIC filter
+    // Join multicast at L2 — register the standard RFC 1112 multicast MAC with
+    // the NIC filter so the hardware delivers multicast frames to the socket.
+    // The CIDR subtree MAC is only used by the sender as the Ethernet destination
+    // into the switch fabric; switches rewrite it to a standard multicast MAC at
+    // the last hop, so receivers always see the standard MAC and only need this
+    // one registration.
     uint8_t mcast_mac[6];
     mcast_ip_to_mac(mcast_base_.sin_addr.s_addr, mcast_mac);
     packet_mreq mr{};
@@ -581,21 +641,33 @@ void PeelFullMesh::fillHeader(PeelHeader& h, uint32_t seq, uint16_t flags, uint8
                      static_cast<uint8_t>(config_.rank), retrans_id);
 }
 
-bool PeelFullMesh::sendPacket(int fd, const sockaddr_in& dest, const PeelHeader& hdr) {
+bool PeelFullMesh::sendPacket(int fd, const sockaddr_in& dest, const PeelHeader& hdr,
+                               const uint8_t* dst_mac_override) {
     PeelHeader tmp = hdr;
     peel_set_header_checksum(tmp);
 
-    uint8_t mcast_mac[6];
-    mcast_ip_to_mac(mcast_base_.sin_addr.s_addr, mcast_mac);
+    // Destination MAC priority:
+    //   1. dst_mac_override — used for unicast frames (e.g. receiver ACK to sender)
+    //   2. cidr_rules_mac   — used when CIDR subtree routing is active
+    //   3. standard RFC 1112 multicast MAC derived from mcast group IP
+    uint8_t dst_mac[6];
+    if (dst_mac_override) {
+        memcpy(dst_mac, dst_mac_override, 6);
+    } else if (config_.use_cidr_rules_mac) {
+        memcpy(dst_mac, config_.cidr_rules_mac, 6);
+    } else {
+        mcast_ip_to_mac(mcast_base_.sin_addr.s_addr, dst_mac);
+    }
 
     uint8_t frame[14 + 20 + 8 + sizeof(PeelHeader)];
     size_t flen = build_udp_frame(
         frame, sizeof(frame),
-        src_mac_, mcast_mac,
+        src_mac_, dst_mac,
         src_ip_n_, dest.sin_addr.s_addr,
         config_.sendPort(), ntohs(dest.sin_port),
         (uint8_t)config_.ttl,
         ip_id_++,
+        static_cast<uint8_t>(config_.dscp << 2),
         reinterpret_cast<const uint8_t*>(&tmp), sizeof(tmp));
 
     if (flen == 0) return false;
@@ -604,7 +676,7 @@ bool PeelFullMesh::sendPacket(int fd, const sockaddr_in& dest, const PeelHeader&
     sll.sll_family  = AF_PACKET;
     sll.sll_ifindex = if_idx_;
     sll.sll_halen   = 6;
-    memcpy(sll.sll_addr, mcast_mac, 6);
+    memcpy(sll.sll_addr, dst_mac, 6);
 
     ssize_t n = sendto(fd, frame, flen, 0,
                        reinterpret_cast<const sockaddr*>(&sll), sizeof(sll));
