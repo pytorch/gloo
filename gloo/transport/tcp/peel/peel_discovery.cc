@@ -10,8 +10,10 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#include <chrono>
 #include <cstring>
 #include <iostream>
+#include <thread>
 #include <vector>
 
 namespace gloo {
@@ -91,37 +93,55 @@ bool PeelDiscovery::run() {
     }
 
     // ------------------------------------------------------------------
-    // Step 4: wait until every rank has published its IP
-    //   This acts as a barrier: run() does not return until all N ranks
-    //   have reached this point and written their key.
+    // Step 4+5: wait until every rank has published a non-empty IP and
+    //           collect all values in one pass.
+    //
+    // We poll get() rather than exists() because exists() returns true
+    // even for stale keys with empty values left by a previous crashed run.
+    // A key is only "ready" once it holds a valid dotted-decimal IP string.
     // ------------------------------------------------------------------
     std::vector<std::string> all_keys;
     all_keys.reserve(config_.world_size);
     for (int r = 0; r < config_.world_size; ++r)
         all_keys.push_back(config_.redis_prefix + "/ip/" + std::to_string(r));
 
-    if (!redis.waitForKeys(all_keys, config_.timeout_ms, config_.poll_interval_ms)) {
-        std::cerr << "peel_discovery[" << config_.rank
-                  << "]: timeout waiting for all ranks to publish IPs\n";
-        return false;
-    }
+    {
+        using Clock = std::chrono::steady_clock;
+        auto deadline = Clock::now() +
+                        std::chrono::milliseconds(config_.timeout_ms);
+        auto poll_dur = std::chrono::milliseconds(config_.poll_interval_ms);
 
-    // ------------------------------------------------------------------
-    // Step 5: read every rank's IP using all_keys and populate the map
-    // ------------------------------------------------------------------
-    for (int r = 0; r < (int)all_keys.size(); ++r) {
-        std::string val = redis.get(all_keys[r]);
+        std::vector<std::string> collected(config_.world_size);
+        std::vector<bool>        ready(config_.world_size, false);
+        int                      ready_count = 0;
 
-        if (val.empty()) {
+        while (ready_count < config_.world_size && Clock::now() < deadline) {
+            for (int r = 0; r < config_.world_size; ++r) {
+                if (ready[r]) continue;
+                std::string val = redis.get(all_keys[r]);
+                if (!val.empty()) {
+                    collected[r] = val;
+                    ready[r]     = true;
+                    ++ready_count;
+                }
+            }
+            if (ready_count < config_.world_size)
+                std::this_thread::sleep_for(poll_dur);
+        }
+
+        if (ready_count < config_.world_size) {
             std::cerr << "peel_discovery[" << config_.rank
-                      << "]: empty value for rank " << r << "\n";
+                      << "]: timeout waiting for all ranks to publish IPs"
+                         " (" << ready_count << "/" << config_.world_size
+                      << " ready)\n";
             return false;
         }
 
-        peer_ips_[r] = val;  // stored as dotted-decimal string
-
-        std::cout << "peel_discovery[" << config_.rank
-                  << "]:   rank " << r << " -> " << val << "\n";
+        for (int r = 0; r < config_.world_size; ++r) {
+            peer_ips_[r] = collected[r];
+            std::cout << "peel_discovery[" << config_.rank
+                      << "]:   rank " << r << " -> " << collected[r] << "\n";
+        }
     }
 
     std::cout << "peel_discovery[" << config_.rank

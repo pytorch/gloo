@@ -23,6 +23,10 @@ public:
     void disconnect();
     bool isConnected() const;
 
+    // Disconnect then reconnect. Useful when the context has entered an error
+    // state (e.g. STATUS/NULL reply) and needs to be reset.
+    bool reconnect();
+
     bool set(const std::string& key, const std::string& value);
     std::string get(const std::string& key);
     bool del(const std::string& key);
