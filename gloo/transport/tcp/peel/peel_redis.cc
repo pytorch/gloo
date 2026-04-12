@@ -38,6 +38,39 @@ bool PeelRedis::connect() {
         return false;
     }
 
+    // Synchronize the reply stream before issuing any real commands.
+    //
+    // Some network proxies/middleboxes send a one-time banner on each new TCP
+    // connection (e.g. a status line, a greeting, or a ready signal).  hiredis
+    // reads that banner as the reply to the very first command it sends, which
+    // shifts every subsequent reply out of sync — SET reads the banner instead
+    // of "+OK", GET reads "+OK" from the queued SET reply instead of the actual
+    // bulk-string value, and so on.
+    //
+    // Sending PING first absorbs any banner:
+    //   - STATUS/NULL or non-PONG reply  → banner was consumed, retry PING
+    //   - STATUS "PONG"                  → stream is now properly synchronized
+    //
+    // This mirrors what redis-cli does with its implicit CLIENT SETNAME /
+    // HELLO handshake on connect, which is why redis-cli never exhibits this
+    // issue while raw hiredis code does.
+    for (int i = 0; i < 3; ++i) {
+        auto* pr = static_cast<redisReply*>(redisCommand(ctx_, "PING"));
+        if (!pr) {
+            std::cerr << "peel_redis: PING returned NULL reply on connect\n";
+            redisFree(ctx_);
+            ctx_ = nullptr;
+            return false;
+        }
+        bool synced = (pr->type == REDIS_REPLY_STATUS &&
+                       pr->str && std::strcmp(pr->str, "PONG") == 0);
+        freeReplyObject(pr);
+        if (synced) break;  // reply stream is synchronized, safe to proceed
+        // Non-PONG reply: a banner was consumed.  Retry PING to confirm sync.
+        std::cerr << "peel_redis: PING did not return PONG (attempt " << (i + 1)
+                  << ") — banner absorbed, retrying\n";
+    }
+
     std::cerr << "peel_redis: connected to " << host_ << ":" << port_ << "\n";
     return true;
 }
