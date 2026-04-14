@@ -37,6 +37,13 @@
 #include "gloo/benchmark/benchmark.h"
 #include "gloo/benchmark/runner.h"
 
+
+// New for peel_broadcast!
+#include "gloo/transport/tcp/context.h"
+#include "gloo/transport/tcp/peel/peel_context.h"
+// End for peel_broadcast!
+
+
 using namespace gloo;
 using namespace gloo::benchmark;
 
@@ -44,6 +51,57 @@ namespace {
 
 // constant offset used for alltoall when populating input data
 constexpr int kAlltoallOffset = 127;
+
+
+
+// New for peel_broadcast!
+// Peel broadcast benchmark
+template <typename T>
+class PeelBroadcastBenchmark : public Benchmark<T> {
+  using Benchmark<T>::Benchmark;
+
+ public:
+  PeelBroadcastBenchmark(
+      std::shared_ptr<::gloo::Context>& context,
+      struct options& options)
+      : Benchmark<T>(context, options) {}
+
+  void initialize(size_t elements) override {
+    // Allocate input buffer
+    auto inPtrs = this->allocate(this->options_.inputs, elements);
+    dataPtr_ = inPtrs.front();
+    dataSize_ = elements * sizeof(T);
+  }
+
+  void run() override {
+    // Cast context to TCP context to access Peel
+    auto* tcpCtx = dynamic_cast<gloo::transport::tcp::Context*>(
+        this->context_.get());
+    
+    if (!tcpCtx || !tcpCtx->isPeelReady()) {
+      throw std::runtime_error("Peel not initialized");
+    }
+
+    // Use rank 0 as root
+    const int rootRank = 0;
+    tcpCtx->peelBroadcast(rootRank, dataPtr_, dataSize_);
+  }
+
+  void verify(std::vector<std::string>& errors) override {
+    const int rootRank = 0;
+    auto stride = this->context_->size * this->inputs_.size();
+    constStrideVerify(
+        this->inputs_, rootRank, stride, this->context_->rank, errors);
+  }
+
+ protected:
+  T* dataPtr_;
+  size_t dataSize_;
+};
+// End of peel_broadcast!
+
+
+
 // constant slot used for send/recv
 constexpr uint64_t kSlot = 0x1337;
 // exact number of processes needed for send/recv benchmarks
@@ -963,6 +1021,10 @@ class NewAllreduceBenchmark : public Benchmark<T> {
   } else if (x.benchmark == "alltoall_v") {                                    \
     fn = [&](std::shared_ptr<Context>& context) {                              \
       return gloo::make_unique<AllToAllvBenchmark<T>>(context, x);             \
+    };                                                                         \
+  } else if (x.benchmark == "peel_broadcast") {                                \
+    fn = [&](std::shared_ptr<Context>& context) {                              \
+      return gloo::make_unique<PeelBroadcastBenchmark<T>>(context, x);         \
     };                                                                         \
   } else if (x.benchmark == "barrier_all_to_all") {                            \
     fn = [&](std::shared_ptr<Context>& context) {                              \

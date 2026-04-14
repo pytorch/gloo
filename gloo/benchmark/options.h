@@ -59,6 +59,14 @@ struct options {
   int base = 2;
   int messages = 10000;
 
+  // New for peel broadcast (IGMP)!
+  // Peel multicast options
+  std::string peelMcastGroup = "239.255.0.1";
+  int peelMcastPort = 5000;
+  std::string peelIface;
+  bool enablePeel = false;
+
+
   // TLS
   std::string pkey;
   std::string cert;

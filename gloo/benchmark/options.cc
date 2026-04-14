@@ -76,6 +76,23 @@ static void usage(int status, const char* argv0) {
   X("      --halfprecision    Use 16-bit floating point values");
   X("      --destinations     Number of separate destinations per host in "
     "pairwise exchange benchmark");
+  
+  
+  //New for peel_broadcast!
+  X("      --messages       The number of messages to send from A to B for");
+  X("                       sendrecv_stress and isendirecv_stress (default: 10000)");
+  X("");
+  X("Peel multicast options:");
+  X("      --peel-enable              Enable Peel multicast transport");
+  X("      --peel-mcast-group=GROUP   Multicast group (default: 239.255.0.1)");
+  X("      --peel-mcast-port=PORT     Multicast port (default: 5000)");
+  X("      --peel-iface=IFACE         Network interface for Peel");
+  X("");
+  // End for peel_broadcast!
+  
+  
+  
+  
   X("Algorithm parameters:");
   X("      --base           The base for allreduce_bcube (if applicable)");
   X("      --messages       The number of messages to send from A to B for");
@@ -102,6 +119,11 @@ static void usage(int status, const char* argv0) {
   X("  sendrecv_roundtrip");
   X("  sendrecv_stress");
   X("  isendirecv_stress");
+
+  // New for peel_broadcast!
+  X("  peel_broadcast");
+  // End for peel_broadcast!
+
   X("");
 
   exit(status);
@@ -178,6 +200,17 @@ struct options parseOptions(int argc, char** argv) {
       {"ca-file", required_argument, nullptr, 0x2003},
       {"ca-path", required_argument, nullptr, 0x2004},
       {"help", no_argument, nullptr, 0xffff},
+      
+      //New for peel_broadcast!
+      {"messages", required_argument, nullptr, 0x1013},
+      {"peel-enable", no_argument, nullptr, 0x3001},
+      {"peel-mcast-group", required_argument, nullptr, 0x3002},
+      {"peel-mcast-port", required_argument, nullptr, 0x3003},
+      {"peel-iface", required_argument, nullptr, 0x3004},
+      {"pkey", required_argument, nullptr, 0x2001},
+      //End for peel_broadcast!
+      
+      
       {nullptr, 0, nullptr, 0}};
 
   int opt;
@@ -320,6 +353,32 @@ struct options parseOptions(int argc, char** argv) {
         result.messages = atoi(optarg);
         break;
       }
+
+      // New for peel_broadcast!
+      case 0x3001: // --peel-enable
+      {
+        result.enablePeel = true;
+        break;
+      }
+      case 0x3002: // --peel-mcast-group
+      {
+        result.peelMcastGroup = std::string(optarg, strlen(optarg));
+        break;
+      }
+      case 0x3003: // --peel-mcast-port
+      {
+        result.peelMcastPort = atoi(optarg);
+        break;
+      }
+      case 0x3004: // --peel-iface
+      {
+        result.peelIface = std::string(optarg, strlen(optarg));
+        break;
+      }
+      // End for peel_broadcast!
+
+
+
       case 0x2001: // --pkey
       {
         result.pkey = std::string(optarg, strlen(optarg));
