@@ -104,6 +104,9 @@ static void lookupAddrForHostname(struct attr& attr) {
       continue;
     }
 
+    int on = 1;
+    setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+
     bind_rv = bind(fd, rp->ai_addr, rp->ai_addrlen);
     if (bind_rv == -1) {
       bind_errno = errno;
@@ -117,7 +120,7 @@ static void lookupAddrForHostname(struct attr& attr) {
     attr.ai_protocol = rp->ai_protocol;
     memcpy(&attr.ai_addr, rp->ai_addr, rp->ai_addrlen);
     attr.ai_addrlen = rp->ai_addrlen;
-    close(fd);
+    attr.ai_fd = fd;
     break;
   }
 
