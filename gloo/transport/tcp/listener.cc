@@ -23,9 +23,14 @@ namespace tcp {
 
 Listener::Listener(std::shared_ptr<Loop> loop, const attr& attr)
     : loop_(std::move(loop)) {
-  listener_ = Socket::createForFamily(attr.ai_addr.ss_family);
-  listener_->reuseAddr(true);
-  listener_->bind(attr.ai_addr);
+  if (attr.ai_fd >= 0) {
+    listener_ = std::make_shared<Socket>(attr.ai_fd);
+    listener_->block(false);
+  } else {
+    listener_ = Socket::createForFamily(attr.ai_addr.ss_family);
+    listener_->reuseAddr(true);
+    listener_->bind(attr.ai_addr);
+  }
   listener_->listen(kBacklog);
   addr_ = listener_->sockName();
   useRankAsSeqNumber_ = useRankAsSeqNumber();

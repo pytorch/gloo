@@ -31,6 +31,12 @@ struct attr {
   int ai_protocol;
   struct sockaddr_storage ai_addr;
   int ai_addrlen;
+
+  // Pre-bound socket file descriptor. When set to a valid fd (>= 0),
+  // the Listener will adopt this socket instead of creating a new one
+  // and binding again. This avoids EADDRINUSE races between the test
+  // bind in address resolution and the actual listener bind.
+  int ai_fd = -1;
 };
 
 } // namespace tcp
