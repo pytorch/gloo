@@ -6,6 +6,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+#include <errno.h>
+
 #include <functional>
 #include <thread>
 #include <vector>
@@ -43,6 +45,15 @@ TEST_F(LinuxTest, PCIDistance) {
     auto distance = pciDistance(nics[0], gpu);
     ASSERT_GE(distance, 0);
   }
+}
+
+// Verify that listDir (called by pciDevices) tolerates stale errno left by
+// prior allocations. Before the fix, vector::push_back inside the readdir
+// loop could leave errno=ENOMEM from a transient mmap failure, causing
+// GLOO_ENFORCE(errno == 0) to crash after readdir returns NULL at EOF.
+TEST_F(LinuxTest, PciDevicesDoesNotCrashWithStaleErrno) {
+  errno = ENOMEM;
+  ASSERT_NO_THROW(pciDevices(kPCIClassNetwork));
 }
 
 } // namespace

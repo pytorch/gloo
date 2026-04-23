@@ -74,6 +74,7 @@ static std::vector<std::string> listDir(const std::string& path) {
       continue;
     }
     result.push_back(dirent->d_name);
+    errno = 0;
   }
   GLOO_ENFORCE(errno == 0, strerror(errno));
   auto rv = closedir(dirp);
