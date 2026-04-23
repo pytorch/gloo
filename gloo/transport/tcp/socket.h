@@ -16,6 +16,11 @@
 
 #include <gloo/transport/tcp/address.h>
 
+#ifndef SOCK_NONBLOCK
+#include <fcntl.h>
+#define SOCK_NONBLOCK O_NONBLOCK
+#endif
+
 namespace gloo {
 namespace transport {
 namespace tcp {
