@@ -377,6 +377,19 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::Values(true, false),
         ::testing::Values(Algorithm::BCUBE)));
 
+#if GLOO_SHM_ALLREDUCE_APPLICABLE
+INSTANTIATE_TEST_CASE_P(
+    AllreduceNewShm,
+    AllreduceNewTest,
+    ::testing::Combine(
+        ::testing::ValuesIn(kTransportsForFunctionAlgorithms),
+        ::testing::Values(1, 2, 4, 7),
+        ::testing::Values(1, 2, 3),
+        ::testing::Values(0, 1, 10, 100, 1000, 10000),
+        ::testing::Values(true, false),
+        ::testing::Values(Algorithm::UNSPECIFIED)));
+#endif
+
 template <typename T>
 AllreduceOptions::Func getFunction() {
   void (*func)(void*, const void*, const void*, size_t) = &::gloo::sum<T>;

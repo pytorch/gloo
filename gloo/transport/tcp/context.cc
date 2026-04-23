@@ -123,6 +123,7 @@ void Context::createAndConnectAllPairs(std::shared_ptr<IStore> store) {
       });
     }
 
+    intraNode_ = true;
     // Connect every pair
     for (int i = 0; i < size; i++) {
       if (i == rank) {
@@ -139,6 +140,8 @@ void Context::createAndConnectAllPairs(std::shared_ptr<IStore> store) {
       if (!localRankSet && remoteRankInfo.hostname == localHostName) {
         ++localRank;
       }
+
+      intraNode_ = intraNode_ && (remoteRankInfo.hostname == localHostName);
 
       const auto& pair = pairs_[i];
       auto remoteDeviceAddr =
