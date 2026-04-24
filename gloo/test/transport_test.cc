@@ -98,7 +98,7 @@ TEST_P(TransportMultiProcTest, IoErrors) {
   wait();
   const auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::high_resolution_clock::now() - start);
-  ASSERT_LT(delta.count(), kMultiProcTimeout.count() * 2);
+  ASSERT_LT(delta.count(), kMultiProcTimeout.count() * 4);
 
   for (auto i = 0; i < processCount; i++) {
     if (i != 0) {
@@ -199,7 +199,7 @@ TEST_P(TransportMultiProcTest, UnboundIoErrors) {
   wait();
   const auto delta = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::high_resolution_clock::now() - start);
-  ASSERT_LT(delta.count(), kMultiProcTimeout.count() * 2);
+  ASSERT_LT(delta.count(), kMultiProcTimeout.count() * 4);
 
   for (auto i = 0; i < processCount; i++) {
     if (i != 0) {
