@@ -44,6 +44,11 @@ void allgather(AllgatherOptions& opts) {
   const size_t inBytes = out->size / context->size;
   const size_t outBytes = out->size;
 
+  // Short circuit if the output is empty.
+  if (outBytes == 0) {
+    return;
+  }
+
   // If the input buffer is specified, this is NOT an in place operation,
   // and the output buffer needs to be primed with the input.
   if (in != nullptr) {
@@ -53,8 +58,8 @@ void allgather(AllgatherOptions& opts) {
         in->size);
   }
 
-  // Short circuit if there is only a single process or the output is empty.
-  if (context->size == 1 || outBytes == 0) {
+  // Short circuit if there is only a single process.
+  if (context->size == 1) {
     return;
   }
 
