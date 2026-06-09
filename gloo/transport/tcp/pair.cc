@@ -419,11 +419,19 @@ ssize_t Pair::prepareRead(
       }
     }
 
+    // Bytes read must be in bounds for target buffer. roffset and length are
+    // read directly from the remote peer, so the bounds check must not
+    // overflow: evaluating "roffset + length" is a size_t addition that can
+    // wrap around 2^64, letting an out-of-bounds (roffset, length) pair pass
+    // the check and yielding an arbitrary write at "ptr_ + roffset". Validate
+    // each term against the buffer size independently so the sum can't wrap.
+    // This is checked before computing iov_base to avoid forming an
+    // out-of-bounds pointer.
+    GLOO_ENFORCE_LE(op.preamble.roffset, op.buf->size_);
+    GLOO_ENFORCE_LE(op.preamble.length, op.buf->size_ - op.preamble.roffset);
+
     iov.iov_base = ((char*)op.buf->ptr_) + offset + op.preamble.roffset;
     iov.iov_len = op.preamble.length - offset;
-
-    // Bytes read must be in bounds for target buffer
-    GLOO_ENFORCE_LE(op.preamble.roffset + op.preamble.length, op.buf->size_);
     return iov.iov_len;
   }
 

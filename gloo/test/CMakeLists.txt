@@ -25,6 +25,7 @@ if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     "${CMAKE_CURRENT_SOURCE_DIR}/multiproc_test.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/transport_test.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/tcp_test.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/pair_test.cc"
     )
   list(APPEND GLOO_TEST_LIBRARIES rt)
 endif()
