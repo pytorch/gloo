@@ -23,6 +23,7 @@ Collective communications library with various primitives for multi-machine trai
 
 ---
 
+> 🔵 NOTE: Gloo is considered to be feature complete and in maintenance-only mode. For new usecases or non-bugfix changes please reach out to the maintainers to discuss.
 
 Gloo is a collective communications library. It comes with a number of
 collective algorithms useful for machine learning applications. These
