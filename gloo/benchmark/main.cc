@@ -39,10 +39,10 @@
 #include "gloo/benchmark/benchmark.h"
 #include "gloo/benchmark/runner.h"
 
-#include "gloo/transport/tcp/peel/peel_allgather.h"
-#include "gloo/transport/tcp/peel/peel_allreduce_ring.h"
-#include "gloo/transport/tcp/peel/peel_context.h"
-#include "gloo/transport/tcp/peel/peel_discovery.h"
+#include "gloo/transport/peel/peel_allgather.h"
+#include "gloo/transport/peel/peel_allreduce_ring.h"
+#include "gloo/transport/peel/peel_context.h"
+#include "gloo/transport/peel/peel_discovery.h"
 
 using namespace gloo;
 using namespace gloo::benchmark;
@@ -945,7 +945,7 @@ template <typename T>
 class PeelBroadcastBenchmark : public Benchmark<T> {
   using Benchmark<T>::Benchmark;
 
-  static std::shared_ptr<transport::tcp::peel::PeelContext> sharedCtx_;
+  static std::shared_ptr<transport::peel::PeelContext> sharedCtx_;
   static std::mutex initMutex_;
 
  public:
@@ -976,7 +976,7 @@ class PeelBroadcastBenchmark : public Benchmark<T> {
     std::lock_guard<std::mutex> lock(initMutex_);
     if (sharedCtx_) return;
 
-    transport::tcp::peel::PeelDiscoveryConfig dc;
+    transport::peel::PeelDiscoveryConfig dc;
     dc.rank         = this->context_->rank;
     dc.world_size   = this->context_->size;
     dc.redis_host   = this->options_.redisHost;
@@ -985,10 +985,10 @@ class PeelBroadcastBenchmark : public Benchmark<T> {
     dc.iface_name   = this->options_.peelIface;
     dc.timeout_ms   = 300000;
 
-    transport::tcp::peel::PeelDiscovery discovery(dc);
+    transport::peel::PeelDiscovery discovery(dc);
     GLOO_ENFORCE(discovery.run(), "PeelDiscovery failed");
 
-    transport::tcp::peel::PeelContextConfig cfg;
+    transport::peel::PeelContextConfig cfg;
     cfg.rank          = this->context_->rank;
     cfg.world_size    = this->context_->size;
     cfg.peer_ips      = discovery.peerIps();
@@ -999,8 +999,9 @@ class PeelBroadcastBenchmark : public Benchmark<T> {
     cfg.sender_rank   = this->options_.peelSenderRank;
     cfg.topology_file = this->options_.peelTopologyFile;
     cfg.rto_ms        = this->options_.peelRtoMs;
+    cfg.max_chunk_size = static_cast<size_t>(this->options_.peelMaxPayload);
 
-    sharedCtx_ = std::make_shared<transport::tcp::peel::PeelContext>(cfg);
+    sharedCtx_ = std::make_shared<transport::peel::PeelContext>(cfg);
     GLOO_ENFORCE(sharedCtx_->init(), "PeelContext init failed");
   }
 
@@ -1025,7 +1026,7 @@ class PeelBroadcastBenchmark : public Benchmark<T> {
 };
 
 template <typename T>
-std::shared_ptr<transport::tcp::peel::PeelContext>
+std::shared_ptr<transport::peel::PeelContext>
     PeelBroadcastBenchmark<T>::sharedCtx_;
 
 template <typename T>
@@ -1033,7 +1034,7 @@ std::mutex PeelBroadcastBenchmark<T>::initMutex_;
 
 template <typename T>
 class PeelBroadcastRingBenchmark : public Benchmark<T> {
-  static std::shared_ptr<transport::tcp::peel::PeelContext> sharedCtx_;
+  static std::shared_ptr<transport::peel::PeelContext> sharedCtx_;
   static std::mutex initMutex_;
 
  public:
@@ -1065,7 +1066,7 @@ class PeelBroadcastRingBenchmark : public Benchmark<T> {
       return;
     }
 
-    transport::tcp::peel::PeelDiscoveryConfig dc;
+    transport::peel::PeelDiscoveryConfig dc;
     dc.rank         = this->context_->rank;
     dc.world_size   = this->context_->size;
     dc.redis_host   = this->options_.redisHost;
@@ -1074,10 +1075,10 @@ class PeelBroadcastRingBenchmark : public Benchmark<T> {
     dc.iface_name   = this->options_.peelIface;
     dc.timeout_ms   = 300000;
 
-    transport::tcp::peel::PeelDiscovery discovery(dc);
+    transport::peel::PeelDiscovery discovery(dc);
     GLOO_ENFORCE(discovery.run(), "PeelDiscovery failed");
 
-    transport::tcp::peel::PeelContextConfig cfg;
+    transport::peel::PeelContextConfig cfg;
     cfg.rank          = this->context_->rank;
     cfg.world_size    = this->context_->size;
     cfg.peer_ips      = discovery.peerIps();
@@ -1088,8 +1089,9 @@ class PeelBroadcastRingBenchmark : public Benchmark<T> {
     cfg.sender_rank   = this->options_.peelSenderRank;
     cfg.topology_file = this->options_.peelTopologyFile;
     cfg.rto_ms        = this->options_.peelRtoMs;
+    cfg.max_chunk_size = static_cast<size_t>(this->options_.peelMaxPayload);
 
-    sharedCtx_ = std::make_shared<transport::tcp::peel::PeelContext>(cfg);
+    sharedCtx_ = std::make_shared<transport::peel::PeelContext>(cfg);
     GLOO_ENFORCE(sharedCtx_->initRing(), "PeelContext ring init failed");
   }
 
@@ -1139,8 +1141,8 @@ class PeelAllgatherBenchmark : public Benchmark<T> {
   using Benchmark<T>::Benchmark;
 
   // Shared across the benchmark lifetime (threads=1 enforced).
-  static std::shared_ptr<transport::tcp::peel::PeelAllgather>            sharedAllgather_;
-  static std::vector<std::shared_ptr<transport::tcp::peel::PeelContext>> sharedCtxs_;
+  static std::shared_ptr<transport::peel::PeelAllgather>            sharedAllgather_;
+  static std::vector<std::shared_ptr<transport::peel::PeelContext>> sharedCtxs_;
   static std::mutex                                                       initMutex_;
 
   // Per-instance buffers reset on each initialize() call.
@@ -1193,7 +1195,7 @@ class PeelAllgatherBenchmark : public Benchmark<T> {
       return;
     }
 
-    transport::tcp::peel::PeelDiscoveryConfig dc;
+    transport::peel::PeelDiscoveryConfig dc;
     dc.rank         = rank;
     dc.world_size   = worldSize;
     dc.redis_host   = this->options_.redisHost;
@@ -1202,14 +1204,14 @@ class PeelAllgatherBenchmark : public Benchmark<T> {
     dc.iface_name   = this->options_.peelIface;
     dc.timeout_ms   = 300000;
 
-    transport::tcp::peel::PeelDiscovery discovery(dc);
+    transport::peel::PeelDiscovery discovery(dc);
     GLOO_ENFORCE(discovery.run(), "PeelDiscovery failed");
 
     sharedCtxs_.resize(worldSize);
-    std::vector<transport::tcp::peel::PeelContext*> ctxPtrs(worldSize);
+    std::vector<transport::peel::PeelContext*> ctxPtrs(worldSize);
 
     for (int r = 0; r < worldSize; ++r) {
-      transport::tcp::peel::PeelContextConfig cfg;
+      transport::peel::PeelContextConfig cfg;
       cfg.rank          = rank;
       cfg.world_size    = worldSize;
       cfg.sender_rank   = r;
@@ -1220,8 +1222,9 @@ class PeelAllgatherBenchmark : public Benchmark<T> {
       cfg.ttl           = this->options_.peelTTL;
       cfg.topology_file = this->options_.peelTopologyFile;
       cfg.rto_ms        = this->options_.peelRtoMs;
+      cfg.max_chunk_size = static_cast<size_t>(this->options_.peelMaxPayload);
 
-      sharedCtxs_[r] = std::make_shared<transport::tcp::peel::PeelContext>(cfg);
+      sharedCtxs_[r] = std::make_shared<transport::peel::PeelContext>(cfg);
       GLOO_ENFORCE(
           sharedCtxs_[r]->init(),
           "PeelContext init failed for sender_rank=", r);
@@ -1229,10 +1232,10 @@ class PeelAllgatherBenchmark : public Benchmark<T> {
     }
 
     auto mode = this->options_.peelParallel
-                    ? transport::tcp::peel::PeelAllgatherMode::Parallel
-                    : transport::tcp::peel::PeelAllgatherMode::Sequential;
+                    ? transport::peel::PeelAllgatherMode::Parallel
+                    : transport::peel::PeelAllgatherMode::Sequential;
 
-    sharedAllgather_ = std::make_shared<transport::tcp::peel::PeelAllgather>(
+    sharedAllgather_ = std::make_shared<transport::peel::PeelAllgather>(
         ctxPtrs, mode);
   }
 
@@ -1278,7 +1281,7 @@ class PeelAllgatherBenchmark : public Benchmark<T> {
 };
 
 template <typename T>
-std::shared_ptr<transport::tcp::peel::PeelContext>
+std::shared_ptr<transport::peel::PeelContext>
     PeelBroadcastRingBenchmark<T>::sharedCtx_;
 
 template <typename T>
@@ -1287,16 +1290,14 @@ std::mutex PeelBroadcastRingBenchmark<T>::initMutex_;
 
 template <typename T>
 class PeelBroadcastStopAndWaitBenchmark : public Benchmark<T> {
-  static std::shared_ptr<transport::tcp::peel::PeelContext> sharedCtx_;
+  static std::shared_ptr<transport::peel::PeelContext> sharedCtx_;
   static std::mutex initMutex_;
 
  public:
   PeelBroadcastStopAndWaitBenchmark(
       std::shared_ptr<::gloo::Context>& context,
       struct options& options)
-      : Benchmark<T>(context, options), barrierOpts_(context) {
-    barrierOpts_.setTag(0xBADC0DE3);
-  }
+      : Benchmark<T>(context, options) {}
 
   void initialize(size_t elements) override {
     GLOO_ENFORCE(
@@ -1319,7 +1320,7 @@ class PeelBroadcastStopAndWaitBenchmark : public Benchmark<T> {
       return;
     }
 
-    transport::tcp::peel::PeelDiscoveryConfig dc;
+    transport::peel::PeelDiscoveryConfig dc;
     dc.rank         = this->context_->rank;
     dc.world_size   = this->context_->size;
     dc.redis_host   = this->options_.redisHost;
@@ -1328,10 +1329,10 @@ class PeelBroadcastStopAndWaitBenchmark : public Benchmark<T> {
     dc.iface_name   = this->options_.peelIface;
     dc.timeout_ms   = 300000;
 
-    transport::tcp::peel::PeelDiscovery discovery(dc);
+    transport::peel::PeelDiscovery discovery(dc);
     GLOO_ENFORCE(discovery.run(), "PeelDiscovery failed");
 
-    transport::tcp::peel::PeelContextConfig cfg;
+    transport::peel::PeelContextConfig cfg;
     cfg.rank          = this->context_->rank;
     cfg.world_size    = this->context_->size;
     cfg.peer_ips      = discovery.peerIps();
@@ -1342,8 +1343,9 @@ class PeelBroadcastStopAndWaitBenchmark : public Benchmark<T> {
     cfg.sender_rank   = this->options_.peelSenderRank;
     cfg.topology_file = this->options_.peelTopologyFile;
     cfg.rto_ms        = this->options_.peelRtoMs;
+    cfg.max_chunk_size = static_cast<size_t>(this->options_.peelMaxPayload);
 
-    sharedCtx_ = std::make_shared<transport::tcp::peel::PeelContext>(cfg);
+    sharedCtx_ = std::make_shared<transport::peel::PeelContext>(cfg);
     GLOO_ENFORCE(
         sharedCtx_->initStopAndWait(),
         "PeelContext stop-and-wait init failed");
@@ -1356,7 +1358,6 @@ class PeelBroadcastStopAndWaitBenchmark : public Benchmark<T> {
             this->inputs_[0].data(),
             this->inputs_[0].size() * sizeof(T)),
         "Peel stop-and-wait broadcast failed");
-    barrier(barrierOpts_);
   }
 
   void verify(std::vector<std::string>& errors) override {
@@ -1369,23 +1370,21 @@ class PeelBroadcastStopAndWaitBenchmark : public Benchmark<T> {
         errors);
   }
 
- protected:
-  BarrierOptions barrierOpts_;
 };
 
 template <typename T>
-std::shared_ptr<transport::tcp::peel::PeelContext>
+std::shared_ptr<transport::peel::PeelContext>
     PeelBroadcastStopAndWaitBenchmark<T>::sharedCtx_;
 
 template <typename T>
 std::mutex PeelBroadcastStopAndWaitBenchmark<T>::initMutex_;
 
 template <typename T>
-std::shared_ptr<transport::tcp::peel::PeelAllgather>
+std::shared_ptr<transport::peel::PeelAllgather>
     PeelAllgatherBenchmark<T>::sharedAllgather_;
 
 template <typename T>
-std::vector<std::shared_ptr<transport::tcp::peel::PeelContext>>
+std::vector<std::shared_ptr<transport::peel::PeelContext>>
     PeelAllgatherBenchmark<T>::sharedCtxs_;
 
 template <typename T>
@@ -1403,7 +1402,7 @@ template <typename T>
 class PeelAllgatherRingBenchmark : public Benchmark<T> {
   using Benchmark<T>::Benchmark;
 
-  static std::shared_ptr<transport::tcp::peel::PeelContext> sharedCtx_;
+  static std::shared_ptr<transport::peel::PeelContext> sharedCtx_;
   static std::mutex initMutex_;
 
   std::vector<std::vector<T>> recvBufs_;
@@ -1441,7 +1440,7 @@ class PeelAllgatherRingBenchmark : public Benchmark<T> {
       return;
     }
 
-    transport::tcp::peel::PeelDiscoveryConfig dc;
+    transport::peel::PeelDiscoveryConfig dc;
     dc.rank         = rank;
     dc.world_size   = worldSize;
     dc.redis_host   = this->options_.redisHost;
@@ -1450,10 +1449,10 @@ class PeelAllgatherRingBenchmark : public Benchmark<T> {
     dc.iface_name   = this->options_.peelIface;
     dc.timeout_ms   = 300000;
 
-    transport::tcp::peel::PeelDiscovery discovery(dc);
+    transport::peel::PeelDiscovery discovery(dc);
     GLOO_ENFORCE(discovery.run(), "PeelDiscovery failed");
 
-    transport::tcp::peel::PeelContextConfig cfg;
+    transport::peel::PeelContextConfig cfg;
     cfg.rank          = rank;
     cfg.world_size    = worldSize;
     cfg.peer_ips      = discovery.peerIps();
@@ -1464,8 +1463,9 @@ class PeelAllgatherRingBenchmark : public Benchmark<T> {
     cfg.sender_rank   = 0;
     cfg.topology_file = this->options_.peelTopologyFile;
     cfg.rto_ms        = this->options_.peelRtoMs;
+    cfg.max_chunk_size = static_cast<size_t>(this->options_.peelMaxPayload);
 
-    sharedCtx_ = std::make_shared<transport::tcp::peel::PeelContext>(cfg);
+    sharedCtx_ = std::make_shared<transport::peel::PeelContext>(cfg);
     GLOO_ENFORCE(sharedCtx_->initRing(), "PeelContext ring init failed");
   }
 
@@ -1507,7 +1507,7 @@ class PeelAllgatherRingBenchmark : public Benchmark<T> {
 };
 
 template <typename T>
-std::shared_ptr<transport::tcp::peel::PeelContext>
+std::shared_ptr<transport::peel::PeelContext>
     PeelAllgatherRingBenchmark<T>::sharedCtx_;
 
 template <typename T>
@@ -1515,7 +1515,7 @@ std::mutex PeelAllgatherRingBenchmark<T>::initMutex_;
 
 template <typename T>
 class PeelAllreduceRingBenchmark : public Benchmark<T> {
-  static std::shared_ptr<transport::tcp::peel::PeelContext> sharedCtx_;
+  static std::shared_ptr<transport::peel::PeelContext> sharedCtx_;
   static std::mutex initMutex_;
 
  public:
@@ -1546,7 +1546,7 @@ class PeelAllreduceRingBenchmark : public Benchmark<T> {
         const int rank = this->context_->rank;
         const int worldSize = this->context_->size;
 
-        transport::tcp::peel::PeelDiscoveryConfig dc;
+        transport::peel::PeelDiscoveryConfig dc;
         dc.rank         = rank;
         dc.world_size   = worldSize;
         dc.redis_host   = this->options_.redisHost;
@@ -1555,10 +1555,10 @@ class PeelAllreduceRingBenchmark : public Benchmark<T> {
         dc.iface_name   = this->options_.peelIface;
         dc.timeout_ms   = 300000;
 
-        transport::tcp::peel::PeelDiscovery discovery(dc);
+        transport::peel::PeelDiscovery discovery(dc);
         GLOO_ENFORCE(discovery.run(), "PeelDiscovery failed");
 
-        transport::tcp::peel::PeelContextConfig cfg;
+        transport::peel::PeelContextConfig cfg;
         cfg.rank          = rank;
         cfg.world_size    = worldSize;
         cfg.peer_ips      = discovery.peerIps();
@@ -1569,13 +1569,14 @@ class PeelAllreduceRingBenchmark : public Benchmark<T> {
         cfg.sender_rank   = 0;
         cfg.topology_file = this->options_.peelTopologyFile;
         cfg.rto_ms        = this->options_.peelRtoMs;
+        cfg.max_chunk_size = static_cast<size_t>(this->options_.peelMaxPayload);
 
-        sharedCtx_ = std::make_shared<transport::tcp::peel::PeelContext>(cfg);
+        sharedCtx_ = std::make_shared<transport::peel::PeelContext>(cfg);
         GLOO_ENFORCE(sharedCtx_->initRing(), "PeelContext ring init failed");
       }
     }
 
-    algorithm_.reset(new transport::tcp::peel::PeelAllreduceRing<T>(
+    algorithm_.reset(new transport::peel::PeelAllreduceRing<T>(
         this->context_->rank, sharedCtx_->ringHops(), ptrs, elements));
   }
 
@@ -1594,12 +1595,12 @@ class PeelAllreduceRingBenchmark : public Benchmark<T> {
   }
 
  protected:
-  std::unique_ptr<transport::tcp::peel::PeelAllreduceRing<T>> algorithm_;
+  std::unique_ptr<transport::peel::PeelAllreduceRing<T>> algorithm_;
   BarrierOptions barrierOpts_;
 };
 
 template <typename T>
-std::shared_ptr<transport::tcp::peel::PeelContext>
+std::shared_ptr<transport::peel::PeelContext>
     PeelAllreduceRingBenchmark<T>::sharedCtx_;
 
 template <typename T>

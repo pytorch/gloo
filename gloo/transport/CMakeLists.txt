@@ -29,6 +29,10 @@ if(GLOO_HAVE_TRANSPORT_UV)
   add_subdirectory(uv)
 endif()
 
+if(GLOO_HAVE_TRANSPORT_PEEL)
+  add_subdirectory(peel)
+endif()
+
 list(APPEND GLOO_SRCS ${GLOO_TRANSPORT_SRCS})
 list(APPEND GLOO_HDRS ${GLOO_TRANSPORT_HDRS})
 set(GLOO_SRCS ${GLOO_SRCS} PARENT_SCOPE)

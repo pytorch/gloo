@@ -18,7 +18,6 @@
 #include "gloo/common/memory.h"
 #include "gloo/common/store.h"
 #include "gloo/transport/context.h"
-#include "gloo/transport/tcp/peel/peel_context.h" // PEEL
 
 namespace gloo {
 namespace transport {
@@ -38,67 +37,6 @@ class Context : public ::gloo::transport::Context,
   virtual ~Context();
 
   // ---------------------------------------------------------------------------
-  // Peel Multicast Support
-  // ---------------------------------------------------------------------------
-
-  // Enable Peel multicast with given configuration
-  // This initializes the transport and performs the full-mesh handshake
-  void enablePeel(const peel::PeelContextConfig& config);
-
-  // Check if Peel is enabled and initialized
-  bool isPeelEnabled() const { return peelContext_ != nullptr; }
-
-  // Check if Peel is ready for data transfer
-  bool isPeelReady() const { return peelContext_ != nullptr && peelContext_->isReady(); }
-
-  // Get the Peel context for direct access
-  const peel::PeelContext* peelContext() const { return peelContext_.get(); }
-  peel::PeelContext* peelContextMutable() { return peelContext_.get(); }
-
-  // Convenience: perform broadcast using Peel multicast
-  // - root: rank that sends the data
-  // - data: buffer (root sends, others receive)
-  // - size: number of bytes
-  bool peelBroadcast(int root, void* data, size_t size) {
-    if (!isPeelReady()) return false;
-    return peelContext_->broadcast(root, data, size);
-  }
-  
-  // Convenience: perform ring broadcast using Peel hop transports
-  // - root: rank that starts the ring broadcast
-  // - data: buffer (root sends, others receive/forward)
-  // - size: number of bytes
-  bool peelBroadcastRing(int root, void* data, size_t size) {
-    if (!isPeelReady()) return false;
-    return peelContext_->broadcastRing(root, data, size);
-  }
-
-  // Convenience: perform tree broadcast using Peel hop transports
-  // - root: rank that starts the tree broadcast
-  // - data: buffer (root sends, others receive/forward)
-  // - size: number of bytes
-  bool peelBroadcastStopAndWait(int root, void* data, size_t size) {
-    if (!isPeelReady()) return false;
-    return peelContext_->broadcastStopAndWait(root, data, size);
-  }
-
-  // Convenience: perform ring allgather using Peel hop transports
-  // - bufs[src]: storage for the segment contributed by rank src
-  // - size: number of bytes per segment
-  bool peelAllgatherRing(const std::vector<void*>& bufs, size_t size) {
-    if (!isPeelReady()) return false;
-    return peelContext_->allgatherRing(bufs, size);
-  }
-  
-  // Cleanup Peel resources
-  void disablePeel() {
-    if (peelContext_) {
-      peelContext_->cleanup();
-      peelContext_.reset();
-    }
-  }
-
-  // ---------------------------------------------------------------------------
   // Existing API
   // ---------------------------------------------------------------------------
 
@@ -116,12 +54,6 @@ class Context : public ::gloo::transport::Context,
       size_t size) override;
 
  protected:
-  // ---------------------------------------------------------------------------
-  // Peel Members
-  // ---------------------------------------------------------------------------
-
-  std::unique_ptr<peel::PeelContext> peelContext_;
-
   // ---------------------------------------------------------------------------
   // Existing Members
   // ---------------------------------------------------------------------------

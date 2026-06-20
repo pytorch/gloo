@@ -78,6 +78,20 @@ Runner::Runner(const options& options) : options_(options) {
         transportDevices_.push_back(transport::tcp::CreateDevice(attr));
       }
     }
+  } else if (options_.transport == "peel") {
+    const auto& controlIfaces = options_.tcpDevice.empty()
+        ? std::vector<std::string>{options_.peelIface}
+        : options_.tcpDevice;
+
+    for (const auto& name : controlIfaces) {
+      GLOO_ENFORCE(
+          !name.empty(),
+          "--transport=peel requires --peel-iface, or explicitly pass ",
+          "--tcp-device for the benchmark control plane");
+      transport::tcp::attr attr;
+      attr.iface = name;
+      transportDevices_.push_back(transport::tcp::CreateDevice(attr));
+    }
   }
 #endif
 #if GLOO_HAVE_TRANSPORT_TCP_TLS

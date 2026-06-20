@@ -5,37 +5,27 @@
 namespace gloo {
 
 void peel_broadcast_ring(PeelBroadcastRingOptions& opts) {
-  if (!opts.tcpContext) {
-    throw std::runtime_error("peel_broadcast_ring: tcpContext is null");
+  if (!opts.peelContext) {
+    throw std::runtime_error("peel_broadcast_ring: peelContext is null");
   }
-
-  if (!opts.tcpContext->isPeelReady()) {
-    throw std::runtime_error(
-        "peel_broadcast_ring: Peel not initialized. Call enablePeel() first.");
+  if (!opts.peelContext->isReady()) {
+    throw std::runtime_error("peel_broadcast_ring: PeelContext is not ready");
   }
-
   if (!opts.ptr || opts.size == 0) {
     throw std::runtime_error("peel_broadcast_ring: invalid buffer");
   }
-
-  if (opts.root < 0 || opts.root >= opts.tcpContext->size) {
-    throw std::runtime_error("peel_broadcast_ring: invalid root rank");
-  }
-
-  bool success =
-      opts.tcpContext->peelBroadcastRing(opts.root, opts.ptr, opts.size);
-  if (!success) {
+  if (!opts.peelContext->broadcastRing(opts.root, opts.ptr, opts.size)) {
     throw std::runtime_error("peel_broadcast_ring: broadcast failed");
   }
 }
 
 void peel_broadcast_ring(
-    transport::tcp::Context* tcpContext,
+    transport::peel::PeelContext* peelContext,
     int root,
     void* data,
     size_t size) {
   PeelBroadcastRingOptions opts;
-  opts.tcpContext = tcpContext;
+  opts.peelContext = peelContext;
   opts.root = root;
   opts.ptr = data;
   opts.size = size;

@@ -3,13 +3,12 @@
 #include <cstddef>
 #include <vector>
 
-#include "gloo/transport/tcp/context.h"
-#include "gloo/transport/tcp/peel/peel_context.h"
+#include "gloo/transport/peel/peel_context.h"
 
 namespace gloo {
 
 struct PeelBroadcastStopAndWaitOptions {
-  transport::tcp::Context* tcpContext = nullptr;
+  transport::peel::PeelContext* peelContext = nullptr;
   int root = 0;
   void* ptr = nullptr;
   size_t size = 0;
@@ -27,20 +26,19 @@ struct PeelBroadcastStopAndWaitOptions {
 };
 
 void peel_broadcast_stop_and_wait(PeelBroadcastStopAndWaitOptions& opts);
-
 void peel_broadcast_stop_and_wait(
-    transport::tcp::Context* tcpContext,
+    transport::peel::PeelContext* peelContext,
     int root,
     void* data,
     size_t size);
 
 template <typename T>
 void peel_broadcast_stop_and_wait(
-    transport::tcp::Context* tcpContext,
+    transport::peel::PeelContext* peelContext,
     int root,
     std::vector<T>& data) {
   peel_broadcast_stop_and_wait(
-      tcpContext, root, data.data(), data.size() * sizeof(T));
+      peelContext, root, data.data(), data.size() * sizeof(T));
 }
 
 } // namespace gloo

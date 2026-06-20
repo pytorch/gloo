@@ -4,46 +4,35 @@
 
 namespace gloo {
 
-bool isPeelAvailable(const transport::tcp::Context* tcpContext) {
-  return tcpContext && tcpContext->isPeelReady();
+bool isPeelAvailable(const transport::peel::PeelContext* peelContext) {
+  return peelContext && peelContext->isReady();
 }
 
 void peel_broadcast(PeelBroadcastOptions& opts) {
-  if (!opts.tcpContext) {
-    throw std::runtime_error("peel_broadcast: tcpContext is null");
+  if (!opts.peelContext) {
+    throw std::runtime_error("peel_broadcast: peelContext is null");
   }
-
-  if (!opts.tcpContext->isPeelReady()) {
-    throw std::runtime_error(
-        "peel_broadcast: Peel not initialized. Call enablePeel() first.");
+  if (!opts.peelContext->isReady()) {
+    throw std::runtime_error("peel_broadcast: PeelContext is not ready");
   }
-
   if (!opts.ptr || opts.size == 0) {
     throw std::runtime_error("peel_broadcast: invalid buffer");
   }
-
-  if (opts.root < 0 || opts.root >= opts.tcpContext->size) {
-    throw std::runtime_error("peel_broadcast: invalid root rank");
-  }
-
-  bool success = opts.tcpContext->peelBroadcast(opts.root, opts.ptr, opts.size);
-  if (!success) {
+  if (!opts.peelContext->broadcast(opts.root, opts.ptr, opts.size)) {
     throw std::runtime_error("peel_broadcast: broadcast failed");
   }
 }
 
 void peel_broadcast(
-    transport::tcp::Context* tcpContext,
+    transport::peel::PeelContext* peelContext,
     int root,
     void* data,
     size_t size) {
-  
   PeelBroadcastOptions opts;
-  opts.tcpContext = tcpContext;
+  opts.peelContext = peelContext;
   opts.root = root;
   opts.ptr = data;
   opts.size = size;
-
   peel_broadcast(opts);
 }
 

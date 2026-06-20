@@ -16,9 +16,6 @@ list(APPEND GLOO_SRCS
   "${CMAKE_CURRENT_SOURCE_DIR}/barrier.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/broadcast.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/broadcast_ring.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/peel_broadcast.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/peel_broadcast_ring.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/peel_broadcast_stop_and_wait.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/context.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/gather.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/gatherv.cc"
@@ -44,9 +41,6 @@ list(APPEND GLOO_HDRS
   "${CMAKE_CURRENT_SOURCE_DIR}/barrier_all_to_all.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/barrier_all_to_one.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/broadcast.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/peel_broadcast.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/peel_broadcast_ring.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/peel_broadcast_stop_and_wait.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/broadcast_one_to_all.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/context.h"
   "${CMAKE_CURRENT_SOURCE_DIR}/gather.h"
@@ -80,6 +74,8 @@ if(USE_ROCM)
     )
 endif()
 
+option(USE_PEEL "Build standalone Peel UDP/PEEL-routing transport" ON)
+
 # Compile TCP transport only on Linux (it uses epoll(2))
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
   set(GLOO_HAVE_TRANSPORT_TCP 1)
@@ -106,6 +102,27 @@ if(USE_LIBUV)
   set(GLOO_HAVE_TRANSPORT_UV 1)
 else()
   set(GLOO_HAVE_TRANSPORT_UV 0)
+endif()
+
+# Compile Peel transport on Linux when requested. Peel uses UDP/raw sockets
+# plus PEEL routing rules and is intentionally separate from TCP/ibverbs.
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux" AND USE_PEEL)
+  set(GLOO_HAVE_TRANSPORT_PEEL 1)
+else()
+  set(GLOO_HAVE_TRANSPORT_PEEL 0)
+endif()
+
+if(GLOO_HAVE_TRANSPORT_PEEL)
+  list(APPEND GLOO_SRCS
+    "${CMAKE_CURRENT_SOURCE_DIR}/peel_broadcast.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/peel_broadcast_ring.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/peel_broadcast_stop_and_wait.cc"
+    )
+  list(APPEND GLOO_HDRS
+    "${CMAKE_CURRENT_SOURCE_DIR}/peel_broadcast.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/peel_broadcast_ring.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/peel_broadcast_stop_and_wait.h"
+    )
 endif()
 
 add_subdirectory(common)
@@ -143,6 +160,7 @@ set(GLOO_USE_IBVERBS ${USE_IBVERBS})
 set(GLOO_USE_MPI ${USE_MPI})
 set(GLOO_USE_AVX ${USE_AVX})
 set(GLOO_USE_LIBUV ${USE_LIBUV})
+set(GLOO_USE_PEEL ${USE_PEEL})
 configure_file(config.h.in config.h)
 
 add_library(gloo ${GLOO_STATIC_OR_SHARED} ${GLOO_SRCS})
@@ -172,10 +190,14 @@ elseif(USE_TCP_OPENSSL_LOAD)
   target_link_libraries(gloo PRIVATE dl)
 endif()
 
-target_link_libraries(gloo PRIVATE ${gloo_DEPENDENCY_LIBS} ${HIREDIS_LIBRARIES})
+target_link_libraries(gloo PRIVATE ${gloo_DEPENDENCY_LIBS})
+if(GLOO_HAVE_TRANSPORT_PEEL)
+  target_link_libraries(gloo PRIVATE ${HIREDIS_LIBRARIES})
+  target_include_directories(gloo PRIVATE ${HIREDIS_INCLUDE_DIRS})
+endif()
 
 # Add Interface include directories that are relocatable.
-target_include_directories(gloo INTERFACE $<INSTALL_INTERFACE:include> ${HIREDIS_INCLUDE_DIRS})
+target_include_directories(gloo INTERFACE $<INSTALL_INTERFACE:include>)
 if(USE_CUDA)
   target_include_directories(gloo_cuda INTERFACE $<INSTALL_INTERFACE:include>)
 

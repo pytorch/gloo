@@ -72,8 +72,9 @@ struct options {
   int         peelTTL          = 64;
   int         peelSenderRank   = 0;
   std::string peelTopologyFile;
-  bool        peelParallel     = false; // allgather: run N broadcasts concurrently
-  int         peelRtoMs        = 500;   // stop-and-wait retransmission timeout (ms)
+  bool        peelParallel     = false;
+  int         peelRtoMs        = 500;
+  int         peelMaxPayload   = 0;
 };
 
 struct options parseOptions(int argc, char** argv);

@@ -5,41 +5,28 @@
 namespace gloo {
 
 void peel_broadcast_stop_and_wait(PeelBroadcastStopAndWaitOptions& opts) {
-  if (!opts.tcpContext) {
-    throw std::runtime_error(
-        "peel_broadcast_stop_and_wait: tcpContext is null");
+  if (!opts.peelContext) {
+    throw std::runtime_error("peel_broadcast_stop_and_wait: peelContext is null");
   }
-
-  if (!opts.tcpContext->isPeelReady()) {
+  if (!opts.peelContext->isReady()) {
     throw std::runtime_error(
-        "peel_broadcast_stop_and_wait: Peel not initialized. Call enablePeel() first.");
+        "peel_broadcast_stop_and_wait: PeelContext is not ready");
   }
-
   if (!opts.ptr || opts.size == 0) {
-    throw std::runtime_error(
-        "peel_broadcast_stop_and_wait: invalid buffer");
+    throw std::runtime_error("peel_broadcast_stop_and_wait: invalid buffer");
   }
-
-  if (opts.root < 0 || opts.root >= opts.tcpContext->size) {
-    throw std::runtime_error(
-        "peel_broadcast_stop_and_wait: invalid root rank");
-  }
-
-  const bool success =
-      opts.tcpContext->peelBroadcastStopAndWait(opts.root, opts.ptr, opts.size);
-  if (!success) {
-    throw std::runtime_error(
-        "peel_broadcast_stop_and_wait: broadcast failed");
+  if (!opts.peelContext->broadcastStopAndWait(opts.root, opts.ptr, opts.size)) {
+    throw std::runtime_error("peel_broadcast_stop_and_wait: broadcast failed");
   }
 }
 
 void peel_broadcast_stop_and_wait(
-    transport::tcp::Context* tcpContext,
+    transport::peel::PeelContext* peelContext,
     int root,
     void* data,
     size_t size) {
   PeelBroadcastStopAndWaitOptions opts;
-  opts.tcpContext = tcpContext;
+  opts.peelContext = peelContext;
   opts.root = root;
   opts.ptr = data;
   opts.size = size;

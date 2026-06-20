@@ -1,16 +1,14 @@
 #pragma once
 
 #include <cstddef>
-#include <memory>
 #include <vector>
 
-#include "gloo/transport/tcp/context.h"
-#include "gloo/transport/tcp/peel/peel_context.h"
+#include "gloo/transport/peel/peel_context.h"
 
 namespace gloo {
 
 struct PeelBroadcastRingOptions {
-  transport::tcp::Context* tcpContext = nullptr;
+  transport::peel::PeelContext* peelContext = nullptr;
   int root = 0;
   void* ptr = nullptr;
   size_t size = 0;
@@ -27,22 +25,19 @@ struct PeelBroadcastRingOptions {
   }
 };
 
-bool isPeelAvailable(const transport::tcp::Context* tcpContext);
-
 void peel_broadcast_ring(PeelBroadcastRingOptions& opts);
-
 void peel_broadcast_ring(
-    transport::tcp::Context* tcpContext,
+    transport::peel::PeelContext* peelContext,
     int root,
     void* data,
     size_t size);
 
 template <typename T>
 void peel_broadcast_ring(
-    transport::tcp::Context* tcpContext,
+    transport::peel::PeelContext* peelContext,
     int root,
     std::vector<T>& data) {
-  peel_broadcast_ring(tcpContext, root, data.data(), data.size() * sizeof(T));
+  peel_broadcast_ring(peelContext, root, data.data(), data.size() * sizeof(T));
 }
 
 } // namespace gloo
