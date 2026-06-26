@@ -12,8 +12,10 @@
 #include "gloo/transport/unbound_buffer.h"
 
 #include <condition_variable>
+#include <cstdint>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 namespace gloo {
 namespace transport {
@@ -72,6 +74,12 @@ class UnboundBuffer : public ::gloo::transport::UnboundBuffer {
   int recvRank_;
   int sendCompletions_;
   int sendRank_;
+
+  // Issued operation metadata for timeout diagnostics.
+  std::vector<int> recvSrcRanks_;
+  uint64_t recvSlot_{0};
+  int sendDstRank_{-1};
+  uint64_t sendSlot_{0};
 
   std::exception_ptr ex_;
 
