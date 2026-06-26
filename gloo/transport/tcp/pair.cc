@@ -198,7 +198,7 @@ void Pair::setSync(bool sync, bool busyPoll) {
   waitUntilConnected(lock, false);
   if (state_ == CLOSED) {
     signalAndThrowException(
-        GLOO_ERROR_MSG("Socket unexpectedly closed ", peer_.str()));
+        GLOO_ERROR_MSG("Socket unexpectedly closed ", peerDescription()));
   }
 
   if (!sync_) {
@@ -311,7 +311,7 @@ bool Pair::write(Op& op) {
       if (errno == EAGAIN) {
         if (sync_) {
           // Sync mode: blocking call returning with EAGAIN indicates timeout.
-          signalException(GLOO_ERROR_MSG("Write timeout ", peer_.str()));
+          signalException(GLOO_ERROR_MSG("Write timeout ", peerDescription()));
         } else {
           // Async mode: can't write more than this.
         }
@@ -336,7 +336,7 @@ bool Pair::write(Op& op) {
 
       // Unexpected error
       signalException(
-          GLOO_ERROR_MSG("writev ", peer_.str(), ": ", strerror(errno)));
+          GLOO_ERROR_MSG("writev ", peerDescription(), ": ", strerror(errno)));
       return false;
     }
 
@@ -528,7 +528,8 @@ bool Pair::read() {
             } else {
               // Either timeout on poll or blocking call returning with EAGAIN
               // indicates timeout
-              signalException(GLOO_ERROR_MSG("Read timeout ", peer_.str()));
+              signalException(
+                  GLOO_ERROR_MSG("Read timeout ", peerDescription()));
             }
           } else {
             // Async mode: can't read more than this.
@@ -544,7 +545,7 @@ bool Pair::read() {
         // Unexpected error
         signalException(GLOO_ERROR_MSG(
             "Read error ",
-            peer_.str(),
+            peerDescription(),
             ": ",
             strerror(errno),
             ". ",
@@ -560,7 +561,7 @@ bool Pair::read() {
     if (rv == 0) {
       signalException(GLOO_ERROR_MSG(
           "Connection closed by peer ",
-          peer_.str(),
+          peerDescription(),
           ". ",
           "This is typically caused by a remote worker crashing. ",
           "Check the logs of the remote worker before reporting an error. ",
@@ -812,12 +813,13 @@ void Pair::verifyConnected(std::unique_lock<std::mutex>& lock) {
       "Pair is not connected (",
       self_.str(),
       " <--> ",
-      peer_.str(),
+      peerDescription(),
       ")");
   // Check if the socket has been closed. We were unable to tell if this was an
   // error or normal tear down, but now throw since we are trying to do IO.
   if (state_ == CLOSED) {
-    signalAndThrowException(GLOO_ERROR_MSG("Socket closed ", peer_.str()));
+    signalAndThrowException(
+        GLOO_ERROR_MSG("Socket closed ", peerDescription()));
   }
 }
 

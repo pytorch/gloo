@@ -9,6 +9,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 #include "gloo/common/logging.h"
 #include "gloo/transport/address.h"
@@ -41,6 +42,11 @@ class Pair {
       size_t size) = 0;
 
   virtual bool isConnected() = 0;
+
+  // Returns the global rank and address of the peer process this pair connects
+  // to
+  virtual int getPeerRank() const = 0;
+  std::string peerDescription() const;
 
   // Send from the specified buffer to remote side of pair.
   virtual void send(
@@ -92,6 +98,8 @@ class Pair {
   }
 
  protected:
+  virtual const Address& peer() const = 0;
+
   // Rank of the process on the local machine
   // e.g. Suppose we have 2 machines with 8 GPUs per machine.
   //      This means we have a total of 16 processes with

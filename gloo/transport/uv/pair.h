@@ -152,6 +152,15 @@ class Pair : public ::gloo::transport::Pair {
 
   bool isConnected() override;
 
+  int getPeerRank() const override {
+    return rank_;
+  }
+
+ protected:
+  const Address& peer() const override {
+    return peer_;
+  }
+
  private:
   std::mutex mutex_;
   std::condition_variable cv_;
@@ -200,6 +209,8 @@ class Pair : public ::gloo::transport::Pair {
   // State of the pair. This is used so that we can ensure the
   // underlying connection is closed before we destruct.
   State state_;
+
+  Address peer_;
 
   // Error state of the handle, if set.
   int errno_;
