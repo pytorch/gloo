@@ -87,6 +87,10 @@ class Pair : public ::gloo::transport::Pair {
 
   virtual bool isConnected() override;
 
+  int getPeerRank() const override {
+    return rank_;
+  }
+
   // Send from the specified buffer to remote side of pair.
   virtual void send(
       transport::UnboundBuffer* tbuf,
@@ -199,7 +203,7 @@ class Pair : public ::gloo::transport::Pair {
     return timeout_;
   }
 
-  const Address& peer() const {
+  const Address& peer() const override {
     return peer_;
   }
 
