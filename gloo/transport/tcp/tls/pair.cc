@@ -109,7 +109,7 @@ bool Pair::write(Op& op) {
         // Unexpected error
         signalException(GLOO_ERROR_MSG(
             "SSL_write ",
-            peer_.str(),
+            peerDescription(),
             " failed: ",
             "ssl error: ",
             err,
@@ -182,7 +182,7 @@ bool Pair::read() {
         // Unexpected error
         signalException(GLOO_ERROR_MSG(
             "SSL_read ",
-            peer_.str(),
+            peerDescription(),
             " failed: ",
             "ssl error: ",
             err,
@@ -198,7 +198,7 @@ bool Pair::read() {
     // Transition to CLOSED on EOF
     if (rv == 0) {
       signalException(
-          GLOO_ERROR_MSG("Connection closed by peer ", peer_.str()));
+          GLOO_ERROR_MSG("Connection closed by peer ", peerDescription()));
       return false;
     }
 
@@ -305,7 +305,7 @@ void Pair::verifyConnected(std::unique_lock<std::mutex>& lock) {
       "Pair is not SSL connected (",
       self_.str(),
       " <--> ",
-      peer_.str(),
+      peerDescription(),
       ")");
 }
 

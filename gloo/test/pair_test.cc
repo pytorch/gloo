@@ -8,6 +8,8 @@
 
 #include "gloo/test/base_test.h"
 
+#include <string>
+
 #include "gloo/common/logging.h"
 
 #if GLOO_HAVE_TRANSPORT_TCP
@@ -22,6 +24,19 @@ using Param = Transport;
 // Test fixture.
 class PairTest : public BaseTest,
                  public ::testing::WithParamInterface<Param> {};
+
+TEST_P(PairTest, ReportsPeerRank) {
+  const auto transport = GetParam();
+
+  spawn(transport, 2, [&](std::shared_ptr<Context> context) {
+    const int peer = (context->rank + 1) % 2;
+    auto& pair = context->getPair(peer);
+    EXPECT_EQ(peer, pair->getPeerRank());
+    EXPECT_NE(
+        pair->peerDescription().find("rank " + std::to_string(peer)),
+        std::string::npos);
+  });
+}
 
 // Regression test for the size_t overflow in tcp::Pair::prepareRead.
 //

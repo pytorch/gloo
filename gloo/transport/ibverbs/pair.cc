@@ -262,7 +262,7 @@ void Pair::recvMemoryRegion(
           (std::chrono::steady_clock::now() - start) >= timeout_) {
         lock.unlock();
         signalIoFailure(GLOO_ERROR_MSG(
-            "Timeout waiting for memory region from ", peer_.str()));
+            "Timeout waiting for memory region from ", peerDescription()));
         GLOO_ENFORCE(false, "Unexpected code path");
       }
       it = peerMemoryRegions_.find(slot);
@@ -447,7 +447,7 @@ void Pair::put(
   GLOO_DEBUG(
       self_.str(),
       "->",
-      peer_.str(),
+      peerDescription(),
       ": ",
       "put UnboundBuffer async slot=",
       wr.wr_id,
@@ -509,7 +509,7 @@ void Pair::get(
   GLOO_DEBUG(
       self_.str(),
       "->",
-      peer_.str(),
+      peerDescription(),
       ": ",
       "get UnboundBuffer async slot=",
       wr.wr_id,
@@ -587,7 +587,7 @@ void Pair::pollCompletions() {
         GLOO_ERROR(
             self_.str(),
             "->",
-            peer_.str(),
+            peerDescription(),
             ": ",
             "Exception in handleCompletion: ",
             ex.what());
@@ -606,7 +606,7 @@ void Pair::handleCompletion(struct ibv_wc* wc) {
   GLOO_DEBUG(
       self_.str(),
       "->",
-      peer_.str(),
+      peerDescription(),
       ": handleCompletion id=",
       wc->wr_id,
       " opcode=",
@@ -659,7 +659,7 @@ void Pair::handleCompletion(struct ibv_wc* wc) {
     GLOO_DEBUG(
         self_.str(),
         "->",
-        peer_.str(),
+        peerDescription(),
         ": handleCompletion id=",
         wc->wr_id,
         " opcode=IBV_WC_RECV slot=",
@@ -708,7 +708,7 @@ void Pair::handleCompletion(struct ibv_wc* wc) {
     GLOO_DEBUG(
         self_.str(),
         "->",
-        peer_.str(),
+        peerDescription(),
         ": handleCompletion id=",
         wc->wr_id,
         " opcode=IBV_WC_SEND");

@@ -8,11 +8,17 @@
 
 #include "gloo/transport/pair.h"
 
+#include "gloo/common/string.h"
+
 namespace gloo {
 namespace transport {
 
 // Have to provide implementation for pure virtual destructor.
 Pair::~Pair() {}
+
+std::string Pair::peerDescription() const {
+  return ::gloo::MakeString("rank ", getPeerRank(), " (", peer().str(), ")");
+}
 
 } // namespace transport
 } // namespace gloo

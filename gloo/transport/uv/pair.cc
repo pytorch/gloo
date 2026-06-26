@@ -62,6 +62,7 @@ void Pair::connect(const std::vector<char>& bytes) {
 
   std::unique_lock<std::mutex> lock(mutex_);
   GLOO_ENFORCE_EQ(state_, INITIALIZED);
+  peer_ = peer;
   state_ = CONNECTING;
 
   // Both processes call the `Pair::connect` function with the address
@@ -101,7 +102,7 @@ void Pair::connect(const std::vector<char>& bytes) {
   if (errno_) {
     throw ::gloo::IoException(GLOO_ERROR_MSG(
         "Error connecting to ",
-        peer.str(),
+        peerDescription(),
         ": ",
         libuv::ErrorEvent(errno_).what()));
   }

@@ -150,6 +150,10 @@ class Pair : public ::gloo::transport::Pair, public Handler {
 
   bool isConnected() override;
 
+  int getPeerRank() const override {
+    return rank_;
+  }
+
  protected:
   // Refer to parent context using raw pointer. This could be a
   // weak_ptr, seeing as the context class is a shared_ptr, but:
@@ -206,7 +210,7 @@ class Pair : public ::gloo::transport::Pair, public Handler {
   void send(Op& op);
   void recv();
 
-  const Address& peer() const {
+  const Address& peer() const override {
     return peer_;
   }
 
