@@ -8,8 +8,11 @@
 
 #include "gloo/transport/tcp/unbound_buffer.h"
 
+#include <string>
+
 #include "gloo/common/error.h"
 #include "gloo/common/logging.h"
+#include "gloo/common/string.h"
 #include "gloo/transport/tcp/context.h"
 
 namespace gloo {
@@ -75,10 +78,26 @@ bool UnboundBuffer::waitRecv(int* rank, std::chrono::milliseconds timeout) {
       // be sure to look for the actual cause (seen below).
       context_->signalException("Application timeout caused pair closure");
 
+      std::string peers;
+      if (recvSrcRanks_.size() == 1) {
+        peers = ::gloo::MakeString("rank ", recvSrcRanks_[0]);
+      } else {
+        peers = ::gloo::MakeString(
+            "any of ranks [",
+            ::gloo::MakeString<int>(recvSrcRanks_, /*delim=*/", "),
+            "]");
+      }
+
       throw ::gloo::IoException(GLOO_ERROR_MSG(
-          "Timed out waiting ",
+          "Timed out after ",
           timeout.count(),
-          "ms for recv operation to complete"));
+          "ms: Rank ",
+          context_->rank,
+          " waiting for recv from ",
+          peers,
+          " (slot ",
+          recvSlot_,
+          ")"));
     }
   }
   if (abortWaitRecv_) {
@@ -127,9 +146,15 @@ bool UnboundBuffer::waitSend(int* rank, std::chrono::milliseconds timeout) {
       context_->signalException("Application timeout caused pair closure");
 
       throw ::gloo::IoException(GLOO_ERROR_MSG(
-          "Timed out waiting ",
+          "Timed out after ",
           timeout.count(),
-          "ms for send operation to complete"));
+          "ms: Rank ",
+          context_->rank,
+          " waiting for send to rank ",
+          sendDstRank_,
+          " (slot ",
+          sendSlot_,
+          ")"));
     }
   }
 
@@ -150,6 +175,8 @@ void UnboundBuffer::send(
     uint64_t slot,
     size_t offset,
     size_t nbytes) {
+  sendDstRank_ = dstRank;
+  sendSlot_ = slot;
   // Default the number of bytes to be equal to the number
   // of bytes remaining in the buffer w.r.t. the offset.
   if (nbytes == kUnspecifiedByteCount) {
@@ -164,6 +191,8 @@ void UnboundBuffer::recv(
     uint64_t slot,
     size_t offset,
     size_t nbytes) {
+  recvSrcRanks_ = {srcRank};
+  recvSlot_ = slot;
   // Default the number of bytes to be equal to the number
   // of bytes remaining in the buffer w.r.t. the offset.
   if (nbytes == kUnspecifiedByteCount) {
@@ -178,6 +207,8 @@ void UnboundBuffer::recv(
     uint64_t slot,
     size_t offset,
     size_t nbytes) {
+  recvSrcRanks_ = srcRanks;
+  recvSlot_ = slot;
   // Default the number of bytes to be equal to the number
   // of bytes remaining in the buffer w.r.t. the offset.
   if (nbytes == kUnspecifiedByteCount) {

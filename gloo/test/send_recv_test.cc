@@ -10,7 +10,11 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <string>
 #include <unordered_set>
+
+#include "gloo/common/error.h"
 
 namespace gloo {
 namespace test {
@@ -516,6 +520,88 @@ INSTANTIATE_TEST_CASE_P(
         ::testing::ValuesIn(kTransportsForFunctionAlgorithms),
         ::testing::Values(2, 3, 4, 5, 6, 7, 8),
         ::testing::Values(1)));
+
+// Tests that TCP unbound-buffer timeout errors include the local rank,
+// remote peer or candidate peers, and slot. The peer ranks intentionally
+// do not post matching operations, so rank 0's operation times out.
+class SendRecvTimeoutTest : public BaseTest {};
+
+TEST_F(SendRecvTimeoutTest, RecvTimeoutReportsRanks) {
+  constexpr uint64_t slot = 0x1337;
+  spawn(Transport::TCP, 2, [&](std::shared_ptr<Context> context) {
+    // Rank 1 stays idle so it never sends; rank 0's recv must time out.
+    if (context->rank != 0) {
+      return;
+    }
+    int tmp = 0;
+    auto buf = context->createUnboundBuffer(&tmp, sizeof(tmp));
+    buf->recv(1, slot);
+    try {
+      buf->waitRecv(std::chrono::milliseconds(500));
+      ADD_FAILURE() << "Expected waitRecv to time out";
+    } catch (const ::gloo::IoException& e) {
+      const std::string msg = e.what();
+      EXPECT_NE(msg.find("Rank 0"), std::string::npos) << msg;
+      EXPECT_NE(msg.find("recv from rank 1"), std::string::npos) << msg;
+      EXPECT_NE(
+          msg.find(std::string("(slot ") + std::to_string(slot) + ")"),
+          std::string::npos)
+          << msg;
+    }
+  });
+}
+
+TEST_F(SendRecvTimeoutTest, RecvFromAnyTimeoutReportsRanks) {
+  constexpr uint64_t slot = 0x1337;
+  spawn(Transport::TCP, 3, [&](std::shared_ptr<Context> context) {
+    // Ranks 1 and 2 stay idle so rank 0's recv-from-any must time out.
+    if (context->rank != 0) {
+      return;
+    }
+    int tmp = 0;
+    auto buf = context->createUnboundBuffer(&tmp, sizeof(tmp));
+    std::vector<int> ranks = {1, 2};
+    buf->recv(ranks, slot);
+    try {
+      buf->waitRecv(std::chrono::milliseconds(500));
+      ADD_FAILURE() << "Expected waitRecv to time out";
+    } catch (const ::gloo::IoException& e) {
+      const std::string msg = e.what();
+      EXPECT_NE(msg.find("Rank 0"), std::string::npos) << msg;
+      EXPECT_NE(msg.find("recv from any of ranks [1, 2]"), std::string::npos)
+          << msg;
+      EXPECT_NE(
+          msg.find(std::string("(slot ") + std::to_string(slot) + ")"),
+          std::string::npos)
+          << msg;
+    }
+  });
+}
+
+TEST_F(SendRecvTimeoutTest, SendTimeoutReportsRanks) {
+  constexpr uint64_t slot = 0x1337;
+  spawn(Transport::TCP, 2, [&](std::shared_ptr<Context> context) {
+    // Rank 1 stays idle so it never posts a matching recv
+    if (context->rank != 0) {
+      return;
+    }
+    int tmp = 0;
+    auto buf = context->createUnboundBuffer(&tmp, sizeof(tmp));
+    buf->send(1, slot);
+    try {
+      buf->waitSend(std::chrono::milliseconds(500));
+      ADD_FAILURE() << "Expected waitSend to time out";
+    } catch (const ::gloo::IoException& e) {
+      const std::string msg = e.what();
+      EXPECT_NE(msg.find("Rank 0"), std::string::npos) << msg;
+      EXPECT_NE(msg.find("send to rank 1"), std::string::npos) << msg;
+      EXPECT_NE(
+          msg.find(std::string("(slot ") + std::to_string(slot) + ")"),
+          std::string::npos)
+          << msg;
+    }
+  });
+}
 
 } // namespace
 } // namespace test
