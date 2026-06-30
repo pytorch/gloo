@@ -89,7 +89,7 @@ bool UnboundBuffer::waitRecv(int* rank, std::chrono::milliseconds timeout) {
       }
 
       throw ::gloo::IoException(GLOO_ERROR_MSG(
-          "Timed out after ",
+          "Timed out waiting ",
           timeout.count(),
           "ms: Rank ",
           context_->rank,
@@ -146,7 +146,7 @@ bool UnboundBuffer::waitSend(int* rank, std::chrono::milliseconds timeout) {
       context_->signalException("Application timeout caused pair closure");
 
       throw ::gloo::IoException(GLOO_ERROR_MSG(
-          "Timed out after ",
+          "Timed out waiting ",
           timeout.count(),
           "ms: Rank ",
           context_->rank,
