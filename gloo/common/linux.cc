@@ -74,6 +74,8 @@ static std::vector<std::string> listDir(const std::string& path) {
       continue;
     }
     result.push_back(dirent->d_name);
+    // Only report errno values set by readdir, not by vector allocation.
+    errno = 0;
   }
   GLOO_ENFORCE(errno == 0, strerror(errno));
   auto rv = closedir(dirp);
