@@ -142,7 +142,7 @@ void Pair::connect(const std::vector<char>& bytes) {
   // this new transport has been merged.
 
   if (!device_->isLazyInit()) {
-    waitUntilConnected(lock, true);
+    waitUntilConnected(lock);
   }
 }
 
@@ -195,7 +195,7 @@ void Pair::setSync(bool sync, bool busyPoll) {
 
   // Wait for pair to be connected. No need to wait for timeout here. If
   // necessary, the connect path will timeout and signal this thread.
-  waitUntilConnected(lock, false);
+  waitUntilConnected(lock);
   if (state_ == CLOSED) {
     signalAndThrowException(
         GLOO_ERROR_MSG("Socket unexpectedly closed ", peerDescription()));
@@ -791,19 +791,17 @@ void Pair::changeState(state nextState) noexcept {
   cv_.notify_all();
 }
 
-void Pair::waitUntilConnected(
-    std::unique_lock<std::mutex>& lock,
-    bool useTimeout) {
+void Pair::waitUntilConnected(std::unique_lock<std::mutex>& lock) {
   auto pred = [&] {
     throwIfException();
     return state_ >= CONNECTED;
   };
-  waitUntil(pred, lock, useTimeout);
+  waitUntil(pred, lock);
 }
 
 void Pair::verifyConnected(std::unique_lock<std::mutex>& lock) {
   if (state_ == CONNECTING) {
-    waitUntilConnected(lock, true);
+    waitUntilConnected(lock);
   }
 
   // This code path should only be called after reaching the connected state

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <list>
+#include <memory>
 #include <unordered_map>
 
 #include <gloo/transport/tcp/address.h>
@@ -45,9 +45,12 @@ class Listener final : public Handler {
   Address nextAddress(int);
 
   // Wait for connection with sequence number `seq`. The callback is
-  // always called from a different thread (the event loop thread),
-  // even if the connection is already available.
-  void waitForConnection(sequence_number_t seq, connect_callback_t fn);
+  // always called from a different internal thread, even if the
+  // connection is already available.
+  void waitForConnection(
+      sequence_number_t seq,
+      std::chrono::milliseconds timeout,
+      connect_callback_t fn);
 
   void shutdown();
 
@@ -67,9 +70,15 @@ class Listener final : public Handler {
 
   // Called when we've read a sequence number from a new socket.
   void haveConnection(std::shared_ptr<Socket> socket, sequence_number_t seq);
+  void timeoutConnection(sequence_number_t seq);
 
   // Callbacks by sequence number (while waiting for a connection).
-  std::unordered_map<sequence_number_t, connect_callback_t> seqToCallback_;
+  struct PendingConnection {
+    connect_callback_t fn;
+    std::shared_ptr<Timer> timer;
+    bool resolved{false};
+  };
+  std::unordered_map<sequence_number_t, PendingConnection> seqToCallback_;
 
   // Sockets by sequence number (while waiting for a pair to call).
   std::unordered_map<sequence_number_t, std::shared_ptr<Socket>> seqToSocket_;

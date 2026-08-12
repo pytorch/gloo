@@ -241,20 +241,30 @@ void Pair::changeState(Pair::state nextState) noexcept {
   ::gloo::transport::tcp::Pair::changeState(nextState);
 }
 
-void Pair::waitUntilSSLConnected(
-    std::unique_lock<std::mutex>& lock,
-    bool useTimeout) {
+void Pair::waitUntilSSLConnected(std::unique_lock<std::mutex>& lock) {
   auto pred = [&] {
     throwIfException();
     return is_ssl_connected_;
   };
-  waitUntil(pred, lock, useTimeout);
+
+  if (timeout_ != kNoTimeout) {
+    auto relTime = std::min(
+        timeout_ * 5,
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            kLargeTimeDuration));
+    auto done = cv_.wait_for(lock, relTime, pred);
+    if (!done) {
+      signalAndThrowException(
+          GLOO_ERROR_MSG("SSL handshake timeout ", peerDescription()));
+    }
+    return;
+  }
+
+  waitUntil(pred, lock);
 }
 
-void Pair::waitUntilConnected(
-    std::unique_lock<std::mutex>& lock,
-    bool useTimeout) {
-  ::gloo::transport::tcp::Pair::waitUntilConnected(lock, useTimeout);
+void Pair::waitUntilConnected(std::unique_lock<std::mutex>& lock) {
+  ::gloo::transport::tcp::Pair::waitUntilConnected(lock);
 
   if (!is_ssl_connected_) {
     if (device_->isInitiator(self_, peer_)) {
@@ -293,7 +303,7 @@ void Pair::waitUntilConnected(
           maxAttempts,
           " attempts");
     } else {
-      waitUntilSSLConnected(lock, useTimeout);
+      waitUntilSSLConnected(lock);
     }
   }
 }
