@@ -19,10 +19,7 @@ namespace gloo {
 namespace transport {
 namespace tcp {
 
-// One-shot timers can be registered with the epoll(2) loop and
-// canceled from other threads. Their callbacks always run on the
-// loop thread, and the underlying timerfd is released after the
-// timer fires or is canceled.
+// One-shot timers integrated with the TCP epoll loop.
 class Timer final : public Handler,
                     public std::enable_shared_from_this<Timer> {
  public:
@@ -43,7 +40,7 @@ class Timer final : public Handler,
 
   std::weak_ptr<Loop> loop_;
   function_t fn_;
-  int fd_{-1};
+  std::atomic<int> fd_{-1};
   std::atomic<bool> canceled_{false};
   std::atomic<bool> armed_{false};
 };

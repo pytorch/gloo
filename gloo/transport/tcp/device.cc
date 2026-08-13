@@ -230,8 +230,9 @@ Device::Device(const struct attr& attr, bool lazyInit)
       pciBusID_(interfaceToBusID(interfaceName_)) {}
 
 void Device::shutdown() {
-  loop_->shutdown();
+  // Shut down listener state before stopping the loop.
   listener_->shutdown();
+  loop_->shutdown();
 }
 
 Device::~Device() {

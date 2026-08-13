@@ -45,11 +45,15 @@ void Listener::shutdown() {
     return;
   }
 
+  std::vector<connect_callback_t> callbacks;
   std::vector<std::shared_ptr<Timer>> timers;
   {
     std::lock_guard<std::mutex> guard(mutex_);
     *closed_ = true;
     for (auto& it : seqToCallback_) {
+      if (!it.second.resolved) {
+        callbacks.push_back(std::move(it.second.fn));
+      }
       if (it.second.timer) {
         timers.push_back(it.second.timer);
       }
@@ -60,6 +64,11 @@ void Listener::shutdown() {
 
   for (auto& timer : timers) {
     timer->cancel();
+  }
+  for (auto& fn : callbacks) {
+    fn(
+        std::shared_ptr<Socket>(),
+        LoopError("listener shut down while waiting for connection"));
   }
   if (listener_) {
     loop_->unregisterDescriptor(listener_->fd(), this);
@@ -136,8 +145,15 @@ void Listener::waitForConnection(
   auto it = seqToSocket_.find(seq);
   if (it == seqToSocket_.end()) {
     auto pendingIt = seqToCallback_.find(seq);
-    if (pendingIt != seqToCallback_.end() && pendingIt->second.resolved) {
-      seqToCallback_.erase(pendingIt);
+    if (pendingIt != seqToCallback_.end()) {
+      if (pendingIt->second.resolved) {
+        seqToCallback_.erase(pendingIt);
+      } else {
+        GLOO_ENFORCE(
+            false,
+            "Duplicate waitForConnection for sequence number ",
+            std::to_string(seq));
+      }
     }
 
     PendingConnection pending{
@@ -190,8 +206,7 @@ void Listener::haveConnection(
   if (timer) {
     timer->cancel();
   }
-  // Keep success callbacks on the loop thread for consistency with the
-  // fast-path socket handoff above.
+  // Keep success callbacks on the loop thread.
   loop_->defer(
       [fn = std::move(fn), socket = std::move(socket)]() mutable {
         fn(std::move(socket), Error::kSuccess);

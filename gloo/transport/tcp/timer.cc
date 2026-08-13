@@ -30,16 +30,19 @@ Timer::~Timer() {
 }
 
 void Timer::schedule(std::chrono::milliseconds timeout) {
+  auto fd = fd_.load();
+  GLOO_ENFORCE_NE(fd, -1, "Timer is one-shot and has already fired");
   GLOO_ENFORCE_GE(timeout.count(), 0);
   GLOO_ENFORCE(!armed_.exchange(true), "Timer is already armed");
   canceled_ = false;
 
   auto loop = loop_.lock();
   GLOO_ENFORCE(loop, "Loop is no longer available");
-  loop->registerDescriptor(fd_, EPOLLIN, shared_from_this());
+  loop->registerDescriptor(fd, EPOLLIN, shared_from_this());
 
   struct itimerspec spec = {};
   auto interval = timeout;
+  // timerfd treats an all-zero itimerspec as disarm.
   if (interval == std::chrono::milliseconds(0)) {
     interval = std::chrono::milliseconds(1);
   }
@@ -50,39 +53,46 @@ void Timer::schedule(std::chrono::milliseconds timeout) {
           interval % std::chrono::seconds(1))
           .count();
 
-  auto rv = timerfd_settime(fd_, 0, &spec, nullptr);
+  auto rv = timerfd_settime(fd, 0, &spec, nullptr);
   GLOO_ENFORCE_NE(rv, -1, "timerfd_settime: ", strerror(errno));
 }
 
 void Timer::cancel() {
+  auto self = shared_from_this();
   canceled_ = true;
   if (!armed_) {
     return;
   }
 
+  auto fd = fd_.load();
+  if (fd == -1) {
+    return;
+  }
   struct itimerspec spec = {};
-  auto rv = timerfd_settime(fd_, 0, &spec, nullptr);
-  GLOO_ENFORCE_NE(rv, -1, "timerfd_settime: ", strerror(errno));
-
-  auto loop = loop_.lock();
-  GLOO_ENFORCE(loop, "Loop is no longer available");
-  if (loop->inLoopThread()) {
-    // If the timer fd and a listener fd are returned in the same epoll_wait
-    // batch, defer cleanup so a queued timer event cannot observe a closed fd.
-    loop->defer([self = shared_from_this()] { self->cleanup(); });
+  auto rv = timerfd_settime(fd, 0, &spec, nullptr);
+  if (rv == -1) {
+    GLOO_ENFORCE_EQ(errno, EBADF, "timerfd_settime: ", strerror(errno));
+    GLOO_ENFORCE_EQ(fd_.load(), -1, "timerfd_settime: ", strerror(errno));
     return;
   }
 
-  cleanup();
+  auto loop = loop_.lock();
+  GLOO_ENFORCE(loop, "Loop is no longer available");
+  // Keep fd cleanup on the loop thread.
+  loop->defer([self = std::move(self)] { self->cleanup(); });
 }
 
 void Timer::handleEvents(Loop&, int /* events */) {
   auto self = shared_from_this();
 
+  auto fd = fd_.load();
+  if (fd == -1) {
+    return;
+  }
   uint64_t expirations = 0;
-  auto rv = read(fd_, &expirations, sizeof(expirations));
+  auto rv = read(fd, &expirations, sizeof(expirations));
   if (rv == -1 && errno == EINTR) {
-    rv = read(fd_, &expirations, sizeof(expirations));
+    rv = read(fd, &expirations, sizeof(expirations));
   }
   GLOO_ENFORCE_NE(rv, -1, "read: ", strerror(errno));
 
@@ -98,7 +108,7 @@ void Timer::cleanup() {
     return;
   }
 
-  auto fd = fd_;
+  auto fd = fd_.exchange(-1);
   if (fd == -1) {
     return;
   }
@@ -108,7 +118,6 @@ void Timer::cleanup() {
   }
 
   close(fd);
-  fd_ = -1;
 }
 
 } // namespace tcp

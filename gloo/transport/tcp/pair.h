@@ -295,13 +295,31 @@ class Pair : public ::gloo::transport::Pair, public Handler {
   virtual void changeState(state nextState) noexcept;
 
   template <typename pred_t>
-  void waitUntil(pred_t pred, std::unique_lock<std::mutex>& lock) {
-    cv_.wait(lock, pred);
+  void waitUntil(
+      pred_t pred,
+      std::unique_lock<std::mutex>& lock,
+      bool useTimeout) {
+    auto timeoutSet = timeout_ != kNoTimeout;
+    if (useTimeout && timeoutSet) {
+      auto relTime = std::min(
+          timeout_ * 5,
+          std::chrono::duration_cast<std::chrono::milliseconds>(
+              kLargeTimeDuration));
+      auto done = cv_.wait_for(lock, relTime, pred);
+      if (!done) {
+        signalAndThrowException(
+            GLOO_ERROR_MSG("Connect timeout ", peerDescription()));
+      }
+    } else {
+      cv_.wait(lock, pred);
+    }
   }
 
   // Helper function to block execution until the pair has advanced to
   // the `CONNECTED` state. Expected to be called from `Pair::connect`.
-  virtual void waitUntilConnected(std::unique_lock<std::mutex>& lock);
+  virtual void waitUntilConnected(
+      std::unique_lock<std::mutex>& lock,
+      bool useTimeout);
 
   // Helper function to assert the current state is `CONNECTED`.
   virtual void verifyConnected(std::unique_lock<std::mutex>& lock);

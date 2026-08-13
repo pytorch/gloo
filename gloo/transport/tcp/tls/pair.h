@@ -32,7 +32,9 @@ class Pair : public ::gloo::transport::tcp::Pair {
   void handleReadWrite(int events) override;
 
  protected:
-  void waitUntilConnected(std::unique_lock<std::mutex>& lock) override;
+  void waitUntilConnected(
+      std::unique_lock<std::mutex>& lock,
+      bool useTimeout) override;
 
   int handshake();
 
@@ -40,7 +42,9 @@ class Pair : public ::gloo::transport::tcp::Pair {
 
   bool write(Op& op) override;
 
-  void waitUntilSSLConnected(std::unique_lock<std::mutex>& lock);
+  void waitUntilSSLConnected(
+      std::unique_lock<std::mutex>& lock,
+      bool useTimeout);
 
   void verifyConnected(std::unique_lock<std::mutex>& lock) override;
 

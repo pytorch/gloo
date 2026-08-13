@@ -64,7 +64,38 @@ void MultiProcTest::spawnAsync(
     if (pid == 0) {
       // Forked process will create a Context and run the provided function,
       // exiting upon completion.
-      const auto result = runWorker(transport, numRanks, i, fn);
+      const auto result = runWorker(transport, numRanks, i, true, fn);
+      exit(result);
+    } else {
+      // Parent process tracks all forked child processes.
+      workers_.push_back(pid);
+    }
+  }
+
+  // Wait for all processes to finish initializing. Set a sufficiently
+  // large timeout so that we do not block forever in case one of the processes
+  // fails.
+  struct timespec ts;
+  ASSERT_EQ(0, clock_gettime(CLOCK_REALTIME, &ts));
+  ts.tv_sec += 30;
+  for (auto i = 0; i < numRanks; i++) {
+    ASSERT_EQ(0, sem_timedwait(semaphore_, &ts));
+  }
+  workerResults_.resize(workers_.size());
+}
+
+void MultiProcTest::spawnAsyncNoBarrier(
+    Transport transport,
+    int numRanks,
+    std::function<void(std::shared_ptr<Context>)> fn) {
+  // Start a process for each rank
+  for (auto i = 0; i < numRanks; i++) {
+    const auto pid = fork();
+    ASSERT_GE(pid, 0);
+    if (pid == 0) {
+      // Forked process will create a Context and run the provided function,
+      // exiting upon completion.
+      const auto result = runWorker(transport, numRanks, i, false, fn);
       exit(result);
     } else {
       // Parent process tracks all forked child processes.
@@ -120,10 +151,11 @@ int MultiProcTest::runWorker(
     Transport transport,
     int size,
     int rank,
+    bool useBarrier,
     std::function<void(std::shared_ptr<Context>)> fn) {
   try {
     MultiProcWorker worker(storePath_, semaphoreName_);
-    worker.run(transport, size, rank, fn);
+    worker.run(transport, size, rank, useBarrier, fn);
   } catch (const ::gloo::IoException&) {
     return kExitWithIoException;
   }
