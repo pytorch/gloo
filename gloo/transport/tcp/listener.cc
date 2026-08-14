@@ -66,9 +66,9 @@ void Listener::shutdown() {
     timer->cancel();
   }
   for (auto& fn : callbacks) {
-    fn(
-        std::shared_ptr<Socket>(),
-        LoopError("listener shut down while waiting for connection"));
+    auto socket = std::shared_ptr<Socket>();
+    auto error = LoopError("listener shut down while waiting for connection");
+    fn(socket, error);
   }
   if (listener_) {
     loop_->unregisterDescriptor(listener_->fd(), this);
@@ -207,10 +207,10 @@ void Listener::haveConnection(
     timer->cancel();
   }
   // Keep success callbacks on the loop thread.
-  loop_->defer(
-      [fn = std::move(fn), socket = std::move(socket)]() mutable {
-        fn(std::move(socket), Error::kSuccess);
-      });
+  auto complete = [fn = std::move(fn), socket = std::move(socket)]() mutable {
+    fn(std::move(socket), Error::kSuccess);
+  };
+  loop_->defer(std::move(complete));
 }
 
 void Listener::timeoutConnection(sequence_number_t seq) {
@@ -228,11 +228,11 @@ void Listener::timeoutConnection(sequence_number_t seq) {
   fn = std::move(it->second.fn);
   lock.unlock();
 
-  fn(
-      std::shared_ptr<Socket>(),
-      TimeoutError(
-          "timed out waiting for connection with sequence number " +
-          std::to_string(seq)));
+  auto socket = std::shared_ptr<Socket>();
+  auto error = TimeoutError(
+      "timed out waiting for connection with sequence number " +
+      std::to_string(seq));
+  fn(socket, error);
 }
 
 } // namespace tcp

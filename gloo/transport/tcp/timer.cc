@@ -48,10 +48,10 @@ void Timer::schedule(std::chrono::milliseconds timeout) {
   }
   spec.it_value.tv_sec =
       std::chrono::duration_cast<std::chrono::seconds>(interval).count();
-  spec.it_value.tv_nsec =
-      std::chrono::duration_cast<std::chrono::nanoseconds>(
-          interval % std::chrono::seconds(1))
-          .count();
+  const auto intervalNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                              interval % std::chrono::seconds(1))
+                              .count();
+  spec.it_value.tv_nsec = intervalNs;
 
   auto rv = timerfd_settime(fd, 0, &spec, nullptr);
   GLOO_ENFORCE_NE(rv, -1, "timerfd_settime: ", strerror(errno));

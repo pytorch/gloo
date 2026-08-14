@@ -20,8 +20,7 @@ namespace transport {
 namespace tcp {
 
 // One-shot timers integrated with the TCP epoll loop.
-class Timer final : public Handler,
-                    public std::enable_shared_from_this<Timer> {
+class Timer final : public Handler, public std::enable_shared_from_this<Timer> {
  public:
   using function_t = std::function<void()>;
 

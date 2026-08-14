@@ -14,12 +14,12 @@
 #include <thread>
 #include <vector>
 
+#include "gloo/test/multiproc_test.h"
 #include "gloo/transport/tcp/device.h"
 #include "gloo/transport/tcp/helpers.h"
 #include "gloo/transport/tcp/listener.h"
 #include "gloo/transport/tcp/loop.h"
 #include "gloo/transport/tcp/socket.h"
-#include "gloo/test/multiproc_test.h"
 
 namespace gloo {
 namespace test {
@@ -103,13 +103,20 @@ static std::string connectAndWriteSeq(
       });
 
   std::unique_lock<std::mutex> lock(m);
-  auto completed = cv.wait_for(lock, std::chrono::seconds(5), [&] {
-    return done;
-  });
+  auto completed =
+      cv.wait_for(lock, std::chrono::seconds(5), [&] { return done; });
   if (!completed) {
     return "timed out waiting for connect/write helper";
   }
   return error;
+}
+
+template <typename pred_t>
+bool waitForTest(
+    std::condition_variable& cv,
+    std::unique_lock<std::mutex>& lock,
+    pred_t pred) {
+  return cv.wait_for(lock, std::chrono::seconds(5), pred);
 }
 
 TEST(TcpListenerTimeoutTest, ListenerTimeout) {
@@ -137,9 +144,7 @@ TEST(TcpListenerTimeoutTest, ListenerTimeout) {
       });
 
   std::unique_lock<std::mutex> lock(m);
-  auto completed = cv.wait_for(lock, std::chrono::seconds(5), [&] {
-    return done;
-  });
+  auto completed = waitForTest(cv, lock, [&] { return done; });
   EXPECT_TRUE(completed);
 }
 
@@ -174,9 +179,7 @@ TEST(TcpListenerTimeoutTest, ListenerLateSocketAfterTimeout) {
 
   {
     std::unique_lock<std::mutex> lock(m);
-    auto completed = cv.wait_for(lock, std::chrono::seconds(5), [&] {
-      return timeoutDone;
-    });
+    auto completed = waitForTest(cv, lock, [&] { return timeoutDone; });
     EXPECT_TRUE(completed);
   }
 
@@ -202,9 +205,7 @@ TEST(TcpListenerTimeoutTest, ListenerLateSocketAfterTimeout) {
   EXPECT_TRUE(retryError.empty()) << retryError;
 
   std::unique_lock<std::mutex> lock(m);
-  auto completed = cv.wait_for(lock, std::chrono::seconds(5), [&] {
-    return successDone;
-  });
+  auto completed = waitForTest(cv, lock, [&] { return successDone; });
   EXPECT_TRUE(completed);
   EXPECT_EQ(timeoutCallbacks, 1);
   EXPECT_EQ(successCallbacks, 1);
@@ -241,9 +242,7 @@ TEST(TcpListenerTimeoutTest, ListenerNoSpuriousTimeout) {
   EXPECT_TRUE(error.empty()) << error;
 
   std::unique_lock<std::mutex> lock(m);
-  auto completed = cv.wait_for(lock, std::chrono::seconds(5), [&] {
-    return done;
-  });
+  auto completed = waitForTest(cv, lock, [&] { return done; });
   EXPECT_TRUE(completed);
   EXPECT_TRUE(sawSuccess);
   lock.unlock();
@@ -255,24 +254,22 @@ TEST(TcpListenerTimeoutTest, ListenerNoSpuriousTimeout) {
 }
 
 TEST_F(MultiProcTest, TcpLazyPeerExitBeforeFirstIo) {
-  spawnAsyncNoBarrier(
-      Transport::TCP_LAZY,
-      2,
-      [&](std::shared_ptr<Context> context) {
-        if (context->rank == 0) {
-          std::this_thread::sleep_for(std::chrono::seconds(30));
-          return;
-        }
+  auto lazyWorker = [&](std::shared_ptr<Context> context) {
+    if (context->rank == 0) {
+      std::this_thread::sleep_for(std::chrono::seconds(30));
+      return;
+    }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        int sendScratch = 1;
-        auto& pair = context->getPair(0);
-        auto sendBuffer =
-            pair->createSendBuffer(0, &sendScratch, sizeof(sendScratch));
-        sendBuffer->send(0, sizeof(sendScratch));
-        sendBuffer->waitSend();
-      });
+    int sendScratch = 1;
+    auto& pair = context->getPair(0);
+    auto sendBuffer =
+        pair->createSendBuffer(0, &sendScratch, sizeof(sendScratch));
+    sendBuffer->send(0, sizeof(sendScratch));
+    sendBuffer->waitSend();
+  };
+  spawnAsyncNoBarrier(Transport::TCP_LAZY, 2, lazyWorker);
 
   signalProcess(0, SIGKILL);
   wait();
