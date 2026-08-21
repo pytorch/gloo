@@ -7,6 +7,7 @@
  */
 
 #include <gloo/transport/tcp/loop.h>
+#include <gloo/transport/tcp/timer.h>
 
 #include <fcntl.h>
 #include <string.h>
@@ -185,6 +186,14 @@ void Loop::unregisterDescriptor(int fd, Handler* h) {
 
 void Loop::defer(std::function<void()> fn) {
   deferrables_.defer(std::move(fn));
+}
+
+std::shared_ptr<Timer> Loop::createTimer(std::function<void()> fn) {
+  return std::make_shared<Timer>(shared_from_this(), std::move(fn));
+}
+
+bool Loop::inLoopThread() const {
+  return loop_ && std::this_thread::get_id() == loop_->get_id();
 }
 
 void Loop::run() {

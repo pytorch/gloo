@@ -301,10 +301,6 @@ class Pair : public ::gloo::transport::Pair, public Handler {
       bool useTimeout) {
     auto timeoutSet = timeout_ != kNoTimeout;
     if (useTimeout && timeoutSet) {
-      // Use a longer timeout when waiting for initial connect
-
-      // relTime must be small enough not to overflow when
-      // added to std::chrono::steady_clock::now()
       auto relTime = std::min(
           timeout_ * 5,
           std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -312,7 +308,7 @@ class Pair : public ::gloo::transport::Pair, public Handler {
       auto done = cv_.wait_for(lock, relTime, pred);
       if (!done) {
         signalAndThrowException(
-            GLOO_ERROR_MSG("Connect timeout ", peer_.str()));
+            GLOO_ERROR_MSG("Connect timeout ", peerDescription()));
       }
     } else {
       cv_.wait(lock, pred);

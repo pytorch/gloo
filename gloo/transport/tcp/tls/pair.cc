@@ -248,7 +248,21 @@ void Pair::waitUntilSSLConnected(
     throwIfException();
     return is_ssl_connected_;
   };
-  waitUntil(pred, lock, useTimeout);
+
+  if (useTimeout && timeout_ != kNoTimeout) {
+    auto relTime = std::min(
+        timeout_ * 5,
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            kLargeTimeDuration));
+    auto done = cv_.wait_for(lock, relTime, pred);
+    if (!done) {
+      signalAndThrowException(
+          GLOO_ERROR_MSG("SSL handshake timeout ", peerDescription()));
+    }
+    return;
+  }
+
+  waitUntil(pred, lock, false);
 }
 
 void Pair::waitUntilConnected(

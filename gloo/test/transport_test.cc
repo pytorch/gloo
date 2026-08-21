@@ -6,11 +6,20 @@
  * LICENSE file in the root directory of this source tree.
  */
 
+#include <chrono>
+#include <condition_variable>
 #include <functional>
+#include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
 
 #include "gloo/test/multiproc_test.h"
+#include "gloo/transport/tcp/device.h"
+#include "gloo/transport/tcp/helpers.h"
+#include "gloo/transport/tcp/listener.h"
+#include "gloo/transport/tcp/loop.h"
+#include "gloo/transport/tcp/socket.h"
 
 namespace gloo {
 namespace test {
@@ -48,6 +57,227 @@ static void setMode(std::unique_ptr<transport::Pair>& pair, IoMode mode) {
     default:
       FAIL();
   }
+}
+
+static std::string connectAndWriteSeq(
+    std::shared_ptr<transport::tcp::Loop> loop,
+    const transport::tcp::Address& address,
+    std::chrono::milliseconds timeout = std::chrono::seconds(5)) {
+  std::mutex m;
+  std::condition_variable cv;
+  bool done = false;
+  std::string error;
+
+  transport::tcp::connectLoop(
+      *loop,
+      address,
+      0,
+      2,
+      timeout,
+      [seq = address.getSeq(), &m, &cv, &done, &error](
+          transport::tcp::Loop& loop,
+          std::shared_ptr<transport::tcp::Socket> socket,
+          const transport::tcp::Error& e) {
+        if (e) {
+          std::lock_guard<std::mutex> lock(m);
+          error = e.what();
+          done = true;
+          cv.notify_all();
+          return;
+        }
+
+        transport::tcp::write<transport::tcp::sequence_number_t>(
+            loop,
+            std::move(socket),
+            seq,
+            [&m, &cv, &done, &error](
+                std::shared_ptr<transport::tcp::Socket>,
+                const transport::tcp::Error& writeError) {
+              std::lock_guard<std::mutex> lock(m);
+              if (writeError) {
+                error = writeError.what();
+              }
+              done = true;
+              cv.notify_all();
+            });
+      });
+
+  std::unique_lock<std::mutex> lock(m);
+  auto completed =
+      cv.wait_for(lock, std::chrono::seconds(5), [&] { return done; });
+  if (!completed) {
+    return "timed out waiting for connect/write helper";
+  }
+  return error;
+}
+
+template <typename pred_t>
+bool waitForTest(
+    std::condition_variable& cv,
+    std::unique_lock<std::mutex>& lock,
+    pred_t pred) {
+  return cv.wait_for(lock, std::chrono::seconds(5), pred);
+}
+
+TEST(TcpListenerTimeoutTest, ListenerTimeout) {
+  auto loop = std::make_shared<transport::tcp::Loop>();
+  auto attr = transport::tcp::CreateDeviceAttr({"localhost"});
+  transport::tcp::Listener listener(loop, attr);
+
+  std::mutex m;
+  std::condition_variable cv;
+  bool done = false;
+
+  auto seq = listener.nextAddress().getSeq();
+  listener.waitForConnection(
+      seq,
+      std::chrono::milliseconds(100),
+      [&](std::shared_ptr<transport::tcp::Socket> socket,
+          const transport::tcp::Error& e) {
+        std::lock_guard<std::mutex> lock(m);
+        done = true;
+        cv.notify_all();
+
+        EXPECT_EQ(socket.get(), nullptr);
+        EXPECT_TRUE(e);
+        EXPECT_TRUE(dynamic_cast<const transport::tcp::TimeoutError*>(&e));
+      });
+
+  std::unique_lock<std::mutex> lock(m);
+  auto completed = waitForTest(cv, lock, [&] { return done; });
+  EXPECT_TRUE(completed);
+}
+
+TEST(TcpListenerTimeoutTest, ListenerLateSocketAfterTimeout) {
+  auto loop = std::make_shared<transport::tcp::Loop>();
+  auto attr = transport::tcp::CreateDeviceAttr({"localhost"});
+  transport::tcp::Listener listener(loop, attr);
+
+  auto address = listener.nextAddress();
+
+  std::mutex m;
+  std::condition_variable cv;
+  int timeoutCallbacks = 0;
+  int successCallbacks = 0;
+  bool timeoutDone = false;
+  bool successDone = false;
+
+  listener.waitForConnection(
+      address.getSeq(),
+      std::chrono::milliseconds(100),
+      [&](std::shared_ptr<transport::tcp::Socket> socket,
+          const transport::tcp::Error& e) {
+        std::lock_guard<std::mutex> lock(m);
+        timeoutCallbacks++;
+        timeoutDone = true;
+        cv.notify_all();
+
+        EXPECT_EQ(socket.get(), nullptr);
+        EXPECT_TRUE(e);
+        EXPECT_TRUE(dynamic_cast<const transport::tcp::TimeoutError*>(&e));
+      });
+
+  {
+    std::unique_lock<std::mutex> lock(m);
+    auto completed = waitForTest(cv, lock, [&] { return timeoutDone; });
+    EXPECT_TRUE(completed);
+  }
+
+  auto lateError = connectAndWriteSeq(loop, address);
+  EXPECT_TRUE(lateError.empty()) << lateError;
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+  listener.waitForConnection(
+      address.getSeq(),
+      std::chrono::seconds(5),
+      [&](std::shared_ptr<transport::tcp::Socket> socket,
+          const transport::tcp::Error& e) {
+        std::lock_guard<std::mutex> lock(m);
+        successCallbacks++;
+        successDone = true;
+        cv.notify_all();
+
+        EXPECT_NE(socket.get(), nullptr);
+        EXPECT_FALSE(e);
+      });
+
+  auto retryError = connectAndWriteSeq(loop, address);
+  EXPECT_TRUE(retryError.empty()) << retryError;
+
+  std::unique_lock<std::mutex> lock(m);
+  auto completed = waitForTest(cv, lock, [&] { return successDone; });
+  EXPECT_TRUE(completed);
+  EXPECT_EQ(timeoutCallbacks, 1);
+  EXPECT_EQ(successCallbacks, 1);
+}
+
+TEST(TcpListenerTimeoutTest, ListenerNoSpuriousTimeout) {
+  auto loop = std::make_shared<transport::tcp::Loop>();
+  auto attr = transport::tcp::CreateDeviceAttr({"localhost"});
+  transport::tcp::Listener listener(loop, attr);
+
+  std::mutex m;
+  std::condition_variable cv;
+  int callbacks = 0;
+  bool done = false;
+  bool sawSuccess = false;
+
+  auto address = listener.nextAddress();
+  listener.waitForConnection(
+      address.getSeq(),
+      std::chrono::milliseconds(500),
+      [&](std::shared_ptr<transport::tcp::Socket> socket,
+          const transport::tcp::Error& e) {
+        std::lock_guard<std::mutex> lock(m);
+        callbacks++;
+        done = true;
+        cv.notify_all();
+
+        EXPECT_NE(socket.get(), nullptr);
+        EXPECT_FALSE(e);
+        sawSuccess = true;
+      });
+
+  auto error = connectAndWriteSeq(loop, address);
+  EXPECT_TRUE(error.empty()) << error;
+
+  std::unique_lock<std::mutex> lock(m);
+  auto completed = waitForTest(cv, lock, [&] { return done; });
+  EXPECT_TRUE(completed);
+  EXPECT_TRUE(sawSuccess);
+  lock.unlock();
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(700));
+
+  std::lock_guard<std::mutex> guard(m);
+  EXPECT_EQ(callbacks, 1);
+}
+
+TEST_F(MultiProcTest, TcpLazyPeerExitBeforeFirstIo) {
+  auto lazyWorker = [&](std::shared_ptr<Context> context) {
+    if (context->rank == 0) {
+      std::this_thread::sleep_for(std::chrono::seconds(30));
+      return;
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    int sendScratch = 1;
+    auto& pair = context->getPair(0);
+    auto sendBuffer =
+        pair->createSendBuffer(0, &sendScratch, sizeof(sendScratch));
+    sendBuffer->send(0, sizeof(sendScratch));
+    sendBuffer->waitSend();
+  };
+  spawnAsyncNoBarrier(Transport::TCP_LAZY, 2, lazyWorker);
+
+  signalProcess(0, SIGKILL);
+  wait();
+
+  ASSERT_TRUE(WIFSIGNALED(getResult(0))) << getResult(0);
+  ASSERT_EQ(SIGKILL, WTERMSIG(getResult(0)));
+  ASSERT_TRUE(WIFEXITED(getResult(1))) << getResult(1);
+  ASSERT_EQ(kExitWithIoException, WEXITSTATUS(getResult(1)));
 }
 
 TEST_P(TransportMultiProcTest, IoErrors) {

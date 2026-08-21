@@ -38,6 +38,11 @@ class MultiProcTest : public ::testing::Test {
       int numRanks,
       std::function<void(std::shared_ptr<Context>)> fn);
 
+  void spawnAsyncNoBarrier(
+      Transport transport,
+      int numRanks,
+      std::function<void(std::shared_ptr<Context>)> fn);
+
   // Waits on each forked child process.
   void wait();
 
@@ -65,6 +70,7 @@ class MultiProcTest : public ::testing::Test {
       Transport transport,
       int size,
       int rank,
+      bool useBarrier,
       std::function<void(std::shared_ptr<Context>)> fn);
 
   std::string storePath_;
@@ -97,14 +103,17 @@ class MultiProcWorker {
       Transport transport,
       int size,
       int rank,
+      bool useBarrier,
       std::function<void(std::shared_ptr<Context>)> fn) {
     auto context = std::make_shared<::gloo::rendezvous::Context>(rank, size);
     auto device = createDevice(transport);
     context->setTimeout(std::chrono::milliseconds(kMultiProcTimeout));
     context->connectFullMesh(store_, device);
 
-    // Wait for all workers to be ready
-    ringBarrier(context);
+    if (useBarrier) {
+      // Wait for all workers to be ready
+      ringBarrier(context);
+    }
 
     device.reset();
     sem_post(semaphore_);

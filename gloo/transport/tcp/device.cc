@@ -230,8 +230,9 @@ Device::Device(const struct attr& attr, bool lazyInit)
       pciBusID_(interfaceToBusID(interfaceName_)) {}
 
 void Device::shutdown() {
-  loop_->shutdown();
+  // Shut down listener state before stopping the loop.
   listener_->shutdown();
+  loop_->shutdown();
 }
 
 Device::~Device() {
@@ -341,10 +342,9 @@ void Device::connect(
 //
 void Device::connectAsListener(
     const Address& local,
-    std::chrono::milliseconds /* unused */,
+    std::chrono::milliseconds timeout,
     connect_callback_t fn) {
-  // TODO(pietern): Use timeout.
-  listener_->waitForConnection(local.getSeq(), std::move(fn));
+  listener_->waitForConnection(local.getSeq(), timeout, std::move(fn));
 }
 
 // Connecting as initiator is active.

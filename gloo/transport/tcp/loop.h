@@ -15,7 +15,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
-#include <unordered_set>
+#include <unordered_map>
 
 #include <sys/epoll.h>
 
@@ -24,6 +24,7 @@ namespace transport {
 namespace tcp {
 
 class Loop;
+class Timer;
 
 // Handler abstract base class called by the epoll(2) event loop.
 // Dispatch to multiple types is needed because we must deal with a
@@ -78,6 +79,10 @@ class Loop final : public std::enable_shared_from_this<Loop> {
   void unregisterDescriptor(int fd, Handler* h);
 
   void defer(std::function<void()> fn);
+
+  std::shared_ptr<Timer> createTimer(std::function<void()> fn);
+
+  bool inLoopThread() const;
 
   void run();
 

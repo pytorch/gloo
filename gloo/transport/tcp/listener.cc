@@ -10,12 +10,13 @@
 
 #include <netinet/tcp.h>
 #include <string.h>
+#include <vector>
 
 #include <gloo/common/common.h>
 #include <gloo/common/logging.h>
 #include <gloo/common/utils.h>
 #include <gloo/transport/tcp/helpers.h>
-#
+#include <gloo/transport/tcp/timer.h>
 
 namespace gloo {
 namespace transport {
@@ -44,7 +45,31 @@ void Listener::shutdown() {
     return;
   }
 
-  *closed_ = true;
+  std::vector<connect_callback_t> callbacks;
+  std::vector<std::shared_ptr<Timer>> timers;
+  {
+    std::lock_guard<std::mutex> guard(mutex_);
+    *closed_ = true;
+    for (auto& it : seqToCallback_) {
+      if (!it.second.resolved) {
+        callbacks.push_back(std::move(it.second.fn));
+      }
+      if (it.second.timer) {
+        timers.push_back(it.second.timer);
+      }
+    }
+    seqToCallback_.clear();
+    seqToSocket_.clear();
+  }
+
+  for (auto& timer : timers) {
+    timer->cancel();
+  }
+  for (auto& fn : callbacks) {
+    auto socket = std::shared_ptr<Socket>();
+    auto error = LoopError("listener shut down while waiting for connection");
+    fn(socket, error);
+  }
   if (listener_) {
     loop_->unregisterDescriptor(listener_->fd(), this);
   }
@@ -110,17 +135,43 @@ Address Listener::nextAddress(int seq) {
   return Address(addr_.getSockaddr(), seq);
 }
 
-void Listener::waitForConnection(sequence_number_t seq, connect_callback_t fn) {
+void Listener::waitForConnection(
+    sequence_number_t seq,
+    std::chrono::milliseconds timeout,
+    connect_callback_t fn) {
   std::unique_lock<std::mutex> lock(mutex_);
 
   // If we don't yet have an fd for this sequence number, persist callback.
   auto it = seqToSocket_.find(seq);
   if (it == seqToSocket_.end()) {
-    seqToCallback_.emplace(seq, std::move(fn));
+    auto pendingIt = seqToCallback_.find(seq);
+    if (pendingIt != seqToCallback_.end()) {
+      if (pendingIt->second.resolved) {
+        seqToCallback_.erase(pendingIt);
+      } else {
+        GLOO_ENFORCE(
+            false,
+            "Duplicate waitForConnection for sequence number ",
+            std::to_string(seq));
+      }
+    }
+
+    PendingConnection pending{
+        std::move(fn),
+        nullptr,
+        false,
+    };
+    if (timeout != kNoTimeout) {
+      pending.timer =
+          loop_->createTimer([this, seq] { timeoutConnection(seq); });
+      pending.timer->schedule(timeout);
+    }
+    seqToCallback_.emplace(seq, std::move(pending));
     return;
   }
 
-  // If we already have an fd for this sequence number, schedule callback.
+  // If we already have an fd for this sequence number, schedule
+  // the callback.
   auto socket = std::move(it->second);
   seqToSocket_.erase(it);
   loop_->defer([fn, socket]() { fn(socket, Error::kSuccess); });
@@ -131,18 +182,57 @@ void Listener::haveConnection(
     sequence_number_t seq) {
   std::unique_lock<std::mutex> lock(mutex_);
 
-  // If we don't yet have a callback for this sequence number, persist socket.
+  // If we don't yet have a callback for this sequence number,
+  // persist the socket.
   auto it = seqToCallback_.find(seq);
   if (it == seqToCallback_.end()) {
     seqToSocket_.emplace(seq, std::move(socket));
     return;
   }
 
+  // If the wait for this sequence number already timed out, drop the late
+  // socket instead of stashing it again.
+  if (it->second.resolved) {
+    seqToCallback_.erase(it);
+    return;
+  }
+
   // If we already have a callback for this sequence number, trigger it.
-  auto fn = std::move(it->second);
+  auto fn = std::move(it->second.fn);
+  auto timer = std::move(it->second.timer);
+  it->second.resolved = true;
   seqToCallback_.erase(it);
   lock.unlock();
-  fn(std::move(socket), Error::kSuccess);
+  if (timer) {
+    timer->cancel();
+  }
+  // Keep success callbacks on the loop thread.
+  auto complete = [fn = std::move(fn), socket = std::move(socket)]() mutable {
+    fn(std::move(socket), Error::kSuccess);
+  };
+  loop_->defer(std::move(complete));
+}
+
+void Listener::timeoutConnection(sequence_number_t seq) {
+  connect_callback_t fn;
+  std::unique_lock<std::mutex> lock(mutex_);
+  auto it = seqToCallback_.find(seq);
+  if (*closed_ || it == seqToCallback_.end() || it->second.resolved) {
+    return;
+  }
+
+  // Leave the resolved entry in place so that a late socket for the same
+  // sequence number can be detected and dropped in haveConnection.
+  it->second.resolved = true;
+  it->second.timer.reset();
+  fn = std::move(it->second.fn);
+  lock.unlock();
+
+  auto socket = std::shared_ptr<Socket>();
+  auto error = TimeoutError(
+      "timed out waiting for connection with sequence number " +
+      std::to_string(seq));
+  fn(socket, error);
 }
 
 } // namespace tcp
