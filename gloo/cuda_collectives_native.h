@@ -83,10 +83,8 @@ class CudaLocalNativeReduce : public LocalOp<T> {
 
         // Enable peer access for devA to memory on devB
         CUDA_CHECK(cudaSetDevice(devA));
-        (void)cudaDeviceEnablePeerAccess(devB, 0);
-
-        // Use cudaGetLastError so that any error is cleared.
-        auto err = cudaGetLastError();
+        cudaError_t err = cudaDeviceEnablePeerAccess(devB, 0);
+        // peer access already enabled
         if (err != cudaErrorPeerAccessAlreadyEnabled) {
           CUDA_CHECK(err);
         }
@@ -196,10 +194,8 @@ class CudaLocalNativeBroadcast : public LocalOp<T> {
 
         // Enable peer access for devA to memory on devB
         CUDA_CHECK(cudaSetDevice(devA));
-        (void)cudaDeviceEnablePeerAccess(devB, 0);
-
-        // Use cudaGetLastError so that any error is cleared.
-        auto err = cudaGetLastError();
+        cudaError_t err = cudaDeviceEnablePeerAccess(devB, 0);
+        // peer access already enabled
         if (err != cudaErrorPeerAccessAlreadyEnabled) {
           CUDA_CHECK(err);
         }
