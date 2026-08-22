@@ -28,7 +28,13 @@ void cudaSleep(cudaStream_t stream, size_t clocks) {
 
 int cudaNumDevices() {
   int n = 0;
-  CUDA_CHECK(cudaGetDeviceCount(&n));
+  auto err = cudaGetDeviceCount(&n);
+  if (err != cudaSuccess) {
+    // Return 1 as fallback so INSTANTIATE_TEST_CASE_P can register tests
+    // during listing on machines without GPUs. Tests will fail at runtime
+    // if GPUs are actually needed.
+    return 1;
+  }
   return n;
 }
 
