@@ -76,7 +76,11 @@ class Address : public ::gloo::transport::Address {
     sequence_number_t seq{kSequenceNumberUnset};
   };
 
+#if __GNUG__ && __GNUC__ < 5
+  static_assert(__has_trivial_copy(Impl), "!");
+#else
   static_assert(std::is_trivially_copyable<Impl>::value, "!");
+#endif
   static_assert(sizeof(Impl) <= kMaxByteSize, "!");
 
   Impl impl_;
