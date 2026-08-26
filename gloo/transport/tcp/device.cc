@@ -100,6 +100,15 @@ static void lookupAddrForHostname(struct attr& attr) {
   struct addrinfo* rp;
   for (rp = result; rp != nullptr; rp = rp->ai_next) {
     auto fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+
+    // Set SO_REUSEADDR to signal that reuse of the listening port is OK.
+    int on = 1;
+    rv = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const char*>(&on), sizeof(on));
+    if (rv == -1) {
+      close(fd);
+      GLOO_ENFORCE_NE(rv, -1);
+    }
+
     if (fd == -1) {
       continue;
     }
