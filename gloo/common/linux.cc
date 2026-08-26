@@ -20,6 +20,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -200,7 +201,7 @@ static int getInterfaceSpeedGLinkSettings(int sock, struct ifreq* ifr) {
   } ecmd;
   int rv;
 
-  ifr->ifr_data = (__caddr_t)&ecmd;
+  ifr->ifr_data = (caddr_t)&ecmd;
   memset(&ecmd, 0, sizeof(ecmd));
   ecmd.req.cmd = ETHTOOL_GLINKSETTINGS;
 
@@ -228,7 +229,7 @@ static int getInterfaceSpeedGSet(int sock, struct ifreq* ifr) {
   struct ethtool_cmd edata;
   int rv;
 
-  ifr->ifr_data = (__caddr_t)&edata;
+  ifr->ifr_data = (caddr_t)&edata;
   memset(&edata, 0, sizeof(edata));
   edata.cmd = ETHTOOL_GSET;
 
