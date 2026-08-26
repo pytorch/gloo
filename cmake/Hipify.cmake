@@ -17,11 +17,12 @@ set(HIPIFY_COMMAND
   --output-directory ${HIPIFY_OUTPUT_ROOT_DIR}
 )
 execute_process(
-  COMMAND ${HIPIFY_COMMAND} --list-files-only
+  COMMAND python ${HIPIFY_COMMAND} --list-files-only
   OUTPUT_VARIABLE HIPIFY_FILES
   RESULT_VARIABLE hipify_return_value
 )
 if (NOT hipify_return_value EQUAL 0)
+  message("hipify_return_value ${hipify_return_value}")
   message(FATAL_ERROR "Failed to get hipify files list!")
 endif()
 
@@ -33,10 +34,11 @@ prepend(HIPIFY_OUTPUT_FILES "${HIPIFY_OUTPUT_ROOT_DIR}/" "${HIPIFY_FILES}")
 #   COMMAND ${HIPIFY_COMMAND})
 
 execute_process(
-  COMMAND ${HIPIFY_COMMAND}
+  COMMAND python ${HIPIFY_COMMAND}
   RESULT_VARIABLE hipify_return_value
   )
 if (NOT hipify_return_value EQUAL 0)
+  message("hipify_return_value ${hipify_return_value}")
   message(FATAL_ERROR "Failed to get hipify files list!")
 endif()
 
