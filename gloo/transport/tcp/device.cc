@@ -8,6 +8,8 @@
 
 #include "gloo/transport/tcp/device.h"
 
+#include <array>
+
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <netinet/in.h>
