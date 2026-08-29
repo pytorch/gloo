@@ -1,3 +1,4 @@
+# pyre-unsafe
 """ Constants for annotations in the mapping.
 The constants defined here are used to annotate the mapping tuples in cuda_to_hip_mappings.py.
 They are based on
