@@ -120,7 +120,7 @@ The halving-doubling / binary-blocks algorithm is described and analyzed in
 (Thakur et al., Optimization of Collective Communication Operations in MPICH,
 IJHPCA, 2005).
 
-### allreducube_bcube
+### allreduce_bcube
 
 Additional variables used:
 * **B**: Base (maximum number of peers per step)
