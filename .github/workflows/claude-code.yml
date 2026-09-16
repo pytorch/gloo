@@ -1,0 +1,22 @@
+---
+name: Claude Code
+
+# yamllint disable-line rule:truthy
+on:
+  issue_comment:
+    types: [created]
+  issues:
+    types: [opened]
+
+permissions: {}
+
+jobs:
+  claude-code:
+    uses: pytorch/test-infra/.github/workflows/_claude-code.yml@main
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    # yamllint disable-line rule:comments
+    secrets: inherit # zizmor: ignore[secrets-inherit] Trusted PyTorch workflow.
