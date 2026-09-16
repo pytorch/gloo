@@ -9,6 +9,7 @@
 #include "gloo/common/logging.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
 #include <numeric>
 
@@ -18,27 +19,23 @@ namespace gloo {
 // each inquiry.
 LogLevel logLevel() {
   // Global log level. Initialized once.
-  static LogLevel log_level = LogLevel::UNSET;
-  if (log_level != LogLevel::UNSET) {
-    return log_level;
-  }
+  static const LogLevel log_level = []() {
+    const char* level = std::getenv("GLOO_LOG_LEVEL");
+    // Defaults to WARN.
+    if (level == nullptr) {
+      return LogLevel::WARN;
+    }
 
-  const char* level = getenv("GLOO_LOG_LEVEL");
-  // Defaults to WARN.
-  if (level == nullptr) {
-    log_level = LogLevel::WARN;
-    return log_level;
-  }
-
-  if (std::strcmp(level, "DEBUG") == 0) {
-    log_level = LogLevel::DEBUG;
-  } else if (std::strcmp(level, "INFO") == 0) {
-    log_level = LogLevel::INFO;
-  } else if (std::strcmp(level, "WARN") == 0) {
-    log_level = LogLevel::WARN;
-  } else {
-    log_level = LogLevel::ERROR;
-  }
+    if (std::strcmp(level, "DEBUG") == 0) {
+      return LogLevel::DEBUG;
+    } else if (std::strcmp(level, "INFO") == 0) {
+      return LogLevel::INFO;
+    } else if (std::strcmp(level, "WARN") == 0) {
+      return LogLevel::WARN;
+    } else {
+      return LogLevel::ERROR;
+    }
+  }();
   return log_level;
 }
 
