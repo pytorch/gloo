@@ -28,7 +28,6 @@
 #include "gloo/transport/tcp/context.h"
 #include "gloo/transport/tcp/unbound_buffer.h"
 
-
 namespace gloo {
 namespace transport {
 namespace tcp {
