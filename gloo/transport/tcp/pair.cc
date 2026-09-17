@@ -28,8 +28,6 @@
 #include "gloo/transport/tcp/context.h"
 #include "gloo/transport/tcp/unbound_buffer.h"
 
-#define FD_INVALID (-1)
-
 namespace gloo {
 namespace transport {
 namespace tcp {
@@ -40,6 +38,7 @@ namespace {
 // It is hard coded because making buffers larger than this would not
 // have much impact. Also see socket(7).
 constexpr size_t kMaxSendBufferSize = 32 * 1024 * 1024;
+constexpr int kInvalidFd = -1;
 
 } // namespace
 
@@ -56,7 +55,7 @@ Pair::Pair(
       sync_(false),
       timeout_(timeout),
       busyPoll_(false),
-      fd_(FD_INVALID),
+      fd_(kInvalidFd),
       sendBufferSize_(0),
       self_(
           useRankAsSeqNumber ? device_->nextAddress(rank)
@@ -81,7 +80,7 @@ void Pair::close() {
   // underlying file descriptor on the device thread.
   std::lock_guard<std::mutex> lock(m_);
   if (state_ != CLOSED) {
-    if (fd_ != FD_INVALID) {
+    if (fd_ != kInvalidFd) {
       struct linger sl;
       sl.l_onoff = 1;
       sl.l_linger = 0;
@@ -767,10 +766,10 @@ void Pair::changeState(state nextState) noexcept {
         break;
       case CONNECTING:
         // The pair may be in the CONNECTING state when it is destructed.
-        if (fd_ != FD_INVALID) {
+        if (fd_ != kInvalidFd) {
           device_->unregisterDescriptor(fd_, this);
           ::close(fd_);
-          fd_ = FD_INVALID;
+          fd_ = kInvalidFd;
         }
         break;
       case CONNECTED:
@@ -778,7 +777,7 @@ void Pair::changeState(state nextState) noexcept {
           device_->unregisterDescriptor(fd_, this);
         }
         ::close(fd_);
-        fd_ = FD_INVALID;
+        fd_ = kInvalidFd;
         break;
       case CLOSED:
         // This can't happen, because we ignore no-op state changes above.
