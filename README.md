@@ -16,7 +16,6 @@ Collective communications library with various primitives for multi-machine trai
   |
 </p>
 <p align="center">
-  <a href="https://opensource.fb.com/support-ukraine"><img alt="Support Ukraine" src="https://img.shields.io/badge/Support-Ukraine-FFD500?style=flat&labelColor=005BBB"></a>
   <a href="https://github.com/facebookincubator/gloo/actions/workflows/build-linux.yml"><img src="https://github.com/facebookincubator/gloo/actions/workflows/build-linux.yml/badge.svg" alt="CI-Linux"></a>
 
 </p>
