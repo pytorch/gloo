@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+# pyre-unsafe
 """ The Python Hipify script.
 ##
 # Copyright (c) 2015-2016 Advanced Micro Devices, Inc. All rights reserved.
