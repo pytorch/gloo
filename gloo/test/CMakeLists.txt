@@ -1,6 +1,7 @@
 find_package(OpenSSL 1.1.1 EXACT)
 
 set(GLOO_TEST_SRCS
+  "${CMAKE_CURRENT_SOURCE_DIR}/abort_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/allgather_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/allgatherv_test.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/allreduce_test.cc"

@@ -10,6 +10,7 @@
 
 #include <chrono>
 #include <exception>
+#include <condition_variable>
 
 #include "gloo/common/string.h"
 
@@ -19,6 +20,11 @@
 namespace gloo {
 
 const std::chrono::milliseconds kNoTimeout = std::chrono::milliseconds::zero();
+
+bool _is_aborted();
+void abort();
+void _register_cv(std::condition_variable *cv);
+void _deregister_cv(std::condition_variable *cv);
 
 // A base class for all gloo runtime errors
 struct Exception : public std::runtime_error {
