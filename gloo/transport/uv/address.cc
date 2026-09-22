@@ -8,7 +8,11 @@
 
 #include <gloo/transport/uv/address.h>
 
+#ifdef _WIN32
+#include <winsock2.h>
+#else
 #include <arpa/inet.h>
+#endif
 #include <string.h>
 
 #include <uv.h>
