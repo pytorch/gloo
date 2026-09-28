@@ -39,6 +39,7 @@ struct AllreduceOptionsImpl {
     UNSPECIFIED = 0,
     RING = 1,
     BCUBE = 2,
+    SHM = 3,
   };
 
   explicit AllreduceOptionsImpl(const std::shared_ptr<Context>& context)
