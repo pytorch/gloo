@@ -8,6 +8,11 @@
 
 #include <gloo/transport/uv/address.h>
 
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <arpa/inet.h>
+#endif
 #include <string.h>
 
 #include <uv.h>
@@ -60,11 +65,11 @@ std::string Address::str() const {
   if (impl_.ss.ss_family == AF_INET) {
     auto in = (struct sockaddr_in*)&impl_.ss;
     uv_ip4_name(in, str + 1, sizeof(str) - 1);
-    port = in->sin_port;
+    port = ntohs(in->sin_port);
   } else if (impl_.ss.ss_family == AF_INET6) {
     auto in6 = (struct sockaddr_in6*)&impl_.ss;
     uv_ip6_name(in6, str + 1, sizeof(str) - 1);
-    port = in6->sin6_port;
+    port = ntohs(in6->sin6_port);
   } else {
     snprintf(str + 1, sizeof(str) - 1, "none");
   }
