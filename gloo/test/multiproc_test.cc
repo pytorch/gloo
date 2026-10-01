@@ -10,6 +10,7 @@
 
 #include <fcntl.h>
 #include <ftw.h>
+#include <unistd.h>
 
 #include <array>
 #include <sstream>
@@ -65,7 +66,7 @@ void MultiProcTest::spawnAsync(
       // Forked process will create a Context and run the provided function,
       // exiting upon completion.
       const auto result = runWorker(transport, numRanks, i, true, fn);
-      exit(result);
+      _exit(result);
     } else {
       // Parent process tracks all forked child processes.
       workers_.push_back(pid);
@@ -96,7 +97,7 @@ void MultiProcTest::spawnAsyncNoBarrier(
       // Forked process will create a Context and run the provided function,
       // exiting upon completion.
       const auto result = runWorker(transport, numRanks, i, false, fn);
-      exit(result);
+      _exit(result);
     } else {
       // Parent process tracks all forked child processes.
       workers_.push_back(pid);
