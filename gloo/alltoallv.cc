@@ -21,6 +21,8 @@ static void splitOffsetsAndLengths(
     size_t elementSize,
     std::vector<size_t>& offsets,
     std::vector<size_t>& lengths) {
+  offsets.clear();
+  lengths.clear();
   size_t offset = 0;
   for (size_t elements : elementsPerRank) {
     size_t length = elements * elementSize;
