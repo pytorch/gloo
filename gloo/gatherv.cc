@@ -99,9 +99,7 @@ void gatherv(GathervOptions& opts) {
       out->waitRecv(opts.timeout);
     }
   } else {
-    size_t sendLength = opts.elementSize * opts.elementsPerRank[context->rank];
-    GLOO_ENFORCE_GE(in->size, sendLength);
-    in->send(opts.root, slot, 0, sendLength);
+    in->send(opts.root, slot, 0, in->size);
     in->waitSend(opts.timeout);
   }
 }
