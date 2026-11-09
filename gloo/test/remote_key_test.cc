@@ -171,6 +171,29 @@ INSTANTIATE_TEST_CASE_P(
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(RemoteKeyTest);
 
+class RegisterFailureTest : public BaseTest,
+                            public ::testing::WithParamInterface<Transport> {};
+
+// A buffer that cannot be registered must raise the ibv_reg_mr error
+// instead of crashing.
+TEST_P(RegisterFailureTest, UnmappedPointer) {
+  const auto transport = GetParam();
+
+  spawn(transport, 1, [&](std::shared_ptr<Context> context) {
+    // Nothing is mapped at this address, so ibv_reg_mr fails with EFAULT.
+    void* ptr = reinterpret_cast<void*>(0x1000);
+    EXPECT_THROW(
+        context->createUnboundBuffer(ptr, 4096), ::gloo::EnforceNotMet);
+  });
+}
+
+INSTANTIATE_TEST_CASE_P(
+    RegisterFailure,
+    RegisterFailureTest,
+    ::testing::ValuesIn(kTransportsForRDMA));
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(RegisterFailureTest);
+
 } // namespace
 } // namespace test
 } // namespace gloo
