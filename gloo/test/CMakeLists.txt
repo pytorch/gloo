@@ -18,6 +18,7 @@ set(GLOO_TEST_SRCS
   "${CMAKE_CURRENT_SOURCE_DIR}/send_recv_test.cc"
   )
 set(GLOO_TEST_LIBRARIES)
+set(GLOO_TEST_OPENSSL_LIBRARIES)
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
   list(APPEND GLOO_TEST_SRCS
@@ -34,7 +35,8 @@ if(${OpenSSL_FOUND})
   list(APPEND GLOO_TEST_SRCS
   "${CMAKE_CURRENT_SOURCE_DIR}/openssl_utils.cc"
   )
-  list(APPEND GLOO_TEST_LIBRARIES OpenSSL::SSL OpenSSL::Crypto)
+  set(GLOO_TEST_OPENSSL_LIBRARIES OpenSSL::SSL OpenSSL::Crypto)
+  list(APPEND GLOO_TEST_LIBRARIES ${GLOO_TEST_OPENSSL_LIBRARIES})
 endif()
 
 
@@ -65,7 +67,7 @@ if(USE_CUDA)
     else()
       cuda_add_executable(gloo_test_cuda ${GLOO_TEST_CUDA_SRCS})
     endif()
-    target_link_libraries(gloo_test_cuda gloo_cuda gtest OpenSSL::SSL OpenSSL::Crypto ${GLOO_CUDA_LIBRARIES})
+    target_link_libraries(gloo_test_cuda gloo_cuda gtest ${GLOO_TEST_OPENSSL_LIBRARIES} ${GLOO_CUDA_LIBRARIES})
   endif()
 endif()
 
@@ -80,5 +82,5 @@ if(USE_ROCM)
     )
 
   gloo_hip_add_executable(gloo_test_hip ${GLOO_TEST_HIP_SRCS})
-  target_link_libraries(gloo_test_hip PRIVATE gloo_hip gtest OpenSSL::SSL OpenSSL::Crypto)
+  target_link_libraries(gloo_test_hip PRIVATE gloo_hip gtest ${GLOO_TEST_OPENSSL_LIBRARIES})
 endif()
