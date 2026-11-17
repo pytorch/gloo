@@ -151,6 +151,7 @@ std::shared_ptr<::gloo::transport::Device> createDevice(Transport transport) {
     }
     gloo::transport::ibverbs::attr attr;
     attr.port = 1;
+    attr.index = 0;
     try {
       return ::gloo::transport::ibverbs::CreateDevice(attr);
     } catch (const std::exception& e) {
