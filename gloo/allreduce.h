@@ -126,6 +126,7 @@ class AllreduceOptions {
   void setInputs(T** ptrs, size_t len, size_t elements) {
     impl_.elements = elements;
     impl_.elementSize = sizeof(T);
+    impl_.in.clear();
     impl_.in.reserve(len);
     for (size_t i = 0; i < len; i++) {
       impl_.in.push_back(
@@ -161,6 +162,7 @@ class AllreduceOptions {
   void setOutputs(T** ptrs, size_t len, size_t elements) {
     impl_.elements = elements;
     impl_.elementSize = sizeof(T);
+    impl_.out.clear();
     impl_.out.reserve(len);
     for (size_t i = 0; i < len; i++) {
       impl_.out.push_back(
