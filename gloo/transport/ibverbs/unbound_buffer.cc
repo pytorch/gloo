@@ -40,8 +40,6 @@ UnboundBuffer::UnboundBuffer(
       IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
           IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_ATOMIC);
 
-  remoteKey_.emplace(context_->rank, mr->addr, size, mr->lkey);
-
   // Provide hint if the error is EFAULT and nv_peer_mem is not loaded
   if (mr == nullptr && errno == EFAULT) {
     if (!dev->hasNvPeerMem_) {
@@ -72,6 +70,7 @@ UnboundBuffer::UnboundBuffer(
       " size=",
       size);
 
+  remoteKey_.emplace(context_->rank, mr->addr, size, mr->rkey);
   mr_ = mr;
 }
 
