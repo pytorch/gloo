@@ -650,10 +650,17 @@ void Pair::handleCompletion(struct ibv_wc* wc) {
         ": ",
         ibv_wc_status_str(wc->status));
 
+    // The handler queue can be empty if the buffer that posted this send
+    // was destroyed before its completion arrived: Buffer::~Buffer()
+    // clears its slot's handlers, e.g. when an algorithm returns without
+    // waiting for its final send. Drop the stale completion, as the
+    // receive path above does.
     auto& q = sendCompletionHandlers_[slot];
-    q.front()->handleCompletion(rank_, wc);
-    if (!q.front()->isPeristentHandler()) {
-      q.pop_front();
+    if (!q.empty()) {
+      q.front()->handleCompletion(rank_, wc);
+      if (!q.front()->isPeristentHandler()) {
+        q.pop_front();
+      }
     }
   } else if (wc->opcode == IBV_WC_RECV) {
     GLOO_DEBUG(
