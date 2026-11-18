@@ -11,6 +11,7 @@
 
 #if GLOO_HAVE_TRANSPORT_IBVERBS
 #include <infiniband/verbs.h>
+#include <cstring>
 #endif
 
 namespace gloo {
@@ -60,6 +61,17 @@ static bool probeIbverbs() {
   if (!deviceList || numDevices == 0) {
     if (deviceList)
       ibv_free_device_list(deviceList);
+    return false;
+  }
+  // rxe (soft-RoCE) and siw (soft-iWARP) are software RDMA providers that
+  // create queue pairs successfully but do not reliably deliver work
+  // completions. The creation-only checks below would pass, and the test
+  // would then hang on a lost completion. Reject them so the test skips.
+  const char* deviceName = ibv_get_device_name(deviceList[0]);
+  if (deviceName != nullptr &&
+      (strncmp(deviceName, "rxe", 3) == 0 ||
+       strncmp(deviceName, "siw", 3) == 0)) {
+    ibv_free_device_list(deviceList);
     return false;
   }
   struct ibv_context* ctx = ibv_open_device(deviceList[0]);
