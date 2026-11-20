@@ -217,8 +217,8 @@ void ring(
   const size_t segmentBytes =
       roundUp((totalBytes + numSegments - 1) / numSegments, opts.elementSize);
 
-  // Allocate scratch space to hold two chunks
-  std::unique_ptr<uint8_t[]> tmpAllocation(new uint8_t[segmentBytes * 2]);
+  // Initialize scratch so short receives cannot expose uninitialized bytes.
+  std::unique_ptr<uint8_t[]> tmpAllocation(new uint8_t[segmentBytes * 2]());
   std::unique_ptr<transport::UnboundBuffer> tmpBuffer =
       context->createUnboundBuffer(tmpAllocation.get(), segmentBytes * 2);
   transport::UnboundBuffer* tmp = tmpBuffer.get();
