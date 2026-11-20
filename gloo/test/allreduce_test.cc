@@ -8,6 +8,7 @@
 
 #include <stdlib.h>
 
+#include <array>
 #include <functional>
 #include <thread>
 #include <vector>
@@ -303,6 +304,49 @@ using NewParam = std::tuple<Transport, int, int, int, bool, Algorithm>;
 
 class AllreduceNewTest : public BaseTest,
                          public ::testing::WithParamInterface<NewParam> {};
+
+TEST_F(AllreduceNewTest, RingShortReceive) {
+  // Exercise both scratch segments with empty and partial payloads.
+  for (size_t length : {size_t(0), size_t(1), sizeof(uint64_t) - 1}) {
+    spawn(Transport::TCP, 2, [&](std::shared_ptr<Context> context) {
+      context->setTimeout(std::chrono::seconds(5));
+      std::array<uint64_t, 4> data{};
+      if (context->rank == 0) {
+        AllreduceOptions opts(context);
+        opts.setAlgorithm(Algorithm::RING);
+        opts.setOutput(data.data(), data.size());
+        opts.setReduceFunction(
+            [](void* out, const void* a, const void* b, size_t n) {
+              for (size_t i = 0; i < n; i++) {
+                static_cast<uint64_t*>(out)[i] =
+                    static_cast<const uint64_t*>(a)[i] +
+                    static_cast<const uint64_t*>(b)[i];
+              }
+            });
+        allreduce(opts);
+      } else {
+        const auto slot = Slot::build(kAllreduceSlotPrefix, 0);
+        auto buffer = context->createUnboundBuffer(data.data(), sizeof(data));
+        // Match rank 0's reduce/scatter, but leave each scratch tail unwritten.
+        for (size_t i = 0; i < 2; i++) {
+          buffer->recv(0, slot, i * sizeof(uint64_t), sizeof(uint64_t));
+          buffer->send(0, slot, 2 * sizeof(uint64_t), length);
+          buffer->waitRecv();
+          buffer->waitSend();
+        }
+        // Receive the reduced segments as rank 0 forwards them in allgather.
+        for (size_t i = 0; i < 2; i++) {
+          buffer->recv(0, slot, i * sizeof(uint64_t), sizeof(uint64_t));
+          buffer->send(0, slot, 2 * sizeof(uint64_t), sizeof(uint64_t));
+          buffer->waitRecv();
+          buffer->waitSend();
+        }
+      }
+      EXPECT_EQ(data[0], 0);
+      EXPECT_EQ(data[1], 0);
+    });
+  }
+}
 
 TEST_P(AllreduceNewTest, Default) {
   const auto transport = std::get<0>(GetParam());
