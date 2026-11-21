@@ -135,6 +135,13 @@ void Context::createAndConnectAllPairs(std::shared_ptr<IStore> store) {
       }
 
       Rank remoteRankInfo(remoteRankInfos[i]);
+      if (!useRankAsSeqNum) {
+        GLOO_ENFORCE_EQ(
+            remoteRankInfo.pairIdentifiers.size(),
+            static_cast<size_t>(size),
+            "Invalid pair identifier count for rank ",
+            i);
+      }
 
       if (!localRankSet && remoteRankInfo.hostname == localHostName) {
         ++localRank;
