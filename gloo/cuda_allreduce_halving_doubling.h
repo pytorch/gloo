@@ -85,6 +85,10 @@ class CudaAllreduceHalvingDoubling : public Algorithm {
   // the allgather
   std::vector<size_t> recvOffsets_;
 
+  // Keep receive storage alive until every transport buffer is unregistered,
+  // including when construction fails after registering some buffers.
+  typename W::Pointer recvBuf_;
+
   std::vector<std::unique_ptr<transport::Buffer>> sendDataBufs_;
   std::vector<std::unique_ptr<transport::Buffer>> recvDataBufs_;
 
@@ -107,9 +111,6 @@ class CudaAllreduceHalvingDoubling : public Algorithm {
 
   std::unique_ptr<LocalOp<T>> localReduceOp_;
   std::unique_ptr<LocalOp<T>> localBroadcastOp_;
-
-  // buffer where data is received prior to being reduced
-  typename W::Pointer recvBuf_;
 
   typename W::Pointer scratchPtrForFirstSend_;
   typename W::Pointer scratchPtrForFirstRecv_;
