@@ -753,7 +753,21 @@ void Pair::registerBuffer(Buffer* buf) {
 
 void Pair::unregisterBuffer(Buffer* buf) {
   std::lock_guard<std::mutex> lock(m_);
-  buffers_.erase(buf->slot_);
+  const bool pendingSend = std::any_of(
+      tx_.begin(), tx_.end(), [buf](const Op& op) { return op.buf == buf; });
+  if (rx_.buf == buf || pendingSend) {
+    // A partial frame cannot be resumed once its backing buffer is gone.
+    // Signal waiters while all buffer pointers are still valid.
+    if (!ex_) {
+      signalException("Buffer destroyed while an operation is pending");
+    }
+    rx_ = Op();
+    tx_.clear();
+  }
+  auto it = buffers_.find(buf->slot_);
+  if (it != buffers_.end() && it->second == buf) {
+    buffers_.erase(it);
+  }
 }
 
 // changeState must only be called when holding lock.
