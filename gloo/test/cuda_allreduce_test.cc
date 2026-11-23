@@ -21,6 +21,79 @@ namespace gloo {
 namespace test {
 namespace {
 
+// Check storage lifetime at transport-buffer destruction without racing I/O.
+class HostStorageCheckedBuffer : public transport::Buffer {
+ public:
+  HostStorageCheckedBuffer(
+      std::unique_ptr<transport::Buffer> buffer,
+      void* storage,
+      size_t* destroyed)
+      : Buffer(0, storage, 0),
+        buffer_(std::move(buffer)),
+        destroyed_(destroyed) {}
+
+  ~HostStorageCheckedBuffer() override {
+    unsigned int flags = 0;
+    EXPECT_EQ(cudaHostGetFlags(&flags, ptr_), cudaSuccess);
+    ++*destroyed_;
+  }
+
+  void send(size_t offset, size_t length, size_t roffset) override {
+    buffer_->send(offset, length, roffset);
+  }
+  void waitRecv() override {
+    buffer_->waitRecv();
+  }
+  void waitSend() override {
+    buffer_->waitSend();
+  }
+
+ private:
+  std::unique_ptr<transport::Buffer> buffer_;
+  size_t* destroyed_;
+};
+
+class LifetimeCheckedAllreduce : public CudaAllreduceHalvingDoubling<float> {
+ public:
+  using CudaAllreduceHalvingDoubling<float>::CudaAllreduceHalvingDoubling;
+
+  size_t checkReceiveStorage(size_t* destroyed) {
+    size_t count = 0;
+    auto wrap = [&](std::unique_ptr<transport::Buffer>& buffer) {
+      if (!buffer) {
+        return;
+      }
+      buffer = std::make_unique<HostStorageCheckedBuffer>(
+          std::move(buffer), *recvBuf_, destroyed);
+      ++count;
+    };
+    for (auto& buffer : recvDataBufs_) {
+      wrap(buffer);
+    }
+    wrap(smallerBlockRecvDataBuf_);
+    for (auto& buffer : largerBlockRecvDataBufs_) {
+      wrap(buffer);
+    }
+    return count;
+  }
+};
+
+TEST_F(CudaBaseTest, HalvingDoublingReceiveStorageLifetime) {
+  // Cover both power-of-two and unequal binary-block receive buffers.
+  for (int size : {2, 3, 6}) {
+    spawn(Transport::TCP, size, [&](std::shared_ptr<Context> context) {
+      CudaFixture<float> fixture(context, 1, 64);
+      size_t destroyed = 0;
+      auto algorithm = std::make_unique<LifetimeCheckedAllreduce>(
+          context, fixture.getCudaPointers(), 64, fixture.getCudaStreams());
+      const auto expected = algorithm->checkReceiveStorage(&destroyed);
+      EXPECT_GT(expected, 0);
+      algorithm.reset();
+      EXPECT_EQ(destroyed, expected);
+    });
+  }
+}
+
 // Function to instantiate and run algorithm.
 using Func = std::unique_ptr<::gloo::Algorithm>(
     std::shared_ptr<::gloo::Context>&,
