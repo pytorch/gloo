@@ -91,8 +91,8 @@ if(USE_LIBUV)
 
     add_library(uv_a INTERFACE IMPORTED)
     set_target_properties(uv_a PROPERTIES
-      INTERFACE_INCLUDE_DIRECTORIES ${libuv_INCLUDE_DIRS}
-      INTERFACE_LINK_LIBRARIES ${libuv_LIBRARY}
+      INTERFACE_INCLUDE_DIRECTORIES "${libuv_INCLUDE_DIRS}"
+      INTERFACE_LINK_LIBRARIES "${libuv_LIBRARY}"
       )
   endif()
 endif()
