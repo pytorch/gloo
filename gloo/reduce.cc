@@ -87,8 +87,8 @@ void reduce(ReduceOptions& opts) {
   // rounding it up to the nearest multiple of the element size.
   // For example, if maxSegmentSize = 10, and elementSize = 4,
   // then after rounding up: segmentSize = 12;
-  const size_t maxSegmentSize =
-      opts.elementSize * (opts.maxSegmentSize / opts.elementSize);
+  const size_t maxSegmentSize = opts.elementSize *
+      std::max((size_t)1, opts.maxSegmentSize / opts.elementSize);
 
   // The number of bytes per segment must be a multiple of the bytes
   // per element for the reduction to work; round up if necessary.

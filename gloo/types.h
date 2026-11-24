@@ -134,7 +134,7 @@ struct alignas(2) float16 {
   }
 
   bool operator!=(const float16& rhs) const {
-    return !(*this == rhs.x);
+    return !(*this == rhs);
   }
 
   bool operator==(const int& rhs) const {
