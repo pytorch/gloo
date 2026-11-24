@@ -37,7 +37,7 @@ FileStore::FileStore(const std::string& path) {
 }
 
 std::string FileStore::realPath(const std::string& path) {
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) || defined(__MINGW32__)
   std::array<char, _MAX_PATH> buf;
   auto ret = _fullpath(buf.data(), path.c_str(), buf.size());
 #else
